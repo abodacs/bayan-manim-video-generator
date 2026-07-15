@@ -5,7 +5,7 @@ description = "Bayan: Arabic AI-Powered Manim Video Generator"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "manim>=0.18.0",
+    "manim>=0.20.0",
     "typer>=0.9.0",
     "arabic-reshaper>=3.0.0",
     "python-bidi>=0.4.2",
@@ -17,6 +17,7 @@ dev = [
     "pytest>=8.0.0",
     "pytest-cov>=4.0.0",
     "ruff>=0.2.0",
+    "setuptools<81",
     "mypy>=1.8.0",
 ]
 
