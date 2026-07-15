@@ -34,6 +34,11 @@ The `fonts-noto-core` package provides it on Ubuntu/Debian.
 choco install ffmpeg pango cairo -y
 ```
 
+### Installation on Linux (Debian/Ubuntu):
+```bash
+sudo apt-get install -y libcairo2-dev libpango1.0-dev libpangocairo-1.0-0 ffmpeg
+```
+
 ## Setup & Development
 
 If this is your first time using the project, follow these steps in order. You
@@ -95,5 +100,7 @@ system requirements above and run `uv sync` again.
 
 ## Tools Configured
 - **Package Manager**: `uv` (PEP 621 & PEP 735)
-- **Linter & Formatter**: `ruff`
-- **Testing**: `pytest`
+- **Linter & Formatter**: `ruff` (`uv run ruff check .`, `uv run ruff format .`)
+- **Type Checker**: `mypy` (`uv run mypy bayan` — strict; Manim scenes excluded)
+- **Testing**: `pytest` with coverage (`uv run pytest`, reports `--cov=bayan`)
+- **CI**: `.github/workflows/ci.yml` — ruff, mypy, and pytest run on every push and pull request
