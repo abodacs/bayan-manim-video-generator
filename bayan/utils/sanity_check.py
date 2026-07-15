@@ -1,5 +1,6 @@
 from manim import *
 
+
 class SanityCheckScene(Scene):
     def construct(self):
         square = Square()
