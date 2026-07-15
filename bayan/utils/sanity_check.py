@@ -1,9 +1,9 @@
-from manim import Scene, Write
+from manim import LaggedStart, Scene, Write
 
 # Manim loads scene files as standalone modules and puts the file's own
 # directory on sys.path (not the project root), so we import the sibling
 # module directly rather than via the `bayan.utils` package path.
-from arabic_helper import ArabicText
+from arabic_helper import ArabicText, rtl_glyphs
 
 
 class ArabicSanityCheck(Scene):
@@ -18,9 +18,16 @@ class ArabicSanityCheck(Scene):
     def construct(self):
         title = ArabicText(
             "مرحبا بالعالم",
-            font="Amiri",
+            font="Noto Sans Arabic",
             font_size=48,
         )
 
-        self.play(Write(title))
+        glyphs = rtl_glyphs(title)
+        self.play(
+            LaggedStart(
+                *(Write(glyph) for glyph in glyphs.submobjects),
+                lag_ratio=0.15,
+                run_time=1.5,
+            )
+        )
         self.wait(1)

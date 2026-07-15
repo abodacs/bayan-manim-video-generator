@@ -1,6 +1,6 @@
 import arabic_reshaper
 from bidi.algorithm import get_display
-from manim import Text
+from manim import Text, VGroup
 
 
 def reshape_arabic_text(raw_text: str) -> str:
@@ -19,11 +19,13 @@ def reshape_arabic_text(raw_text: str) -> str:
 
 
 class ArabicText(Text):
-    def __init__(self, text: str, font: str = "Amiri", **kwargs):
-        processed_text = reshape_arabic_text(text)
+    """Text that delegates Arabic shaping and RTL layout to Manim/Pango."""
 
-        print("Original :", repr(text))
-        print("Processed:", repr(processed_text))
+    def __init__(self, text: str, font: str = "Noto Sans Arabic", **kwargs):
+        self.raw_text = text
+        super().__init__(text, font=font, **kwargs)
 
-        kwargs.setdefault("disable_ligatures", True)
-        super().__init__(processed_text, font=font, **kwargs)
+
+def rtl_glyphs(text: Text) -> VGroup:
+    """Return a text's glyphs in visual right-to-left order."""
+    return VGroup(*reversed(text.submobjects))
