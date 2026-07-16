@@ -31,3 +31,9 @@ browser workflow or `gh pr create`:
 
 Use the repository’s default branch as `base`, include a concise summary and
 validation notes in the body, and report the returned pull-request URL.
+
+## Python comments
+
+Python comments must use English alphabetic characters. Arabic and other
+non-English content belongs in Python string literals, not comments. Run
+uv run pre-commit run --all-files to check this rule before committing.

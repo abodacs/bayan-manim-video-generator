@@ -96,6 +96,14 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy bayan
 uv run pytest
+uv run pre-commit run --all-files
+```
+
+Install the commit and push hooks once per clone:
+
+```bash
+uv run pre-commit install
+uv run pre-commit install --hook-type pre-push
 ```
 
 The type checker runs in strict mode for ordinary package code. Manim scene
