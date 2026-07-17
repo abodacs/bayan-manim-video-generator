@@ -1,0 +1,64 @@
+name: Task
+description: Track a discrete piece of work
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: "Use this for a single, well-scoped task. One issue = one task."
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: Short description of the task
+      placeholder: "Implement X"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Context
+      description: Why does this task exist?
+      placeholder: "We need X because..."
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is in and out of scope?
+      placeholder: "In scope: ...\nOut of scope: ..."
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: What must be true for this to be done?
+      placeholder: "- [ ] ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: status
+    attributes:
+      label: Status
+      description: Initial workflow status (project will track this too)
+      options:
+        - Backlog
+        - Todo
+        - In Progress
+        - Review
+        - Blocked
+        - Done
+      default: 0
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0
+        - P1
+        - P2
+        - P3
+      default: 2
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Links to blocking issues or external dependencies
+      placeholder: "- #123\n- External: ..."
