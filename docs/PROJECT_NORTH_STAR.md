@@ -1,6 +1,6 @@
 # Project North Star
 
-**Status:** Proposed
+**Status:** Proposed — assumption-led strategy
 
 ## North-star statement
 
@@ -27,6 +27,52 @@ rendering specialist.
 Engineers are an important secondary audience: the system must remain easy to
 debug, extend, and operate as the generation pipeline grows.
 
+## Working product strategy
+
+This strategy is a working hypothesis. The repository contains no educator
+interviews, usage analytics, or observed workflow evidence yet, so the user
+opportunities below must be validated before the product direction is treated
+as settled.
+
+### Bounded first-slice outcome
+
+An Arabic-speaking educator should be able to submit one structured lesson
+segment and receive a reviewable, reproducible video artifact with an
+inspectable scene plan and Arabic validation result. The business outcome this
+serves—such as reducing authoring and review time—has not been measured yet and
+remains an open strategy decision.
+
+### Unvalidated opportunities by journey moment
+
+- **Lesson setup:** “I can describe a focused lesson segment without learning
+  Manim or Arabic typography.”
+- **Plan review:** “I can inspect what the system intends to teach before
+  executable scene code is trusted.”
+- **Render diagnosis:** “I can tell whether an Arabic, visual, content, or
+  safety check failed and what to fix.”
+- **Acceptance:** “I can correct or reject a result instead of publishing on
+  blind trust.”
+
+### Priority solution bets and cheap tests
+
+1. **A deterministic scene-plan contract and known-good generator.** The risky
+   assumption is that a platform-neutral plan is understandable enough for an
+   educator to review. Test it by hand-authoring plans for three lesson
+   segments and asking educators to predict and critique the intended visuals.
+2. **An isolated render worker with a reproducibility manifest and validation
+   results.** The risky assumption is that clear diagnostics and a safe
+   execution boundary make failures recoverable for a non-specialist. Test it
+   with one successful render and one intentionally failing render, then check
+   whether a reviewer can identify the failure stage and reproduce the attempt.
+3. **Arabic-first rendering and validation as a release gate.** The risky
+   assumption is that shaping, RTL order, and mixed-script behavior are common
+   enough failure points to justify first-class treatment. Test it against a
+   small Arabic-heavy sample set that includes mixed Arabic, Latin, and numbers.
+
+Model-assisted generation, a public CLI/API, queues, persistence, audio, and
+autonomous publishing are deferred until the deterministic single-job slice
+proves that the reviewable artifact is valuable and trustworthy.
+
 ## Principles
 
 1. **Arabic correctness is a product requirement.** RTL layout, glyph shaping,
@@ -46,6 +92,7 @@ debug, extend, and operate as the generation pipeline grows.
 
 - Arabic shaping and RTL glyph helpers exist.
 - A Manim sanity scene provides a visual rendering check.
+- Focused unit tests cover the Arabic helper and repository comment policy.
 - Python packaging, linting, typing, and unit-test tooling are configured.
 
 ### First useful vertical slice

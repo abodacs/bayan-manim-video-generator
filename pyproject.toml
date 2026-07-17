@@ -61,8 +61,9 @@ exclude = [
 # -----------------------------------------------------------------------------
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# fail-under=0 today (package is a skeleton — no domain logic yet). Raise as
-# issue #2 (Arabic RTL utils) lands real, testable code.
+# Keep the threshold at zero while the first vertical slice is incomplete.
+# The Arabic helper already has focused coverage; raise this gate as the
+# generation, rendering, and validation boundaries gain testable contracts.
 addopts = "--cov=bayan --cov-report=term-missing --cov-fail-under=0"
 
 [tool.coverage.run]
