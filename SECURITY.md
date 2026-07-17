@@ -2,28 +2,20 @@
 
 ## Reporting a Vulnerability
 
-Please report security issues privately.
-
-Preferred method:
-- Use GitHub Security Advisories (if enabled in this repository).
-
-Fallback method:
-- Email: security@learnyourway.example (replace with the correct address).
+Please report security issues privately through GitHub Security Advisories when
+that feature is enabled for the repository. If it is unavailable, contact a
+repository maintainer privately through GitHub before opening an issue.
 
 Do not open public issues for security vulnerabilities.
 
 ## Scope
 
 In scope:
-- Backend API and services
-- Authentication and authorization flows
-- Data handling and storage
-- Build and deployment tooling
+- Arabic text shaping, right-to-left layout, and rendering behavior
+- Generated scene-code execution and isolation boundaries
+- Dependency, packaging, and build tooling
+- Accidental disclosure of secrets or sensitive data
 
 Out of scope:
 - Issues that require physical device access
 - Social engineering
-
-## Response Targets
-
-We aim to acknowledge reports within 72 hours and provide a remediation plan within 14 days.
