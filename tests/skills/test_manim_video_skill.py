@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SKILL_DIR = ROOT / "skills" / "creative" / "manim-video"
+SKILL_DIR = ROOT / ".agents" / "skills" / "manim-video"
 
 EXPECTED_REFERENCES = {
     "animation-design-thinking.md",
