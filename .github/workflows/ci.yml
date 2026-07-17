@@ -17,7 +17,7 @@ jobs:
     name: Lint, type-check, test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Manim native dependencies (cairo / pango / ffmpeg)
         # Manim -> pycairo/manimpango build against Cairo and Pango headers, and
@@ -31,7 +31,7 @@ jobs:
             ffmpeg
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
