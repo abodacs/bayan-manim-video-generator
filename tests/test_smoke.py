@@ -1,9 +1,10 @@
 """Smoke tests for the bayan package.
 
 These verify the package is importable and its namespace is intact. They do
-NOT exercise Manim rendering, which requires the cairo/pango/ffmpeg native
-dependencies. Real unit tests for domain logic arrive with issue #2 (Arabic RTL
-& ligature reshaping) -- the first feature with testable, render-free logic.
+not exercise Manim rendering, which requires the cairo/pango/ffmpeg native
+dependencies. Deterministic Arabic helper behavior is covered separately in
+``test_arabic_helper.py``; render-level verification remains a manual sanity
+scene check.
 """
 
 import importlib

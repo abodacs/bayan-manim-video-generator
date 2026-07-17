@@ -137,11 +137,19 @@ docs/
     └── agdr/                       Architecture and developer decisions
         ├── AgDR-0001-type-checker.md
         └── AgDR-0002-render-isolation.md
+skills/
+└── creative/
+    └── manim-video/                Project-scoped Manim video skill
 tests/
     ├── test_arabic_helper.py       Arabic shaping and glyph-order tests
     └── test_smoke.py               Package import smoke tests
 main.py                         Current application entry-point placeholder
 ```
+
+The Manim video skill under `skills/creative/manim-video/` is intentionally
+project-scoped and versioned with this repository. Keep it available to
+contributors working on Bayan; it should not be replaced by a global skill
+installation.
 
 ## Architecture direction
 
