@@ -20,3 +20,9 @@ dev = [
     "setuptools<81",
 ]
 
+[project.scripts]
+bayan = "bayan.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bayan*"]

@@ -12,8 +12,8 @@ class RenderError(Exception):
 
 def _parse_manim_error(stderr_text: str) -> str:
     """
-    يقوم بفحص مخرجات الأخطاء (stderr) الخاصة بـ Manim لاستخلاص
-    ملخص نظيف ومقروء للـ Traceback بدلاً من طباعة شاشة الأخطاء بأكملها.
+    Parses Manim error output (stderr) to extract a clean, readable summary 
+    of the traceback instead of dumping the entire raw output.
     """
     if not stderr_text:
         return "Unknown error occurred (empty stderr)."
@@ -38,22 +38,22 @@ def _parse_manim_error(stderr_text: str) -> str:
 
 def execute_manim_script(code_content: str, scene_class_name: str = "GeneratedScene") -> pathlib.Path:
     """
-    يكتب كود المانيم في مجلد مؤقت، ويقوم بتشغيل الريندر عبر subprocess
-    مع تمرير مسار المشروع لـ PYTHONPATH لضمان إمكانية استيراد موديولات المشروع (مثل العربي)،
-    ثم ينقل الفيديو الناتج بأمان إلى مجلد media الرئيسي للمشروع وينظف الملفات المؤقتة.
+    Writes the Manim script to a temporary directory and executes rendering via subprocess.
+    Injects the project path into PYTHONPATH to allow importing internal modules (e.g., Arabic handlers),
+    then safely transfers the output video to the project's media directory and cleans up temp files.
     """
-    # 1. إنشاء مجلد مؤقت آمن يضمن التنظيف التلقائي عند انتهاء العملية
+    # 1. Create a secure temporary directory that auto-cleans up after completion
     temp_dir = tempfile.TemporaryDirectory()
     temp_path = pathlib.Path(temp_dir.name)
     
     try:
-        # كتابة كود السكريبت داخل المجلد المؤقت
+        # Write the generated script code into the temporary directory
         script_file = temp_path / "scene.py"
         script_file.write_text(code_content, encoding="utf-8")
         
         output_dir = temp_path / "output"
         
-        # 2. بناء أمر التشغيل باستخدام uv run لضمان العمل على نفس الـ virtual environment
+        # 2. Build execution command using `uv run` to guarantee virtual environment consistency
         cmd = [
             "uv", "run", "manim",
             str(script_file),
@@ -62,16 +62,16 @@ def execute_manim_script(code_content: str, scene_class_name: str = "GeneratedSc
             "--media_dir", str(output_dir)
         ]
         
-        # 3. إعداد متغيرات البيئة لربط الـ Subprocess بمسارات المشروع الحالي
+        # 3. Configure environment variables to attach the subprocess to current project paths
         project_root = pathlib.Path.cwd()
         env = os.environ.copy()
-        # نضع مسار المشروع الحالي في PYTHONPATH لكي تستطيع الأكواد المؤقتة استيراد موديول bayan بسهولة
+        # Add current project root to PYTHONPATH so temporary scripts can import the `bayan` module easily
         env["PYTHONPATH"] = str(project_root) + os.pathsep + env.get("PYTHONPATH", "")
         
-        # حساب وقت بداية الريندر الفعلي
+        # Track render start execution time
         start_time = time.perf_counter()
         
-        # تشغيل الـ Subprocess
+        # Run the rendering subprocess
         result = subprocess.run(
             cmd,
             stdout=subprocess.PIPE,
@@ -81,33 +81,33 @@ def execute_manim_script(code_content: str, scene_class_name: str = "GeneratedSc
             env=env
         )
         
-        # حساب وقت نهاية الريندر
+        # Calculate render completion time
         duration = time.perf_counter() - start_time
         print(f"Manim render completed successfully in {duration:.2f} seconds.")
         
-        # 4. البحث عن ملف الـ .mp4 الناتج داخل المجلد المؤقت
+        # 4. Search for the generated .mp4 video file inside the temporary output directory
         video_paths = list(output_dir.glob("**/*.mp4"))
         if not video_paths:
             raise RenderError("Render completed, but no .mp4 output files were detected.")
             
-        # 5. تحديد المسار النهائي للفيديو داخل المشروع الرئيسي ونقله بأمان
+        # 5. Determine final destination path inside the main project directory and safely move the file
         destination = project_root / "media" / f"{scene_class_name}.mp4"
         destination.parent.mkdir(parents=True, exist_ok=True)
         
         if destination.exists():
             destination.unlink()
             
-        # استخدام shutil.copy2 لنقل آمن وسريع على مستوى نظام التشغيل دون مشاكل الـ File Locking على ويندوز
+        # Use shutil.copy2 for safe, fast cross-platform transfer avoiding Windows file locking issues
         shutil.copy2(video_paths[0], destination)
         return destination
 
     except subprocess.CalledProcessError as e:
-        # استخلاص وتمرير تفاصيل الخطأ بشكل نظيف وسهل القراءة عند حدوث أي مشكلة في الريندر
+        # Extract and format clean error details when rendering fails
         clean_error = _parse_manim_error(e.stderr)
         raise RenderError(f"Manim Render Failed!\n{clean_error}") from e
         
     finally:
-        # 6. ضمان تنظيف وحذف المجلد المؤقت وملفاته بالكامل حتى في حال حدوث خطأ أثناء الريندر
+        # 6. Guarantee complete cleanup of the temporary directory, even if rendering fails
         try:
             temp_dir.cleanup()
         except Exception:

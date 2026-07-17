@@ -2,7 +2,7 @@ import pytest
 import pathlib
 from bayan.renderer.executor import execute_manim_script, RenderError
 
-# كود مانيم سليم ويحتوي على حركة بسيطة لضمان إنتاج ملف فيديو .mp4
+# Valid Manim code snippet containing a simple animation to guarantee .mp4 output generation
 VALID_MANIM_CODE = """
 from manim import *
 
@@ -12,7 +12,7 @@ class TestScene(Scene):
         self.play(Create(square))
 """
 
-# كود بايثون مكسور برمجياً لتجربة التقاط الأخطاء
+# Invalid Python/Manim code snippet designed to test error handling and parsing
 INVALID_MANIM_CODE = """
 from manim import *
 
@@ -22,10 +22,10 @@ class TestScene(Scene):
         self.add(square
 """
 
-# اختبار حقيقي لرندر اللغة العربية باستخدام موديول الـ arabic_helper الخاص بك
+# Integration test snippet for Arabic rendering using the custom arabic_helper module
 ARABIC_MANIM_CODE = """
 from manim import *
-# نستورد الكلاسات والدوال مباشرة من المسار الصحيح للمشروع
+# Import classes and functions directly from the project package path
 from bayan.utils.arabic_helper import ArabicText, rtl_glyphs
 
 class ArabicTestScene(Scene):
@@ -42,13 +42,13 @@ class ArabicTestScene(Scene):
 
 def test_execute_manim_script_success():
     """
-    اختبار نجاح الريندر:
-    يتأكد من تمرير كود سليم، وإنتاج ملف MP4، ونقله بنجاح للمسار النهائي.
+    Test successful execution of Manim script rendering:
+    Verifies valid code execution, MP4 generation, and moving to final destination path.
     """
     scene_name = "TestScene"
     expected_output_path = pathlib.Path.cwd() / "media" / f"{scene_name}.mp4"
     
-    # التأكد من مسح أي ملف قديم متبقي من تجارب سابقة
+    # Ensure cleanup of any leftover output file from previous runs
     if expected_output_path.exists():
         expected_output_path.unlink()
 
@@ -66,8 +66,8 @@ def test_execute_manim_script_success():
 
 def test_execute_manim_script_syntax_error():
     """
-    اختبار فشل الريندر:
-    يتأكد من إطلاق RenderError عند تمرير كود مكسور، مع التحقق من وجود تفاصيل الخطأ.
+    Test render failure handling:
+    Verifies that RenderError is raised when broken code is provided and contains traceback details.
     """
     scene_name = "BrokenScene"
     
@@ -81,8 +81,8 @@ def test_execute_manim_script_syntax_error():
 
 def test_execute_manim_script_arabic_rendering():
     """
-    اختبار رندر العربي:
-    يتأكد من قدرة الـ Executor على رندر مشهد يحتوي على نصوص عربية واستيراد الـ helper بنجاح.
+    Test Arabic rendering integration:
+    Verifies that the executor can successfully render scenes containing Arabic text using internal project helpers.
     """
     scene_name = "ArabicTestScene"
     expected_output_path = pathlib.Path.cwd() / "media" / f"{scene_name}.mp4"
