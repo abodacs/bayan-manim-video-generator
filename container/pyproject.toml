@@ -1,0 +1,10 @@
+[project]
+name = "bayan-render-runtime"
+version = "0.1.0"
+description = "Minimal locked runtime for Bayan's isolated Manim renderer"
+requires-python = ">=3.11"
+dependencies = [
+    "manim==0.20.1",
+    "arabic-reshaper==3.0.1",
+    "python-bidi==0.6.11",
+]
