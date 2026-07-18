@@ -17,8 +17,9 @@ Before running the project, install the system-level dependencies required by Ma
 - `rtl_glyphs` exposes glyphs in visual right-to-left order for animation.
 - `ArabicSanityCheck` renders a small integration scene so Arabic connections,
   direction, and glyph animation can be checked visually.
-- A container smoke runner builds a pinned render image, runs the Arabic sanity
-  scene without network access, and saves a video, preview, log, and manifest.
+- A container smoke runner builds a digest-pinned, multi-stage render image,
+  runs the Arabic sanity scene without network access, validates its artifacts,
+  and saves a video, preview, log, and typed manifest.
 
 ### Installation on Ubuntu/Debian
 
@@ -117,6 +118,15 @@ uv run python scripts/container_smoke.py
 The command creates a fresh directory under `artifacts/container-smoke/` for
 each run. It does not delete earlier runs. Each run contains `draft.mp4`,
 `preview.png`, `render.log`, `smoke_manifest.json`, and the raw Manim output.
+The manifest records the image ID, source hashes, resource policy, phase
+statuses, and relative output paths. Worker output is capped per phase so a
+broken scene cannot fill the host disk.
+
+The worker has no network, runs as a non-root user, mounts the scene read-only,
+and writes only to the dedicated run output directory. The Docker CLI itself
+receives an allowlisted environment; host application secrets are not passed
+to the worker. Use `--skip-build` only when you intentionally want to test an
+already-built local image.
 
 If Docker is installed but its daemon is not running, start Docker and run the
 command again. If the command fails, read `smoke_manifest.json` and
@@ -149,6 +159,10 @@ platform and run `uv sync` again.
 ```text
 CONTEXT.md                     Canonical domain vocabulary
 bayan/
+├── renderer/
+│   ├── docker.py              Bounded Docker lifecycle and security policy
+│   ├── models.py              Typed render settings and manifest models
+│   └── smoke.py               Arabic smoke-run orchestration and validation
 └── utils/
     ├── arabic_helper.py       Arabic shaping, RTL text, and glyph helpers
     └── sanity_check.py         Render-level Arabic integration scene
@@ -206,7 +220,7 @@ and [project North Star](docs/PROJECT_NORTH_STAR.md) for the proposed direction.
 The `docs/agdr/` directory records decisions that affect the project’s
 architecture and development workflow. Start with
 [`AgDR-0001-type-checker.md`](docs/agdr/AgDR-0001-type-checker.md) to understand
-the mypy boundary around Manim scenes. The proposed render-isolation boundary is
+the mypy boundary around Manim scenes. The accepted render-isolation boundary is
 recorded in [AgDR-0002-render-isolation.md](docs/agdr/AgDR-0002-render-isolation.md).
 
 ## Tools Configured
