@@ -1,7 +1,7 @@
-from typing import Any, cast
+from typing import Any
 
-import arabic_reshaper  # type: ignore[import-untyped]
-from bidi.algorithm import get_display  # type: ignore[import-untyped]
+import arabic_reshaper  # type: ignore
+from bidi.algorithm import get_display  # type: ignore
 from manim import Text, VGroup
 
 
@@ -14,10 +14,12 @@ def reshape_arabic_text(raw_text: str) -> str:
         return raw_text
 
     # 1. Reshape the letters
-    reshaped = cast(str, arabic_reshaper.reshape(raw_text))
+    reshaped = arabic_reshaper.reshape(raw_text)
     # 2. Apply the BiDi algorithm to reverse ordering correctly
-    bidi_text = cast(str, get_display(reshaped))
-    return bidi_text
+    bidi_text = get_display(reshaped)
+
+    # نضمن إرجاع str صريح لتفادي خطأ returning Any
+    return str(bidi_text)
 
 
 class ArabicText(Text):

@@ -219,3 +219,5 @@ __marimo__/
 
 # Manim media outputs
 media/
+
+*.mp4
