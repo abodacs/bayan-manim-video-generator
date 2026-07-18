@@ -10,19 +10,69 @@ dependencies = [
     "arabic-reshaper>=3.0.1",
     "python-bidi>=0.4.2",
     "openai>=1.0.0",
-    "pytest>=9.1.1",
+    "python-dotenv>=1.2.2",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0.0",
-    "ruff>=0.2.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.15.22",
     "setuptools<81",
+    "mypy>=1.8.0",
+    "pre-commit>=4.6.0",
 ]
 
-[project.scripts]
-bayan = "bayan.cli:app"
+# -----------------------------------------------------------------------------
+# Ruff — lint + format
+# -----------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["bayan*"]
+[tool.ruff.lint]
+# E/F = pyflakes + pycodestyle, I = import sorting, UP = pyupgrade,
+# B = bugbear, SIM = simplifications, C4 = comprehensions.
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+
+[tool.ruff.lint.per-file-ignores]
+# Manim scenes idiomatically use `from manim import *` -- F401/F403/F405 are
+# the star-import noise that produces.
+"bayan/utils/sanity_check.py" = ["F401", "F403", "F405"]
+
+[tool.ruff.format]
+# Defaults: double quotes, trailing commas.
+
+# -----------------------------------------------------------------------------
+# mypy — static type checking
+# -----------------------------------------------------------------------------
+# Strict on the package. The Manim scene (bayan/utils/sanity_check.py) uses
+# `from manim import *`, which is fundamentally untyped/dynamic, so it is
+# excluded rather than fought. See docs/agdr/AgDR-0001-type-checker.md.
+[tool.mypy]
+python_version = "3.11"
+strict = true
+exclude = [
+    "sanity_check\\.py$",
+    "^tests/",
+]
+
+# -----------------------------------------------------------------------------
+# pytest + coverage
+# -----------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Keep the threshold at zero while the first vertical slice is incomplete.
+# The Arabic helper already has focused coverage; raise this gate as the
+# generation, rendering, and validation boundaries gain testable contracts.
+addopts = "--cov=bayan --cov-report=term-missing --cov-fail-under=0"
+
+[tool.coverage.run]
+source = ["bayan"]
+branch = true
+# The sanity-check scene is a Manim render entrypoint -- exercised by rendering,
+# not by unit tests, so don't let it drag the coverage number.
+omit = ["bayan/utils/sanity_check.py"]
+
+[tool.coverage.report]
+show_missing = true

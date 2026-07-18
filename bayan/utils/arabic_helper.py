@@ -1,5 +1,7 @@
-import arabic_reshaper
-from bidi.algorithm import get_display
+from typing import Any
+
+import arabic_reshaper  # type: ignore
+from bidi.algorithm import get_display  # type: ignore
 from manim import Text, VGroup
 
 
@@ -15,13 +17,15 @@ def reshape_arabic_text(raw_text: str) -> str:
     reshaped = arabic_reshaper.reshape(raw_text)
     # 2. Apply the BiDi algorithm to reverse ordering correctly
     bidi_text = get_display(reshaped)
-    return bidi_text
+    
+    # نضمن إرجاع str صريح لتفادي خطأ returning Any
+    return str(bidi_text)
 
 
 class ArabicText(Text):
     """Text that delegates Arabic shaping and RTL layout to Manim/Pango."""
 
-    def __init__(self, text: str, font: str = "Noto Sans Arabic", **kwargs):
+    def __init__(self, text: str, font: str = "Noto Sans Arabic", **kwargs: Any) -> None:
         self.raw_text = text
         super().__init__(text, font=font, **kwargs)
 
