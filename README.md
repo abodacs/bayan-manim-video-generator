@@ -21,6 +21,8 @@ not the legacy `manimlib` package.
 - `rtl_glyphs` exposes glyphs in visual right-to-left order for animation.
 - `ArabicSanityCheck` renders a small integration scene so Arabic connections,
   direction, and glyph animation can be checked visually.
+- A container smoke runner builds a pinned render image, runs the Arabic sanity
+  scene without network access, and saves a video, preview, log, and manifest.
 
 ## Quick start
 
@@ -28,6 +30,7 @@ not the legacy `manimlib` package.
 
 - Python 3.11 or newer
 - [`uv`](https://docs.astral.sh/uv/)
+- Docker Engine or Docker Desktop for the isolated smoke render
 - FFmpeg, Cairo, and Pango, which Manim uses for rendering
 - `Noto Sans Arabic` or another font with Arabic glyph coverage
 - LaTeX only if you need to render mathematical equations with LaTeX
@@ -87,6 +90,23 @@ The render should create a video under `media/videos/`. Visually confirm that
 Arabic letters are connected, text flows from right to left, and glyphs animate
 in the expected order.
 
+### 4. Run the isolated container smoke check
+
+Build the render image and run the same Arabic scene in a container with no
+network access:
+
+```bash
+uv run python scripts/container_smoke.py
+```
+
+The command creates a fresh directory under `artifacts/container-smoke/` for
+each run. It does not delete earlier runs. Each run contains `draft.mp4`,
+`preview.png`, `render.log`, `smoke_manifest.json`, and the raw Manim output.
+
+If Docker is installed but its daemon is not running, start Docker and run the
+command again. If the command fails, read `smoke_manifest.json` and
+`render.log` before retrying.
+
 ## Development workflow
 
 Run the same checks used by the project’s development tooling:
@@ -129,6 +149,8 @@ bayan/
 └── utils/
     ├── arabic_helper.py       Arabic shaping, RTL text, and glyph helpers
     └── sanity_check.py         Render-level Arabic integration scene
+Dockerfile                     Pinned container for the Arabic smoke render
+scripts/container_smoke.py     Bounded container smoke runner and manifest
 docs/
     ├── PROJECT_NORTH_STAR.md       Product direction and success signals
     ├── ARCHITECTURE.md             Target system boundaries
