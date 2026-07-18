@@ -6,7 +6,7 @@ from openai import OpenAI
 
 # Import dotenv to load the .env file automatically
 try:
-    from dotenv import load_dotenv  
+    from dotenv import load_dotenv
 
     load_dotenv()
 except ImportError:
