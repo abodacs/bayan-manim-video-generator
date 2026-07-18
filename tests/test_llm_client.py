@@ -109,9 +109,7 @@ def has_active_bayan_quota():
 
 @pytest.mark.skipif(
     not has_active_bayan_quota(),
-
     reason="This integration test requires an active Bayan API provider key with sufficient quota.",
-
 )
 def test_integration_live_llm_call():
     """Live API integration test: validates actual endpoint

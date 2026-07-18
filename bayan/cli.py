@@ -24,14 +24,10 @@ def main() -> None:
 
 @app.command(name="render")
 def render(
-    prompt: Annotated[
-        str, typer.Argument(help="The prompt describing the video content.")
-    ],
+    prompt: Annotated[str, typer.Argument(help="The prompt describing the video content.")],
     output_path: Annotated[
         Path,
-        typer.Option(
-            "--output", "-o", help="Target path for the finished video."
-        ),
+        typer.Option("--output", "-o", help="Target path for the finished video."),
     ] = Path("./output.mp4"),
     api_key: Annotated[
         str | None,

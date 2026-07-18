@@ -6,7 +6,7 @@ from openai import OpenAI
 
 # Import dotenv to load the .env file automatically
 try:
-    from dotenv import load_dotenv  # type: ignore
+    from dotenv import load_dotenv  
 
     load_dotenv()
 except ImportError:
@@ -22,7 +22,7 @@ SYSTEM_PROMPT = (
     "include markdown blocks like ```python.\n"
     "3. If there is any Arabic text in the video, you MUST:\n"
     "   - Import ArabicText using: `from bayan.utils.arabic_helper import ArabicText`\n"
-    "   - Use `ArabicText(\"your arabic text\")` instead of `Text(...)` or `Tex(...)`.\n"
+    '   - Use `ArabicText("your arabic text")` instead of `Text(...)` or `Tex(...)`.\n'
     "4. ALL elements (both shapes like Circle and texts) MUST be explicitly "
     "animated using `self.play(...)` in sequence. Do NOT use `self.add()` or "
     "render static objects unless requested.\n"
@@ -43,9 +43,7 @@ class LLMClient:
         model: str | None = None,
     ) -> None:
         # Configuration is loaded from the environment variables (populated via the .env file)
-        self.api_key = (
-            api_key or os.getenv("BAYAN_API_KEY") or os.getenv("OPENAI_API_KEY")
-        )
+        self.api_key = api_key or os.getenv("BAYAN_API_KEY") or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError(
                 "API Key must be provided via BAYAN_API_KEY or "
@@ -56,7 +54,7 @@ class LLMClient:
         self.base_url = base_url or os.getenv(
             "BAYAN_BASE_URL", "https://api.z.ai/api/coding/paas/v4/"
         )
-        
+
         # Ensure Mypy knows this is a clean string and not None to prevent arg-type mismatch
         chosen_model = model or os.getenv("BAYAN_LLM_MODEL", "glm-5.2")
         self.model: str = cast(str, chosen_model)
@@ -82,9 +80,7 @@ class LLMClient:
             raw_content = response.choices[0].message.content or ""
             return self._clean_code(raw_content)
         except Exception as e:
-            raise RuntimeError(
-                f"Failed to communicate with LLM provider: {str(e)}"
-            ) from e
+            raise RuntimeError(f"Failed to communicate with LLM provider: {str(e)}") from e
 
     def _clean_code(self, raw_code: str) -> str:
         """

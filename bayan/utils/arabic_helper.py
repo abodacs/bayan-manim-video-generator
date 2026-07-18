@@ -17,7 +17,7 @@ def reshape_arabic_text(raw_text: str) -> str:
     reshaped = arabic_reshaper.reshape(raw_text)
     # 2. Apply the BiDi algorithm to reverse ordering correctly
     bidi_text = get_display(reshaped)
-    
+
     # نضمن إرجاع str صريح لتفادي خطأ returning Any
     return str(bidi_text)
 
