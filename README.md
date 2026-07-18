@@ -1,18 +1,14 @@
-# Bayan
+# Bayan: Arabic AI-Powered Manim Video Generator
 
-Bayan is an Arabic-first video-generation toolkit built on [Manim Community
-Edition](https://www.manim.community/). It is designed to turn educational
-content into clear, maintainable explainer videos with reliable Arabic
-shaping, right-to-left layout, and reproducible rendering.
+Bayan is an Arabic AI-powered video generator built on top of Manim.
 
-> **Project status:** early-stage foundation. The repository currently provides
-> Arabic text utilities, a Manim rendering sanity check, and development tooling.
-> The end-to-end AI generation pipeline is not implemented yet.
+This project targets **Manim Community Edition**. It installs the Community
+Edition package as `manim` (version 0.20 or newer), rather than the legacy
+`manimlib` package.
 
-Bayan uses the Community Edition package named `manim` (version 0.20 or newer),
-not the legacy `manimlib` package.
+## System Requirements
 
-## What works today
+Before running the project, install the system-level dependencies required by Manim for rendering shapes, text, and compiling audio:
 
 - `reshape_arabic_text` reshapes Arabic ligatures and applies the BiDi algorithm
   before rendering.
@@ -25,7 +21,7 @@ not the legacy `manimlib` package.
   runs the Arabic sanity scene without network access, validates its artifacts,
   and saves a video, preview, log, and typed manifest.
 
-## Quick start
+### Installation on Ubuntu/Debian
 
 ### Prerequisites
 
@@ -42,45 +38,64 @@ On Ubuntu or Debian:
 
 ```bash
 sudo apt update
-sudo apt install -y \
-  ffmpeg build-essential pkg-config python3-dev \
+sudo apt install -y ffmpeg build-essential pkg-config python3-dev \
   libcairo2-dev libpango1.0-dev fonts-noto-core
 ```
 
-On Windows with Chocolatey:
+The sanity scene uses `Noto Sans Arabic` for predictable Arabic glyph coverage.
+The `fonts-noto-core` package provides it on Ubuntu/Debian.
 
+### Installation on Windows (via Chocolatey):
 ```powershell
 choco install ffmpeg pango cairo -y
 ```
 
-On other platforms, install the equivalent FFmpeg, Cairo, Pango, and Arabic-font
-packages before installing the Python dependencies.
+## Setup & Development
 
-### 2. Install the Python environment
+If this is your first time using the project, follow these steps in order. You
+do not need to activate a virtual environment manually: `uv run` uses the
+project's `.venv` automatically.
 
-Install `uv` if it is not already available:
+1. **Install `uv`** (skip this step if `uv --version` already works):
 
-```bash
-# macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
+   **macOS/Linux**:
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
 
-# Windows PowerShell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
+   **Windows PowerShell**:
+   ```powershell
+   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+   ```
 
-Then create the project environment and install the versions locked in
-`uv.lock`:
+   Close and reopen your terminal after installing `uv`, then check it:
+   ```bash
+   uv --version
+   ```
 
-```bash
-uv sync
-```
+2. **Install the Python dependencies** and create the project environment:
+   ```bash
+   uv sync
+   ```
+   This creates `.venv` and installs the versions recorded in `uv.lock`.
 
-You do not need to activate `.venv` manually; `uv run` uses the project
-environment automatically.
+3. **Confirm the Manim edition and version**:
+   ```bash
+   uv run manim --version
+   # Manim Community v0.20.1 (or newer)
+   ```
 
-### 3. Verify the installation
+4. **Run the Arabic rendering check**:
+   ```bash
+   uv run manim -ql bayan/utils/sanity_check.py ArabicSanityCheck
+   ```
+   The `-ql` option means “quick, low quality,” so this check finishes faster
+   than a final render. A successful run creates a video under `media/videos/`.
 
-Check the Manim edition and render the Arabic sanity scene:
+5. **Run the tests** (optional):
+   ```bash
+   uv run pytest
+   ```
 
 ```bash
 uv run manim --version
@@ -129,20 +144,8 @@ uv run pytest
 uv run pre-commit run --all-files
 ```
 
-Install the commit and push hooks once per clone:
-
-```bash
-uv run pre-commit install
-uv run pre-commit install --hook-type pre-push
-```
-
-The type checker runs in strict mode for ordinary package code. Manim scene
-files are excluded because the dynamic `from manim import *` API does not
-provide a useful static typing boundary. Keep non-rendering logic in typed
-modules and keep scenes thin.
-
-If `uv sync` fails while building `pycairo`, check that Cairo is visible to
-`pkg-config`:
+If `uv sync` fails in Meson while building `pycairo`, verify that Cairo is
+discoverable through `pkg-config`:
 
 ```bash
 pkg-config --modversion cairo
@@ -220,5 +223,7 @@ architecture and development workflow. Start with
 the mypy boundary around Manim scenes. The accepted render-isolation boundary is
 recorded in [AgDR-0002-render-isolation.md](docs/agdr/AgDR-0002-render-isolation.md).
 
-Contributor workflow is documented in
-[DEVELOPMENT.md](docs/DEVELOPMENT.md).
+## Tools Configured
+- **Package Manager**: `uv` (PEP 621 & PEP 735)
+- **Linter & Formatter**: `ruff`
+- **Testing**: `pytest`
