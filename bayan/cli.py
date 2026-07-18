@@ -4,9 +4,7 @@ from typing import Annotated
 import typer
 from dotenv import load_dotenv
 
-# شحن متغيرات البيئة من ملف .env فوراً وقبل استيراد محتويات المشروع
-load_dotenv()
-
+# الـ imports الخاصة بالمشروع بقت ورا بعضها مباشرة بدون فواصل تنفيذية
 from bayan.generator.llm_client import LLMClient
 from bayan.renderer.executor import RenderError, execute_manim_script
 
@@ -20,6 +18,8 @@ app = typer.Typer(
 @app.callback()
 def main() -> None:
     """Bayan CLI root command."""
+    # شحن متغيرات البيئة هنا لضمان تشغيلها مع أي أمر يتم استدعاؤه في الـ CLI
+    load_dotenv()
 
 
 @app.command(name="render")
