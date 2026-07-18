@@ -49,3 +49,20 @@ jobs:
 
       - name: Pytest with coverage
         run: uv run pytest
+
+  container-smoke:
+    name: Containerized Arabic smoke render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build and run the isolated Arabic smoke render
+        run: python3 scripts/container_smoke.py --output artifacts/container-smoke
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-smoke
+          path: artifacts/container-smoke/
+          if-no-files-found: warn
