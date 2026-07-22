@@ -9,7 +9,7 @@ dependencies = [
     "typer>=0.9.0",
     "arabic-reshaper>=3.0.1",
     "python-bidi>=0.4.2",
-    "openai>=1.0.0",
+    "openai>=2.46.0",
     "python-dotenv>=1.2.2",
 ]
 
