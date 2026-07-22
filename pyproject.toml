@@ -19,7 +19,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "ruff>=0.15.22",
     "setuptools<81",
-    "mypy>=1.8.0",
+    "mypy>=2.3.0",
     "pre-commit>=4.6.0",
 ]
 
