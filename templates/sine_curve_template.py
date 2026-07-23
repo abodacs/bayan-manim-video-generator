@@ -47,8 +47,12 @@ def create_arabic_taa(color=DEFAULT_COLOR, scale_factor=LETTER_SCALE) -> VMobjec
     )
 
     # Base horizontal line and vertical stroke
-    baseline = Line(_point(-0.5, -0.15), _point(0.6, -0.15), color=color, stroke_width=LETTER_STROKE_WIDTH)
-    vertical_stroke = Line(_point(-0.22, -0.1), _point(-0.25, 0.8), color=color, stroke_width=LETTER_STROKE_WIDTH)
+    baseline = Line(
+        _point(-0.5, -0.15), _point(0.6, -0.15), color=color, stroke_width=LETTER_STROKE_WIDTH
+    )
+    vertical_stroke = Line(
+        _point(-0.22, -0.1), _point(-0.25, 0.8), color=color, stroke_width=LETTER_STROKE_WIDTH
+    )
 
     arabic_taa.add(letter_loop, baseline, vertical_stroke)
     arabic_taa.scale(scale_factor)
@@ -56,12 +60,13 @@ def create_arabic_taa(color=DEFAULT_COLOR, scale_factor=LETTER_SCALE) -> VMobjec
 
 
 # ==========================================
-# SCENE IMPLEMENTATION
+# SCENE IMPLEMENTATION (RTL DIRECTION)
 # ==========================================
 class SineWaveDemo(Scene):
     def construct(self):
-        self.origin_point = _point(-4, 0)
-        self.curve_start = _point(-3, 0)
+        # 1. Reversed origins for Right-to-Left (RTL) rendering
+        self.origin_point = _point(4, 0)      # Reference circle placed on the RIGHT
+        self.curve_start = _point(3, 0)       # Curve starts from right moving LEFT
 
         x_axis, y_axis, axis_labels = self._create_axes_and_labels()
         reference_circle = self._create_reference_circle()
@@ -77,11 +82,11 @@ class SineWaveDemo(Scene):
 
     def _create_axes_and_labels(self):
         x_axis = Line(_point(-6, 0), _point(6, 0))
-        y_axis = Line(_point(-4, -2), _point(-4, 2))
+        y_axis = Line(_point(4, -2), _point(4, 2))
 
         axis_labels = VGroup()
 
-        # Create axis labels (Taa, 2*Taa, 3*Taa, 4*Taa)
+        # Create axis labels (Taa, 2*Taa, 3*Taa, 4*Taa) progressing Right to Left
         for i in range(1, 5):
             taa_symbol = create_arabic_taa(color=DEFAULT_COLOR)
 
@@ -92,7 +97,8 @@ class SineWaveDemo(Scene):
                 label = VGroup(num_text, taa_symbol)
                 label.arrange(LEFT, buff=0.08)
 
-            label.move_to(_point(-1 + 2 * (i - 1), -0.5))
+            # Move labels towards the LEFT side
+            label.move_to(_point(1 - 2 * (i - 1), -0.5))
             axis_labels.add(label)
 
         return x_axis, y_axis, axis_labels
@@ -110,13 +116,18 @@ class SineWaveDemo(Scene):
 
         def update_dot_position(mob, dt):
             self.animation_progress += dt * ROTATION_SPEED
-            mob.move_to(reference_circle.point_from_proportion(self.animation_progress % 1))
+            mob.move_to(
+                reference_circle.point_from_proportion(self.animation_progress % 1)
+            )
 
         def create_radius_line():
-            return Line(self.origin_point, moving_dot.get_center(), color=TEAL_LINE_COLOR)
+            return Line(
+                self.origin_point, moving_dot.get_center(), color=TEAL_LINE_COLOR
+            )
 
         def create_projection_line():
-            x = self.curve_start[0] + self.animation_progress * X_ADVANCE_FACTOR
+            # Advance towards the LEFT (- X_ADVANCE_FACTOR)
+            x = self.curve_start[0] - self.animation_progress * X_ADVANCE_FACTOR
             y = moving_dot.get_center()[1]
             return Line(
                 moving_dot.get_center(),
@@ -130,7 +141,8 @@ class SineWaveDemo(Scene):
 
         def update_sine_curve():
             last_line = self.sine_curve[-1]
-            x = self.curve_start[0] + self.animation_progress * X_ADVANCE_FACTOR
+            # Draw wave towards the LEFT
+            x = self.curve_start[0] - self.animation_progress * X_ADVANCE_FACTOR
             y = moving_dot.get_center()[1]
             new_line = Line(
                 last_line.get_end(), _point(x, y), color=PURPLE_LINE_COLOR
