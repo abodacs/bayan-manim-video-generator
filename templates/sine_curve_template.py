@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 from manim import *
 
 # Add project root to Python path
@@ -65,14 +66,14 @@ def create_arabic_taa(color=DEFAULT_COLOR, scale_factor=LETTER_SCALE) -> VMobjec
 class SineWaveDemo(Scene):
     def construct(self):
         # 1. Reversed origins for Right-to-Left (RTL) rendering
-        self.origin_point = _point(4, 0)      # Reference circle placed on the RIGHT
-        self.curve_start = _point(3, 0)       # Curve starts from right moving LEFT
+        self.origin_point = _point(4, 0)  # Reference circle placed on the RIGHT
+        self.curve_start = _point(3, 0)  # Curve starts from right moving LEFT
 
         x_axis, y_axis, axis_labels = self._create_axes_and_labels()
         reference_circle = self._create_reference_circle()
 
-        moving_dot, radius_line, projection_line, sine_curve = (
-            self._setup_dynamic_elements(reference_circle)
+        moving_dot, radius_line, projection_line, sine_curve = self._setup_dynamic_elements(
+            reference_circle
         )
 
         self.add(x_axis, y_axis, axis_labels, reference_circle)
@@ -116,14 +117,10 @@ class SineWaveDemo(Scene):
 
         def update_dot_position(mob, dt):
             self.animation_progress += dt * ROTATION_SPEED
-            mob.move_to(
-                reference_circle.point_from_proportion(self.animation_progress % 1)
-            )
+            mob.move_to(reference_circle.point_from_proportion(self.animation_progress % 1))
 
         def create_radius_line():
-            return Line(
-                self.origin_point, moving_dot.get_center(), color=TEAL_LINE_COLOR
-            )
+            return Line(self.origin_point, moving_dot.get_center(), color=TEAL_LINE_COLOR)
 
         def create_projection_line():
             # Advance towards the LEFT (- X_ADVANCE_FACTOR)
@@ -144,9 +141,7 @@ class SineWaveDemo(Scene):
             # Draw wave towards the LEFT
             x = self.curve_start[0] - self.animation_progress * X_ADVANCE_FACTOR
             y = moving_dot.get_center()[1]
-            new_line = Line(
-                last_line.get_end(), _point(x, y), color=PURPLE_LINE_COLOR
-            )
+            new_line = Line(last_line.get_end(), _point(x, y), color=PURPLE_LINE_COLOR)
             self.sine_curve.add(new_line)
             return self.sine_curve
 

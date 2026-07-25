@@ -41,21 +41,11 @@ class DynamicRectangleArea(Scene):
 
         self.play(Create(rectangle))
 
-        self.play(
-            x_tracker.animate.set_value(10)
-        )
+        self.play(x_tracker.animate.set_value(10))
 
-        self.play(
-            x_tracker.animate.set_value(
-                RECTANGLE_AREA / 10
-            )
-        )
+        self.play(x_tracker.animate.set_value(RECTANGLE_AREA / 10))
 
-        self.play(
-            x_tracker.animate.set_value(
-                INITIAL_X
-            )
-        )
+        self.play(x_tracker.animate.set_value(INITIAL_X))
 
         self.wait()
 
@@ -88,21 +78,18 @@ class DynamicRectangleArea(Scene):
         x_tracker,
     ):
         return always_redraw(
-            lambda: Polygon(
-                *[
-                    axes.c2p(x, y)
-                    for x, y in self._rectangle_vertices(
-                        x_tracker.get_value()
-                    )
-                ]
-            )
-            .set_fill(
-                TEAL,
-                opacity=0.5,
-            )
-            .set_stroke(
-                PURPLE,
-                width=1,
+            lambda: (
+                Polygon(
+                    *[axes.c2p(x, y) for x, y in self._rectangle_vertices(x_tracker.get_value())]
+                )
+                .set_fill(
+                    TEAL,
+                    opacity=0.5,
+                )
+                .set_stroke(
+                    PURPLE,
+                    width=1,
+                )
             )
         )
 

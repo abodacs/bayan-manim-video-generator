@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 from manim import *
 
 # Add project root to Python path
@@ -33,27 +34,27 @@ class BooleanOperations(Scene):
         ellipse_group = Group(bool_ops_text, ellipse1, ellipse2).move_to(RIGHT * 3)
         self.play(FadeIn(ellipse_group))
 
-        # 1. Intersection Operation (التقاطع) -> Moving to Top Left
+        # 1. Intersection Operation -> Moving to Top Left
         i = Intersection(ellipse1, ellipse2, color=GOLD, fill_opacity=0.5)
         self.play(i.animate.scale(0.25).move_to(LEFT * 5 + UP * 2.5))
         intersection_text = MarkupText("التقاطع", font=FONT_FAMILY, font_size=20).next_to(i, UP)
         self.play(FadeIn(intersection_text))
 
-        # 2. Union Operation (الاتحاد) -> Below Intersection
+        # 2. Union Operation -> Below Intersection
         u = Union(ellipse1, ellipse2, color=MAROON, fill_opacity=0.5)
         union_text = MarkupText("الاتحاد", font=FONT_FAMILY, font_size=20)
         self.play(u.animate.scale(0.3).next_to(i, DOWN, buff=union_text.height * 3))
         union_text.next_to(u, UP)
         self.play(FadeIn(union_text))
 
-        # 3. Exclusion Operation (الاستبعاد) -> Below Union
+        # 3. Exclusion Operation -> Below Union
         e = Exclusion(ellipse1, ellipse2, color=BLUE_C, fill_opacity=0.5)
         exclusion_text = MarkupText("الاستبعاد", font=FONT_FAMILY, font_size=20)
         self.play(e.animate.scale(0.3).next_to(u, DOWN, buff=exclusion_text.height * 3.5))
         exclusion_text.next_to(e, UP)
         self.play(FadeIn(exclusion_text))
 
-        # 4. Difference Operation (الفرق) -> To the Right of Union (towards center)
+        # 4. Difference Operation -> To the right of Union (towards center)
         d = Difference(ellipse1, ellipse2, color=LIGHT_PINK, fill_opacity=0.5)
         difference_text = MarkupText("الفرق", font=FONT_FAMILY, font_size=20)
         self.play(d.animate.scale(0.3).next_to(u, RIGHT, buff=difference_text.height * 3.5))

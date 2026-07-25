@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 from manim import *
 from manim_physics import *
 
@@ -36,16 +37,12 @@ class MultiPendulumVertical(SpaceScene):
             bob.set_fill(color, opacity=1)
             bob.set_sheen(0.5, UL)
 
-            glow = Circle(
-                radius=0.55, color=color, stroke_width=8, stroke_opacity=0.4
-            )
+            glow = Circle(radius=0.55, color=color, stroke_width=8, stroke_opacity=0.4)
             glow.move_to(bob.get_center())
             glow.add_updater(lambda m, b=bob: m.move_to(b.get_center()))
             self.add(glow)
 
-            inner_glow = Circle(
-                radius=0.48, color=WHITE, stroke_width=3, stroke_opacity=0.3
-            )
+            inner_glow = Circle(radius=0.48, color=WHITE, stroke_width=3, stroke_opacity=0.3)
             inner_glow.move_to(bob.get_center())
             inner_glow.add_updater(lambda m, b=bob: m.move_to(b.get_center()))
             self.add(inner_glow)

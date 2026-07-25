@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 from manim import *
 
 # Add project root to Python path
@@ -25,19 +26,19 @@ class EquationMovingArabic(Scene):
         equal = MarkupText(f"<span font='{FONT_NAME}'>=</span>")
         mass = MarkupText(f"<span font='{FONT_NAME}'>{txt_mass}</span>")
 
-        # 2. Construct the superscripted speed element ("س²")
+        # 2. Construct the superscripted speed element
         speed_base = MarkupText(f"<span font='{FONT_NAME}'>{txt_speed}</span>")
         speed_exponent = MarkupText(f"<span font='{FONT_NAME}'>2</span>").scale(0.55)
-        
-        # Position exponent '2' precisely at the upper-right corner of 'س'
+
+        # Position exponent '2' at the upper-right corner of the speed base
         speed_exponent.move_to(speed_base.get_corner(UR)).shift(RIGHT * 0.08 + UP * 0.05)
-        
+
         speed = VGroup(speed_base, speed_exponent)
 
-        # 3. Position "س²" to the left of "ك" (following RTL layout)
+        # 3. Position the speed element to the left of mass (following RTL layout)
         speed.next_to(mass, LEFT, buff=0.15)
 
-        # 4. Group the Left-Hand Side (LHS: "ك س²")
+        # 4. Group the Left-Hand Side (LHS)
         lhs = VGroup(mass, speed)
 
         # 5. Arrange the full equation from Right to Left (RTL)
@@ -48,12 +49,8 @@ class EquationMovingArabic(Scene):
         sentence.move_to(ORIGIN)
 
         # 6. Create highlight bounding boxes matching the sentence structure
-        framebox1 = SurroundingRectangle(
-            sentence[0], buff=HIGHLIGHT_PADDING, color=YELLOW
-        )
-        framebox2 = SurroundingRectangle(
-            sentence[2], buff=HIGHLIGHT_PADDING, color=YELLOW
-        )
+        framebox1 = SurroundingRectangle(sentence[0], buff=HIGHLIGHT_PADDING, color=YELLOW)
+        framebox2 = SurroundingRectangle(sentence[2], buff=HIGHLIGHT_PADDING, color=YELLOW)
 
         # 7. Animation sequence
         self.play(Write(sentence))

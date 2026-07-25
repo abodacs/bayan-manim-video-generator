@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 from manim import *
 
 # Add project root to Python path
@@ -36,10 +37,7 @@ class CircleSquareScene(Scene):
             self.play(Create(circle), run_time=0.5)
 
         # 3. Scale up all circles simultaneously
-        self.play(
-            *[circle.animate.scale(1.3) for circle in circles],
-            run_time=1.5
-        )
+        self.play(*[circle.animate.scale(1.3) for circle in circles], run_time=1.5)
 
         # 4. Move circles into a circular pentagon formation
         positions = [
@@ -50,27 +48,17 @@ class CircleSquareScene(Scene):
             UP * 0.618 + LEFT * 1.902,
         ]
 
-        self.play(
-            *[circles[i].animate.move_to(positions[i]) for i in range(5)],
-            run_time=2
-        )
+        self.play(*[circles[i].animate.move_to(positions[i]) for i in range(5)], run_time=2)
 
         # 5. Rotate the entire formation around origin
-        self.play(
-            *[Rotate(circle, 2 * PI, about_point=ORIGIN) for circle in circles],
-            run_time=3
-        )
+        self.play(*[Rotate(circle, 2 * PI, about_point=ORIGIN) for circle in circles], run_time=3)
 
         # 6. Scale back to original size
-        self.play(
-            *[circle.animate.scale(1 / 1.3) for circle in circles],
-            run_time=1
-        )
+        self.play(*[circle.animate.scale(1 / 1.3) for circle in circles], run_time=1)
 
         # 7. Return to initial Right-to-Left row layout
         self.play(
-            *[circles[i].animate.move_to(RIGHT * 4 + LEFT * i * 2) for i in range(5)],
-            run_time=2
+            *[circles[i].animate.move_to(RIGHT * 4 + LEFT * i * 2) for i in range(5)], run_time=2
         )
 
         # Final pause

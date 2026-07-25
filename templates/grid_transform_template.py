@@ -1,7 +1,8 @@
 import sys
 from pathlib import Path
-from manim import *
+
 import numpy as np
+from manim import *
 
 # Add project root to Python path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -52,13 +53,15 @@ class GridTransformVertical(Scene):
         grid.prepare_for_nonlinear_transform()
         self.play(
             grid.animate.apply_function(
-                lambda p: p
-                + np.array(
-                    [
-                        np.sin(p[1]),
-                        np.sin(p[0]),
-                        0,
-                    ]
+                lambda p: (
+                    p
+                    + np.array(
+                        [
+                            np.sin(p[1]),
+                            np.sin(p[0]),
+                            0,
+                        ]
+                    )
                 )
             ),
             run_time=4,
@@ -69,13 +72,15 @@ class GridTransformVertical(Scene):
         grid.prepare_for_nonlinear_transform()
         self.play(
             grid.animate.apply_function(
-                lambda p: p
-                + np.array(
-                    [
-                        0.3 * np.sin(2 * p[1]),
-                        0.3 * np.cos(2 * p[0]),
-                        0,
-                    ]
+                lambda p: (
+                    p
+                    + np.array(
+                        [
+                            0.3 * np.sin(2 * p[1]),
+                            0.3 * np.cos(2 * p[0]),
+                            0,
+                        ]
+                    )
                 )
             ),
             run_time=4,

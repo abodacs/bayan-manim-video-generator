@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 from manim import *
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -15,13 +16,11 @@ class MovingAngleArabic(Scene):
         line1 = Line(RIGHT, LEFT, color=WHITE)
         line_moving = Line(RIGHT, LEFT, color=BLUE)
         line_ref = line_moving.copy()
-        
-        line_moving.rotate(
-            -theta_tracker.get_value() * DEGREES, about_point=rotation_center
-        )
-        
+
+        line_moving.rotate(-theta_tracker.get_value() * DEGREES, about_point=rotation_center)
+
         a = Angle(line_moving, line1, radius=0.5, other_angle=False, color=RED)
-        
+
         tex = MathTex(r"\theta", color=WHITE).move_to(
             Angle(
                 line_moving, line1, radius=0.5 + 3 * SMALL_BUFF, other_angle=False
@@ -38,11 +37,9 @@ class MovingAngleArabic(Scene):
         )
 
         a.add_updater(
-            lambda x: x.become(
-                Angle(line_moving, line1, radius=0.5, other_angle=False, color=RED)
-            )
+            lambda x: x.become(Angle(line_moving, line1, radius=0.5, other_angle=False, color=RED))
         )
-        
+
         tex.add_updater(
             lambda x: x.move_to(
                 Angle(
