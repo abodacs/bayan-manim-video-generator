@@ -8,7 +8,7 @@ dependencies = [
     "manim>=0.20.1",
     "typer>=0.27.0",
     "arabic-reshaper>=3.0.1",
-    "python-bidi>=0.4.2",
+    "python-bidi>=0.6.11",
     "openai>=2.46.0",
     "python-dotenv>=1.2.2",
 ]
