@@ -78,3 +78,7 @@ omit = ["bayan/utils/sanity_check.py"]
 
 [tool.coverage.report]
 show_missing = true
+[tool.setuptools.packages.find]
+
+where = ["."]
+include = ["bayan*"]
