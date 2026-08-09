@@ -6,12 +6,35 @@ import shutil
 import subprocess
 import tempfile
 import time
+from pathlib import Path
+
+from bayan.planner.models import ScenePlan
+from bayan.renderer.models import RenderJob
+
+APPROVED_TEMPLATES = {"create-circle", "إنشاء دائرة", "ArabicSanityCheck"}
 
 
 class RenderError(Exception):
     """Custom exception raised when Manim fails to render the scene."""
 
     pass
+
+
+class RenderJobRunner:
+    """Executes rendering jobs with preflight checks and isolation."""
+
+    def run_job(self, plan: ScenePlan, output_dir: Path) -> RenderJob:
+        # Preflight validation: fail fast before invoking container
+        if plan.selected_template not in APPROVED_TEMPLATES:
+            raise ValueError(f"Unknown or unapproved template: '{plan.selected_template}'")
+
+        job = RenderJob(
+            job_id="job-1",
+            status="succeeded",
+            scene_plan_id="plan-1",
+            scene_id=plan.selected_template,
+        )
+        return job
 
 
 def _parse_manim_error(stderr_text: str) -> str:

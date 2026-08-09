@@ -9,6 +9,7 @@ from typing import Literal
 
 RunStatus = Literal["running", "succeeded", "failed"]
 PhaseStatus = Literal["passed", "failed", "timed_out", "output_limited"]
+JobStatus = Literal["requested", "running", "succeeded", "failed"]
 
 
 @dataclass(frozen=True)
@@ -130,3 +131,26 @@ class SmokeManifest:
             encoding="utf-8",
         )
         temporary_path.replace(manifest_path)
+
+
+@dataclass
+class RenderJob:
+    """Represents the lifecycle and metadata of a rendering job."""
+
+    job_id: str
+    status: JobStatus
+    scene_plan_id: str
+    scene_id: str
+    failure_stage: str | None = None
+    exit_reason: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a JSON-compatible representation."""
+        return {
+            "job_id": self.job_id,
+            "status": self.status,
+            "scene_plan_id": self.scene_plan_id,
+            "scene_id": self.scene_id,
+            "failure_stage": self.failure_stage,
+            "exit_reason": self.exit_reason,
+        }
