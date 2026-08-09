@@ -16,10 +16,10 @@ def run_planning_pipeline(
         provider = FakeProvider()
 
     if output_dir.exists() and any(output_dir.iterdir()) and not force:
-            raise FileExistsError(
-                f"Output directory '{output_dir}' already exists and is not empty. "
-                "Use --force to overwrite."
-            )
+        raise FileExistsError(
+            f"Output directory '{output_dir}' already exists and is not empty. "
+            "Use --force to overwrite."
+        )
 
     output_dir.mkdir(parents=True, exist_ok=True)
 

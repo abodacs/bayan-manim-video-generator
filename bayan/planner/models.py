@@ -1,4 +1,5 @@
-from typing import Any, Dict, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -9,9 +10,7 @@ class LessonSegment(BaseModel):
         ..., description="Primary learning objective derived from request"
     )
     language: str = Field(default="ar", description="Language code (e.g. 'ar')")
-    raw_request: str = Field(
-        ..., description="Original natural-language input request"
-    )
+    raw_request: str = Field(..., description="Original natural-language input request")
 
 
 class RenderSettings(BaseModel):
@@ -30,4 +29,4 @@ class ScenePlan(BaseModel):
     selected_template: str
     render_settings: RenderSettings = Field(default_factory=RenderSettings)
     provider_fingerprint: str
-    extra_details: Optional[Dict[str, Any]] = None
+    extra_details: dict[str, Any] | None = None

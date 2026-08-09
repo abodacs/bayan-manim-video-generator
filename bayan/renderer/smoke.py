@@ -264,7 +264,7 @@ def allocate_run_directory(output_root: Path) -> Path:
 
 def current_container_user() -> tuple[str, str]:
     """Return a non-root UID and GID for the container process."""
-    uid = os.getuid() if hasattr(os, "getuid") else 10001
+    uid = getattr(os, "getuid", lambda: 10001)()
     gid = os.getgid() if hasattr(os, "getgid") else 10001
     if uid == 0:
         return "10001", "10001"
@@ -338,7 +338,7 @@ def require_success(phase: str, result: CommandResult, timeout_seconds: int) -> 
 
 def _prepare_media_directory(directory: Path, uid: str, gid: str) -> None:
     """Make the dedicated output bind mount writable for a root host user."""
-    if os.getuid() != 0 or not hasattr(os, "chown"):
+    if getattr(os, "getuid", lambda: -1)() != 0 or not hasattr(os, "chown"):
         return
     try:
         os.chown(directory, int(uid), int(gid))

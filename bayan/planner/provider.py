@@ -1,13 +1,13 @@
 import hashlib
 from typing import Protocol
-from bayan.planner.models import LessonSegment, ScenePlan, RenderSettings
+
+from bayan.planner.models import LessonSegment, RenderSettings, ScenePlan
 
 
 class ModelProvider(Protocol):
     """Protocol defining the LLM provider seam."""
 
-    def generate_plan(self, segment: LessonSegment) -> ScenePlan:
-        ...
+    def generate_plan(self, segment: LessonSegment) -> ScenePlan: ...
 
 
 class FakeProvider:
