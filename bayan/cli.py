@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 # الـ imports الخاصة بالمشروع بقت ورا بعضها مباشرة بدون فواصل تنفيذية
 from bayan.generator.llm_client import LLMClient
 from bayan.renderer.executor import RenderError, execute_manim_script
-
+from bayan.planner.service import run_planning_pipeline
 app = typer.Typer(
     name="bayan",
     help="Bayan: Arabic AI-Powered Manim Video Generator",
@@ -91,3 +91,31 @@ def render(
 
 if __name__ == "__main__":
     app()
+
+@app.command(name="plan")
+def plan(
+    input_path: Annotated[
+        Path,
+        typer.Option("--input", "-i", help="Path to input lesson JSON file."),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Target output directory for run files."),
+    ],
+    force: Annotated[
+        bool,
+        typer.Option("--force", "-f", help="Overwrite output directory if it exists."),
+    ] = False,
+) -> None:
+    """
+    Turns a natural-language request into a typed Scene plan.
+    """
+    try:
+        run_planning_pipeline(input_path=input_path, output_dir=output_dir, force=force)
+        typer.secho(
+            f"✨ Scene plan generated successfully in: {output_dir.resolve()}",
+            fg=typer.colors.GREEN,
+        )
+    except Exception as e:
+        typer.secho(f"Planning Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
