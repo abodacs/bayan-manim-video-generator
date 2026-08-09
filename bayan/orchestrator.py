@@ -80,9 +80,7 @@ class WorkflowOrchestrator:
 
     def _save_manifest(self, manifest: Manifest) -> None:
         manifest.updated_at = _get_utc_now()
-        self.manifest_path.write_text(
-            json.dumps(manifest.to_dict(), indent=2), encoding="utf-8"
-        )
+        self.manifest_path.write_text(json.dumps(manifest.to_dict(), indent=2), encoding="utf-8")
 
     def run(self) -> bool:
         """Executes all workflow stages sequentially with state tracking."""
