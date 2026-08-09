@@ -13,12 +13,12 @@ def reshape_arabic_text(raw_text: str) -> str:
     if not raw_text.strip():
         return raw_text
 
-    # 1. Reshape the letters
+    # 1. Reshape letter forms
     reshaped = arabic_reshaper.reshape(raw_text)
     # 2. Apply the BiDi algorithm to reverse ordering correctly
     bidi_text = get_display(reshaped)
 
-    # نضمن إرجاع str صريح لتفادي خطأ returning Any
+    # Explicitly cast to str to avoid returning Any
     return str(bidi_text)
 
 
@@ -31,5 +31,5 @@ class ArabicText(Text):
 
 
 def rtl_glyphs(text: Text) -> VGroup:
-    """Return a text's glyphs in visual right-to-left order."""
+    """Return a text's glyphs in visual right-to-left order for RTL animations."""
     return VGroup(*reversed(text.submobjects))
