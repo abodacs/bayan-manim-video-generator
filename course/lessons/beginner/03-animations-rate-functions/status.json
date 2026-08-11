@@ -1,0 +1,11 @@
+{
+  "id": "03-animations-rate-functions",
+  "tier": 1,
+  "slug": "03-animations-rate-functions",
+  "status": "reviewed",
+  "title": "play/wait, Create/FadeIn/Transform, and rate functions",
+  "objective": "Choose creation, visibility, and transform animations deliberately, and pick rate functions that express intent.",
+  "misconception": "That animation choice is cosmetic. It carries meaning: Create builds, FadeIn reveals, Transform relates; rate functions express intent (linear = machine, smooth = natural, there_and_back = emphasis).",
+  "prereqs": ["02-mobjects-positioning"],
+  "ref": "animations.md"
+}

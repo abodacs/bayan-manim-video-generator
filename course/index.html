@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manim CE Course — Manim CE Course</title>
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<header class="site"><div class="shell">
+  <a class="brand" href="index.html">Manim&nbsp;CE <span class="dot">▮</span> Beginner&nbsp;→&nbsp;Master</a>
+  <nav><a href="index.html">Course</a><a href="index.html#assessment-hub">Assessment hub</a><a href="index.html#run-a-scene">How to run a scene</a></nav>
+</div></header>
+<main class="shell">
+<section class="hero">
+  <div class="accent-bar"></div>
+  <h1>Manim Community Edition, Beginner&nbsp;&rarr;&nbsp;Master</h1>
+  <p class="promise">A rigorous, self-contained, browser-based course grounded in this repo's own
+  <code>.agents/skills/manim-video/</code>. Write grounded, render-ready scenes that pass real
+  security, math, layout, and production gates &mdash; not just code that runs.</p>
+</section>
+
+<section class="block">
+  <div class="progress" id="progress-panel">
+    <div class="row"><span><strong>Your progress</strong> <span class="muted">(stored only in this browser)</span></span><span id="overall"></span></div>
+    <div class="bar"><span id="bar-fill"></span></div>
+    <div class="row"><span>Lessons completed</span><span id="stat-lessons">&mdash;</span></div>
+    <div class="row"><span>Quizzes passed (&ge;70%)</span><span id="stat-quizzes">&mdash;</span></div>
+    <div class="row"><span>Tier gates passed (&ge;85%)</span><span id="stat-gates">&mdash;</span></div>
+    <div class="row"><span>Capstones submitted</span><span id="stat-caps">&mdash;</span></div>
+    <div class="row"><span>Tier unlocked</span><span id="stat-unlocked">&mdash;</span></div>
+  </div>
+</section>
+
+<section class="block">
+  <h2>Tiers</h2>
+  <p class="lede">Each tier's lessons unlock when the previous tier's gate is passed (&ge; 85%).</p>
+  <div class="tiers"><div class="tier-card t1" data-tier="1"><div class="stripe"></div><h3>Tier 1 · Beginner</h3><p class="sub">1 lessons</p><p class="meta"><a href="#tier-1">lessons</a> · <a href="#">gate</a> · <a href="#">capstone</a></p><p class="meta"><span class="locktag" data-locktier="1">locked</span></p></div><div class="tier-card t2" data-tier="2"><div class="stripe"></div><h3>Tier 2 · Intermediate</h3><p class="sub">0 lessons</p><p class="meta"><a href="#tier-2">lessons</a> · <a href="#">gate</a> · <a href="#">capstone</a></p><p class="meta"><span class="locktag" data-locktier="2">locked</span></p></div><div class="tier-card t3" data-tier="3"><div class="stripe"></div><h3>Tier 3 · Advanced</h3><p class="sub">0 lessons</p><p class="meta"><a href="#tier-3">lessons</a> · <a href="#">gate</a> · <a href="#">capstone</a></p><p class="meta"><span class="locktag" data-locktier="3">locked</span></p></div><div class="tier-card t4" data-tier="4"><div class="stripe"></div><h3>Tier 4 · Master</h3><p class="sub">0 lessons</p><p class="meta"><a href="#tier-4">lessons</a> · <a href="#">gate</a> · <a href="#">capstone</a></p><p class="meta"><span class="locktag" data-locktier="4">locked</span></p></div></div>
+</section>
+
+<section class="block">
+  <h2>Lessons</h2>
+  <p class="lede">17 lessons across four tiers. Each has a runnable scene, two worked examples, exercises, and a Bloom-laddered quiz.</p>
+  <div id="tier-1"><h3 class="muted" style="margin-top:24px">Tier 1 · Beginner</h3><ul class="lessons"><li class="lesson" id="01-first-scene" data-tier="1" data-id="01-first-scene"><div class="num">01</div><div class="t"><h3><a href="lessons/beginner/01-first-scene/index.html">Install Manim and render your first Scene</a></h3><p class="obj">Install Manim Community Edition (&gt;= 0.20.1) and render a first scene from the command line.</p><p class="ref">prereqs: <span class="muted">none</span> · ref <code>rendering.md, mobjects.md</code></p></div><div class="actions"><span class="status-pill reviewed">reviewed</span><a class="btn" href="lessons/beginner/01-first-scene/index.html#take-quiz">Take quiz</a><span class="score-chip" data-score="01-first-scene"></span></div></li></ul></div><div id="tier-2"><h3 class="muted" style="margin-top:24px">Tier 2 · Intermediate</h3><ul class="lessons"></ul></div><div id="tier-3"><h3 class="muted" style="margin-top:24px">Tier 3 · Advanced</h3><ul class="lessons"></ul></div><div id="tier-4"><h3 class="muted" style="margin-top:24px">Tier 4 · Master</h3><ul class="lessons"></ul></div>
+</section>
+
+<section class="block" id="assessment-hub">
+  <h2>Assessment hub</h2>
+  <p class="lede">Per-lesson quizzes, four tier gates (85% to advance), and four capstones.</p>
+  <ul class="lessons">
+    <li class="lesson"><div class="num">Q</div><div class="t"><h3>Per-lesson quizzes</h3><p class="obj">Linked from each lesson above (Take quiz).</p></div><div class="actions"><a class="btn subtle" href="#tier-1">jump to lessons</a></div></li>
+    <li class="lesson"><div class="num">G</div><div class="t"><h3>Tier gates</h3><p class="obj">85% to unlock the next tier; one attempt per 24h.</p></div><div class="actions"></div></li>
+    <li class="lesson"><div class="num">C</div><div class="t"><h3>Capstones</h3><p class="obj">Open-ended builds graded by a published rubric. Tier 4 = research-paper-explainer.</p></div><div class="actions"></div></li>
+  </ul>
+</section>
+
+<section class="block">
+  <h2>Prerequisite graph</h2>
+  <div class="prereqs measure"><ul>
+<li><a href="lessons/beginner/01-first-scene/index.html">Install Manim and render your first Scene</a></li>
+</ul></div>
+</section>
+
+<section class="block" id="run-a-scene">
+  <h2>How to run a scene locally</h2>
+  <p class="lede">The course never renders inside your browser &mdash; scenes are real Manim Python you run yourself.</p>
+  <pre class="code"><span class="filename">shell</span><code class="language-bash">pip install manim            # Manim Community Edition &gt;= 0.20.1
+manim -ql scene.py MyScene   # low-quality draft (fast)
+manim -qh scene.py MyScene   # production quality (after review)
+manim -ql --format=png -s scene.py MyScene   # single still preview</code></pre>
+  <p>LaTeX is only required for <code>MathTex</code>/<code>Tex</code>/<code>Matrix</code>, numbered axes, and <code>DecimalNumber</code>/<code>Integer</code>. The course shows no-LaTeX fallbacks where LaTeX is unavailable.</p>
+</section>
+
+<script type="application/json" id="manifest">{"tiers": [{"tier": 1, "name": "Beginner", "lessons": ["01-first-scene"], "gate": null, "capstone": null}, {"tier": 2, "name": "Intermediate", "lessons": [], "gate": null, "capstone": null}, {"tier": 3, "name": "Advanced", "lessons": [], "gate": null, "capstone": null}, {"tier": 4, "name": "Master", "lessons": [], "gate": null, "capstone": null}], "lessons": [{"id": "01-first-scene", "tier": 1, "title": "Install Manim and render your first Scene", "status": "reviewed", "url": "lessons/beginner/01-first-scene/index.html", "prereqs": [], "ref": "rendering.md, mobjects.md"}]}</script>
+<script>
+(function () {
+  function el(id) { return document.getElementById(id); }
+  var P = window.ManimProgress;
+  if (!P) return;
+  var manifest = JSON.parse(document.getElementById('manifest').textContent);
+  manifest.lessons.forEach(function (l) {
+    var chip = document.querySelector('.score-chip[data-score="' + l.id + '"]');
+    var pct = P.quizPct(l.id);
+    if (chip && pct != null) { chip.textContent = pct + '%' + (pct >= 70 ? ' \u2713' : '');
+      if (pct >= 70) chip.classList.add('pass'); }
+  });
+  function tierOpen(t) { return P.gateUnlocked(t); }
+  document.querySelectorAll('[data-locktier]').forEach(function (node) {
+    var t = +node.dataset.locktier; var open = tierOpen(t);
+    node.textContent = open ? 'unlocked' : 'locked';
+    node.closest('.tier-card').classList.toggle('unlocked', open);
+    node.closest('.tier-card').classList.toggle('locked', !open);
+  });
+  document.querySelectorAll('li.lesson').forEach(function (li) {
+    var t = +li.dataset.tier;
+    if (t > 1 && !tierOpen(t)) li.classList.add('locked');
+  });
+  var done = 0, qpass = 0, caps = 0, gatesPassed = 0, maxTier = 1;
+  manifest.lessons.forEach(function (l) {
+    if (P.lessonDone(l.id)) done++;
+    var pct = P.quizPct(l.id); if (pct != null && pct >= 70) qpass++;
+  });
+  [1,2,3,4].forEach(function (t) { if (P.gatePassed(t)) { gatesPassed++; maxTier = Math.max(maxTier, t+1); } });
+  [1,2,3,4].forEach(function (t) { if (P.capstoneSubmitted(t)) caps++; });
+  var unlocked = Math.min(4, maxTier);
+  el('stat-lessons').textContent = done + ' / ' + manifest.lessons.length;
+  el('stat-quizzes').textContent = qpass + ' / ' + manifest.lessons.length;
+  el('stat-gates').textContent = gatesPassed + ' / 4';
+  el('stat-caps').textContent = caps + ' / 4';
+  el('stat-unlocked').textContent = 'Tier ' + unlocked + ' (' + ['','Beginner','Intermediate','Advanced','Master'][unlocked] + ')';
+  var total = manifest.lessons.length + 4 + 4;
+  var got = done + gatesPassed + caps;
+  el('overall').textContent = Math.round(100 * got / total) + '%';
+  el('bar-fill').style.width = Math.round(100 * got / total) + '%';
+})();
+
+</script>
+
+</main>
+<footer class="site"><div class="shell">
+  Generated offline by <code>generator.py</code> from <code>course/</code> folders.
+  Grounded in <code>.agents/skills/manim-video/</code>. Manim Community Edition &ge; 0.20.1.
+</div></footer>
+<script src="assets/hl.js"></script>
+<script src="assets/quiz.js"></script>
+</body>
+</html>

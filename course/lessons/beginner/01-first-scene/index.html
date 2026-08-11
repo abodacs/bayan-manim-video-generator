@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install Manim and render your first Scene — Manim CE Course</title>
+<link rel="stylesheet" href="../../../assets/app.css">
+</head>
+<body>
+<header class="site"><div class="shell">
+  <a class="brand" href="../../../index.html">Manim&nbsp;CE <span class="dot">▮</span> Beginner&nbsp;→&nbsp;Master</a>
+  <nav><a href="../../../index.html" class="active">Course</a><a href="../../../index.html#assessment-hub">Assessment hub</a><a href="../../../index.html#run-a-scene">How to run a scene</a></nav>
+</div></header>
+<main class="shell">
+<section class="hero" style="padding:32px 0 18px">
+  <div class="accent-bar" style="background:#1d8ac0;"></div>
+  <p class="muted" style="margin:0">Tier 1 · Beginner · <span class="status-pill reviewed">reviewed</span></p>
+  <h1>Install Manim and render your first Scene</h1>
+  <p class="promise">Install Manim Community Edition (&gt;= 0.20.1) and render a first scene from the command line.</p>
+  <div class="lesson-head" style="margin-top:10px">
+    <p class="meta-line"><strong>Misconception it kills:</strong> <span class="misconception">That Manim is a GUI video editor. It is a Python library: you write a Scene class and render it headlessly to a video file.</span></p>
+    <p class="meta-line"><strong>Prerequisites:</strong> <span class='muted'>none — this is the entry point</span></p>
+    <p class="meta-line"><strong>Source reference:</strong> <code>rendering.md, mobjects.md</code></p>
+    <p class="meta-line"><a href="README.md">raw README.md</a> · <a href="plan.md">plan.md</a> · <a href="exercises.md">exercises.md</a></p>
+  </div>
+</section>
+
+<section class="block" style="padding-top:18px"><article class="lesson-doc"><h1>01 — Install Manim and render your first Scene</h1>
+<blockquote><strong>Objective.</strong> Install Manim Community Edition (≥ 0.20.1) and render a first scene from the command line.  <strong>Misconception it kills.</strong> <em>“Manim is a GUI video editor.”</em> It is not. Manim is a <strong>Python library</strong>: you write a <code>Scene</code> class in a <code>.py</code> file and render it headlessly to a video file. There is no timeline, no drag-and-drop.  <strong>Prerequisites.</strong> None — this is the entry point.  <strong>Source reference.</strong> <code>rendering.md</code>, <code>mobjects.md</code>.</blockquote>
+<h2>What Manim actually is</h2>
+<p>Manim Community Edition (Manim CE) takes Python code and produces an <code>.mp4</code>. A <strong>Scene</strong> is one renderable unit with a <code>construct(self)</code> method. Inside it you build <strong>mobjects</strong> (the visible objects), drive them with <code>self.play(...)</code>, and hold frames with <code>self.wait(...)</code>. The canonical artifact is the Python file itself — treat it as code you review, not a black box.</p>
+<p>This course never renders video for you. Every <code>scene.py</code> is real, runnable Manim that <strong>you</strong> render locally.</p>
+<h2>Install (one-time)</h2>
+<pre class="code"><code class="language-bash">pip install "manim&gt;=0.20.1"     # Manim Community Edition
+manim --version                 # confirm it is on your PATH
+ffmpeg -version                 # Manim needs FFmpeg to write video</code></pre>
+<p>Manim also needs Cairo and Pango for text/graphics. On most systems <code>pip install manim</code> pulls prebuilt wheels that bundle them; if a build fails, install <code>cairo</code> and <code>pango</code> via your system package manager first. See <a href=".agents/skills/manim-video/references/rendering.md"><code>rendering.md</code></a>.</p>
+<blockquote>LaTeX is <strong>only</strong> needed for <code>MathTex</code>/<code>Tex</code>/<code>Matrix</code>, numbered axes, and <code>DecimalNumber</code>/<code>Integer</code>. This first scene uses none of those, so you do not need a LaTeX installation yet.</blockquote>
+<h2>The annotated minimal scene</h2>
+<p>This is <code>scene.py</code>. Read it top to bottom — every line is intentional:</p>
+<pre class="code"><code class="language-python">from manim import *
+
+BG = "#1C1C1C"  # named constant, not a magic hex scattered through the file
+
+
+class HelloManim(Scene):
+    """Write a title, draw a circle, pause after each reveal, then clean up."""
+
+    def construct(self):
+        self.camera.background_color = BG
+
+        title = Text("Hello, Manim", font_size=56)
+        circle = Circle(radius=1.2, color=BLUE)
+
+        # Reveal the title, then HOLD so the viewer can read it.
+        self.play(Write(title), run_time=1.5)
+        self.wait(1.0)
+
+        # Lift the title to make room, then create the circle.
+        self.play(title.animate.to_edge(UP), run_time=0.8)
+        self.play(Create(circle), run_time=1.0)
+        self.wait(1.5)
+
+        # Clean exit: fade every on-screen mobject together.
+        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)</code></pre>
+<p>Annotated beats:</p>
+<ul>
+<li><code>self.play(Write(title), run_time=1.5)</code> — one <strong>animation</strong> over 1.5 s.</li>
+<li><code>self.wait(1.0)</code> — the <strong>pause after the reveal</strong>. This is not optional padding;</li>
+</ul>
+<p>it is how the viewer gets reading time. A fast reveal + a long hold beats a slow reveal with no hold.</p>
+<ul>
+<li><code>title.animate.to_edge(UP)</code> — the <code>.animate</code> syntax chains a coherent state</li>
+</ul>
+<p>change. The mobject must already be on screen.</p>
+<ul>
+<li><code>Create(circle)</code> — a <em>creation</em> animation; this is what puts <code>circle</code> on screen.</li>
+<li><code>Group(*self.mobjects)</code> — groups <strong>all</strong> on-screen mobjects (possibly mixed</li>
+</ul>
+<p>types) so they fade out together. Use <code>Group</code>, not <code>VGroup</code>, for scene cleanup.</p>
+<h2>Render it</h2>
+<pre class="code"><code class="language-bash">manim -ql scene.py HelloManim      # low-quality draft (fast)  -&gt; media/videos/...
+manim -qh scene.py HelloManim      # production quality, only after review
+manim -ql --format=png -s scene.py HelloManim   # a single still preview</code></pre>
+<p>Always give the explicit scene name (<code>HelloManim</code>). Avoid the interactive scene chooser in automation. The output lands under <code>media/videos/scene/.../*.mp4</code>.</p>
+<h2>One practical + one production example</h2>
+<ul>
+<li><strong><code>example-practical.py</code> — <code>TitleCard</code>.</strong> A title card you will rebuild often:</li>
+</ul>
+<p>fade in a title and subtitle, hold, fade out. The smallest useful scene.</p>
+<ul>
+<li><strong><code>example-production.py</code> — <code>ConventionsDemo</code>.</strong> Same idea, but obeys <strong>every</strong></li>
+</ul>
+<p>convention the rest of the course enforces: named semantic colours, opacity layering (primary <code>1.0</code> / context <code>~0.4</code> / structure <code>~0.15</code>), a pause after every reveal, a subcaption per beat, and <code>Group(*self.mobjects)</code> cleanup.</p>
+<h2>Pitfalls and how to detect them</h2>
+<table class="kvtable"><thead><tr><th>Pitfall</th><th>Symptom</th><th>Detection</th></tr></thead><tbody><tr><td>Animating a mobject before it is on screen</td><td>Nothing changes, or an error</td><td>The property animation must follow a <code>Create</code>/<code>add</code>; creation animations (<code>Create</code>, <code>Write</code>, <code>FadeIn</code>) are what add the object.</td></tr><tr><td>No <code>self.wait()</code> after a reveal</td><td>Video feels frantic, unreadable</td><td>Every reveal needs a hold; key reveals ≥ 1.5 s.</td></tr><tr><td>Forgetting <code>run_time</code> on important beats</td><td>Default timing feels arbitrary</td><td>Set <code>run_time</code> explicitly for every <code>play</code>.</td></tr><tr><td>Mixing <code>VGroup</code>/<code>Group</code> for cleanup</td><td>Error if non-<code>VMobject</code> children present</td><td>Cleanup the whole scene with <code>Group(*self.mobjects)</code>.</td></tr></tbody></table>
+<h2>Verification step</h2>
+<ol>
+<li><code>manim --version</code> prints ≥ 0.20.1.</li>
+<li><code>manim -ql scene.py HelloManim</code> writes a file under <code>media/videos/</code>.</li>
+<li>Open the <code>.mp4</code>: you should see the title write on, the circle appear, holds</li>
+</ol>
+<p>between beats, and a clean fade-out. If any beat has no pause, re-render after adding <code>self.wait(...)</code>.</p>
+<p>When you can do the three steps above, take the quiz.</p></article></section>
+
+<section class="block"><h2>Runnable files</h2>
+<p class="lede">Copy any block, save it locally, and render with the command in <a href="../../../index.html#run-a-scene">How to run a scene</a>.</p>
+<h3>scene.py</h3><pre class="code"><span class="filename">scene.py</span><code class="language-python">"""Lesson 01 — your first Manim scene.
+
+Run it (Manim CE &gt;= 0.20.1):
+
+    manim -ql scene.py HelloManim      # low-quality draft
+    manim -qh scene.py HelloManim      # production quality (after review)
+"""
+from manim import *
+
+BG = "#1C1C1C"  # Manim's default canvas colour, as a named constant
+
+
+class HelloManim(Scene):
+    """Write a title, draw a circle, pause after each reveal, then clean up."""
+
+    def construct(self):
+        self.camera.background_color = BG
+
+        title = Text("Hello, Manim", font_size=56)
+        circle = Circle(radius=1.2, color=BLUE)
+
+        # Reveal the title, then hold so the viewer can read it.
+        self.play(Write(title), run_time=1.5)
+        self.wait(1.0)
+
+        # Lift the title to make room, then create the circle.
+        self.play(title.animate.to_edge(UP), run_time=0.8)
+        self.play(Create(circle), run_time=1.0)
+        self.wait(1.5)
+
+        # Clean exit: fade every on-screen mobject together.
+        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
+</code></pre><h3>example-practical.py</h3><pre class="code"><span class="filename">example-practical.py</span><code class="language-python">"""Lesson 01 — practical example: a reusable title card.
+
+A title card is one of the first things you will build. Keep it to one beat at a
+time and always pause after a reveal so the viewer can read it.
+
+    manim -ql example-practical.py TitleCard
+    manim -ql --format=png -s example-practical.py TitleCard   # single still
+"""
+from manim import *
+
+BG = "#1C1C1C"
+
+
+class TitleCard(Scene):
+    """Fade in a title and subtitle, hold, then fade out."""
+
+    def construct(self):
+        self.camera.background_color = BG
+
+        title = Text("Linear Algebra", font_size=52, weight=BOLD)
+        subtitle = Text("vectors, spaces, and meaning", font_size=28)
+        subtitle.set_opacity(0.7)
+
+        # arrange() repositions the children in place; no assignment needed.
+        VGroup(title, subtitle).arrange(DOWN, buff=0.4)
+
+        self.play(FadeIn(title, shift=UP * 0.2), run_time=0.8)
+        self.wait(0.8)
+        self.play(FadeIn(subtitle, shift=UP * 0.1), run_time=0.6)
+        self.wait(1.5)
+
+        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
+</code></pre><h3>example-production.py</h3><pre class="code"><span class="filename">example-production.py</span><code class="language-python">"""Lesson 01 — production example: every core convention, applied.
+
+This scene is small but obeys the conventions the rest of the course enforces:
+named semantic colours, opacity layering (primary / context / structure), an
+explicit pause after every reveal, a subcaption per beat, and a Group cleanup.
+
+    manim -qh example-production.py ConventionsDemo
+"""
+from manim import *
+
+# Shared, stable constants (see scene-planning.md "Cross-Scene Consistency").
+BG = "#1C1C1C"
+PRIMARY = "#58C4DD"   # the thing being explained
+CONTEXT = "#FFFFFF"   # supporting text
+ACCENT = "#FFFF00"    # the key result / focus
+
+
+class ConventionsDemo(Scene):
+    """Show one concept: a shape and its label, with disciplined timing."""
+
+    def construct(self):
+        self.camera.background_color = BG
+
+        shape = Square(side_length=2.0, color=PRIMARY, fill_opacity=0.25)
+        shape.set_stroke(width=6)
+        label = Text("a square", font_size=28, color=CONTEXT).next_to(shape, DOWN, buff=0.4)
+
+        # Dimmed structural guide (opacity ~0.4) sits behind the focus.
+        guide = SurroundingRectangle(shape, color=ACCENT, buff=0.2)
+        guide.set_opacity(0.4)
+
+        self.play(Create(shape), run_time=0.8)
+        self.add_subcaption("create the shape", duration=0.8)
+        self.wait(0.5)
+
+        self.play(FadeIn(label), run_time=0.6)
+        self.add_subcaption("label it", duration=0.6)
+        self.wait(0.5)
+
+        # Highlight is the single strong focal point at the "aha" beat.
+        self.play(Create(guide), run_time=0.6)
+        self.add_subcaption("and frame the key idea", duration=0.8)
+        self.wait(2.0)  # the key pause: let the idea sink in
+
+        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
+</code></pre></section>
+
+<section class="block" id="take-quiz"><h2>Assessment</h2>
+<p class="lede">Bloom-laddered (Remember → Create). Explanations appear only after you answer. Create items are self-assessed against a model answer.</p>
+<div id="assessment"></div>
+<script type="application/json" id="quiz-data">{"kind": "quiz", "id": "01-first-scene", "tier": 1, "title": "Lesson 01 \u2014 Install & first Scene", "items": [{"id": "q1", "type": "single-choice", "bloom": "Remember", "prompt": "What does self.play(Create(circle), run_time=1.0) do?", "options": ["Animates the circle's creation over run_time.", "Adds the circle instantly, with no motion.", "Exports a single PNG frame to disk.", "Pauses the scene for run_time seconds."], "answer": 0, "explanation": "Create() is a creation animation: it draws the mobject onto the screen over run_time seconds. It is what puts the object on screen, unlike a raw property animation.", "ref": "animations.md, mobjects.md"}, {"id": "q2", "type": "single-choice", "bloom": "Understand", "prompt": "You call self.play(circle.animate.set_color(RED)) but circle was never created or added. What is the result?", "options": ["No visible change, because the object is not on screen yet.", "The circle appears and turns red automatically.", "The on-screen circle turns red.", "The scene pauses for one second."], "answer": 0, "explanation": "A property animation like .animate only changes a mobject that is already on screen. You must Create/add it first; otherwise nothing is visible.", "ref": "animations.md (lifecycle), troubleshooting.md"}, {"id": "q3", "type": "fill-blank", "bloom": "Apply", "prompt": "Write the command to render scene.py's HelloManim scene at low quality. (Type the full command.)", "answer": {"regex": "manim\\s+-ql\\s+scene\\.py\\s+HelloManim"}, "explanation": "manim -ql scene.py HelloManim renders the named scene at low quality (-ql). Always pass the explicit scene name; avoid the interactive chooser in scripts.", "ref": "rendering.md"}, {"id": "q4", "type": "bug-spot", "bloom": "Analyze", "prompt": "Find the broken line and choose the fix.", "code": "circle = Circle()\nself.play(circle.animate.set_color(RED), run_time=0.5)\nself.play(Create(circle), run_time=0.8)\nself.wait(1.0)", "brokenLine": 2, "options": ["Create the circle first, then animate its colour.", "Remove the circle entirely.", "Replace set_color with FadeOut.", "Add another self.wait(2.0) call."], "answer": 0, "explanation": "Line 2 animates a property of circle before line 3 ever puts circle on screen. The fix is to Create(circle) first, then animate its colour. Reordering fixes both the bug and the unreadable timing.", "ref": "animations.md, troubleshooting.md"}, {"id": "q5", "type": "multi-select", "bloom": "Evaluate", "prompt": "Which are required conventions from this lesson? (Select all that apply.)", "options": ["Pause (self.wait) after every reveal.", "Set run_time explicitly on important beats.", "Use Group(*self.mobjects) for mixed-mobject cleanup.", "Animate every property, even at the cost of reading time."], "answer": [0, 1, 2], "explanation": "The first three are enforced rules. The last is the opposite of the rule: pauses after reveals are mandatory precisely so the viewer has reading time.", "ref": "scene-planning.md, animations.md"}, {"id": "q6", "type": "create", "bloom": "Create", "prompt": "Write a scene that shows a title and a square, with a deliberate pause after each reveal and a clean exit. Paste it below, then compare to the model answer and self-score.", "modelAnswer": "from manim import *\n\nclass TitleAndSquare(Scene):\n    def construct(self):\n        self.camera.background_color = \"#1C1C1C\"\n        title = Text(\"A title\", font_size=48)\n        square = Square(side_length=2.0, color=BLUE)\n        self.play(Write(title), run_time=1.5)\n        self.wait(1.0)\n        self.play(Create(square), run_time=1.0)\n        self.wait(1.5)\n        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)", "rubric": [{"criterion": "Shows both a title and a square.", "weight": 25}, {"criterion": "Every reveal is followed by a self.wait().", "weight": 30}, {"criterion": "Mobjects are created before any property animation.", "weight": 20}, {"criterion": "Cleans up with Group(*self.mobjects).", "weight": 15}, {"criterion": "Uses a named background constant, not an inline magic hex.", "weight": 10}], "explanation": "The model obeys the lifecycle rule (create before animate), the pause-after-reveal rule, and the Group cleanup rule. Self-score honestly against the rubric.", "ref": "scene-planning.md, mobjects.md"}]}</script>
+</section>
+
+</main>
+<footer class="site"><div class="shell">
+  Generated offline by <code>generator.py</code> from <code>course/</code> folders.
+  Grounded in <code>.agents/skills/manim-video/</code>. Manim Community Edition &ge; 0.20.1.
+</div></footer>
+<script src="../../../assets/hl.js"></script>
+<script src="../../../assets/quiz.js"></script>
+</body>
+</html>
