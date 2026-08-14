@@ -37,7 +37,7 @@ jobs:
         env:
           ANTHROPIC_BASE_URL: https://api.z.ai/api/anthropic
           ANTHROPIC_API_KEY: ${{ secrets.AI_CODE_REVIEW_ANTHROPIC_API_KEY }}
-          CLAUDE_MODEL: glm-5.2
+          CLAUDE_MODEL: glm-5.3
         run: |
           claude -p "$(cat .claude/commands/code-review.md)" \
             --output-format json \
