@@ -464,6 +464,11 @@ def read_lesson(tier, lesson_dir):
         )
 
     lid = os.path.basename(lesson_dir)
+    # The dir name becomes the lesson id, interpolated into id=/href=/
+    # data-*- attributes and querySelector() calls; keep it to a safe charset
+    # rather than trusting the filesystem.
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", lid):
+        R.err(where, "invalid lesson dir name %r (use [a-z0-9-], start alnum)" % lid)
     code_files = {}
     for fn in ("scene.py", "example-practical.py", "example-production.py"):
         p = os.path.join(lesson_dir, fn)
@@ -556,10 +561,16 @@ def read_capstone(tier, cdir):
 def render_lesson(lesson, lessons_by_id):
     assets = "../../../assets/"
     home = "../../../"
+    # The prereq's own tier decides the path: "../<id>/" is only right while
+    # every prereq shares the caller's tier. Derive the href relative to this
+    # lesson's page so cross-tier prereqs resolve instead of 404ing.
     prereq_links = (
         ", ".join(
-            '<a href="../%s/index.html">%s</a>'
-            % (lessons_by_id[p]["id"], esc(lessons_by_id[p]["title"]))
+            '<a href="%s">%s</a>'
+            % (
+                os.path.relpath(lessons_by_id[p]["url"], os.path.dirname(lesson["url"])),
+                esc(lessons_by_id[p]["title"]),
+            )
             for p in lesson["prereqs"]
             if p in lessons_by_id
         )
@@ -638,6 +649,7 @@ def render_gate(gate, tier):
     ) % (TIER_COLOR[tier], tier, esc(TIER_NAME[tier]), esc(TIER_NAME[tier]), esc(next_name), data)
     html = page("%s Gate" % TIER_NAME[tier], body, assets, home, active="Course")
     out = os.path.join(HERE, "exams", "%s-gate.html" % TIER_DIR[tier])
+    os.makedirs(os.path.dirname(out), exist_ok=True)
     write_page(out, html)
     return out
 
@@ -992,6 +1004,24 @@ def main():
                     lessons.append(read_lesson(tier, ld))
     else:
         R.err("lessons/", "no lessons/ directory found")
+
+    # Prereq integrity: a typo'd id silently vanished from the rendered
+    # links, and a same-tier-only href assumption 404s on cross-tier prereqs.
+    # Neither is caught by byte-freshness, so verify ids and targets here.
+    lessons_by_id = {l["id"]: l for l in lessons}
+    for l in lessons:
+        page_dir = os.path.join(HERE, os.path.dirname(l["url"]))
+        for p in l["prereqs"]:
+            target = lessons_by_id.get(p)
+            if target is None:
+                R.err("lessons/%s/%s" % (TIER_DIR[l["tier"]], l["id"]), "unknown prereq %r" % p)
+                continue
+            href = os.path.relpath(os.path.join(HERE, target["url"]), page_dir)
+            if not os.path.exists(os.path.join(page_dir, href)):
+                R.err(
+                    "lessons/%s/%s" % (TIER_DIR[l["tier"]], l["id"]),
+                    "prereq link target does not exist: %s" % href,
+                )
 
     gates = {}
     if os.path.isdir(exams_dir):

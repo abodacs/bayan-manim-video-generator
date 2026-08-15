@@ -228,3 +228,116 @@ class TestEscapingAndScriptOrder:
         # if its script lands earlier, the dashboard silently never renders.
         html = gen.page("t", "<p>body</p>", "assets/", "", extra_js="<script>INDEXJS</script>")
         assert html.index("quiz.js") < html.index("INDEXJS")
+
+
+def _lesson_dict(tmp: Any, lid: str, tier: int, prereqs: list) -> dict:
+    """Minimal lesson shape accepted by render_lesson."""
+    ldir = tmp / "lessons" / gen.TIER_DIR[tier] / lid
+    ldir.mkdir(parents=True, exist_ok=True)
+    return {
+        "id": lid,
+        "tier": tier,
+        "tierName": gen.TIER_NAME[tier],
+        "slug": lid,
+        "title": f"T {lid}",
+        "status": "reviewed",
+        "objective": "o",
+        "misconception": "m",
+        "prereqs": prereqs,
+        "ref": "mobjects.md",
+        "body_html": "<p>b</p>",
+        "code_files": {},
+        "quiz": None,
+        "url": f"lessons/{gen.TIER_DIR[tier]}/{lid}/index.html",
+        "dir": str(ldir),
+    }
+
+
+class TestPrereqLinks:
+    def test_cross_tier_prereq_resolves_to_its_own_tier(self, tmp_path: Any) -> None:
+        # A tier-2 lesson prereqing a tier-1 lesson must not emit "../<id>/",
+        # which would resolve inside the tier-2 directory and 404.
+        by_id = {"01-first-scene": _lesson_dict(tmp_path, "01-first-scene", 1, [])}
+        lesson = _lesson_dict(tmp_path, "05-next-level", 2, ["01-first-scene"])
+        out = gen.render_lesson(lesson, by_id)
+        html = Path(out).read_text(encoding="utf-8")
+        assert 'href="../../beginner/01-first-scene/index.html"' in html
+        assert 'href="../01-first-scene/index.html"' not in html
+
+    def test_same_tier_prereq_href_unchanged(self, tmp_path: Any) -> None:
+        by_id = {
+            "03-animations-rate-functions": _lesson_dict(
+                tmp_path, "03-animations-rate-functions", 1, []
+            )
+        }
+        lesson = _lesson_dict(tmp_path, "04-scene-planning", 1, ["03-animations-rate-functions"])
+        html = Path(gen.render_lesson(lesson, by_id)).read_text(encoding="utf-8")
+        assert 'href="../03-animations-rate-functions/index.html"' in html
+
+
+class TestLessonDirName:
+    def test_unsafe_dir_name_is_rejected(self, tmp_path: Any) -> None:
+        bad = tmp_path / 'x" onmouseover=1'
+        bad.mkdir()
+        (bad / "status.json").write_text(json.dumps({"status": "reviewed"}), encoding="utf-8")
+        gen.R.errors.clear()
+        try:
+            gen.read_lesson(1, str(bad))
+            assert any("invalid lesson dir name" in e for e in gen.R.errors)
+        finally:
+            gen.R.errors.clear()
+
+
+class TestGateAndCapstoneRendering:
+    """The gate/capstone renderers had zero coverage — verify they emit pages."""
+
+    def _gate(self) -> dict:
+        blooms = ["Remember", "Understand", "Apply", "Analyze", "Evaluate", "Create"]
+        items = [
+            {
+                "id": f"g{i}",
+                "type": "single-choice",
+                "bloom": blooms[i % 6],
+                "prompt": "p",
+                "options": ["a", "b"],
+                "answer": 0,
+                "explanation": "e",
+                "ref": "mobjects.md",
+            }
+            for i in range(15)
+        ]
+        return {
+            "kind": "gate",
+            "id": "beginner-gate",
+            "tier": 1,
+            "title": "Beginner Gate",
+            "items": items,
+            "threshold": 0.85,
+        }
+
+    def test_render_gate_emits_parseable_page(self, tmp_path: Any, monkeypatch: Any) -> None:
+        monkeypatch.setattr(gen, "HERE", str(tmp_path))
+        out = gen.render_gate(self._gate(), 1)
+        html = Path(out).read_text(encoding="utf-8")
+        assert html.startswith("<!doctype html>")
+        assert "Beginner Tier Gate" in html
+        block = html.split('id="exam-data">', 1)[1].split("</script>", 1)[0]
+        data = json.loads(block.replace("\\/", "/"))
+        assert len(data["items"]) == 15
+
+    def test_render_capstone_emits_parseable_page(self, tmp_path: Any) -> None:
+        cdir = tmp_path / "capstone" / "1"
+        cdir.mkdir(parents=True)
+        capstone = {
+            "tier": 1,
+            "brief_html": "<p>brief</p>",
+            "rubric_html": "<p>rubric</p>",
+            "solution": {"solution.py": "from manim import *"},
+            "url": "capstone/1/index.html",
+            "dir": str(cdir),
+        }
+        out = gen.render_capstone(capstone, 1)
+        html = Path(out).read_text(encoding="utf-8")
+        assert html.startswith("<!doctype html>")
+        assert "Beginner Capstone" in html
+        assert "solution.py" in html
