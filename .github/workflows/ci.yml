@@ -66,3 +66,18 @@ jobs:
           name: container-smoke
           path: artifacts/container-smoke/
           if-no-files-found: warn
+
+  course-gate:
+    name: Course generator gate
+    # Stdlib-only generator: no Manim/uv setup needed, just Python.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate course quizzes/gates and syntax-check scenes
+        run: python3 course/generator.py --check
+
+      - name: Rebuild site and require committed pages to be fresh
+        run: |
+          python3 course/generator.py
+          git diff --exit-code -- course/
