@@ -57,12 +57,16 @@ select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
 # Strict on the package. The Manim scene (bayan/utils/sanity_check.py) uses
 # `from manim import *`, which is fundamentally untyped/dynamic, so it is
 # excluded rather than fought. See docs/agdr/AgDR-0001-type-checker.md.
+# The course tree is excluded the same way: its lessons are runnable Manim
+# scenes (star-imports by design), and course/generator.py is a standalone
+# stdlib site-builder gated by ruff + its own CI validation job.
 [tool.mypy]
 python_version = "3.11"
 strict = true
 exclude = [
     "sanity_check\\.py$",
     "^tests/",
+    "^course/",
 ]
 
 # -----------------------------------------------------------------------------

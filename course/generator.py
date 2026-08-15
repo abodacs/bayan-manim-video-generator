@@ -73,6 +73,17 @@ def esc(s):
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def json_for_script(obj):
+    """JSON for embedding inside <script type="application/json">.
+
+    The HTML parser never enters JSON mode: a literal "</" in any field would
+    terminate the script block early and corrupt the page. "<\\/" is a valid
+    JSON escape that parses back to "</" — quiz.js JSON.parses these blocks,
+    so behaviour is unchanged for well-formed content.
+    """
+    return json.dumps(obj).replace("</", "<\\/")
+
+
 def inline(t):
     """Render inline markdown (escapes first; protects code spans)."""
     t = esc(t)
@@ -222,6 +233,26 @@ def md_to_html(md):
 # --------------------------------------------------------------------------- #
 # Quiz / gate schema validation
 # --------------------------------------------------------------------------- #
+def regex_answer_errs(answer, item_id):
+    """Check a {regex:..} answer compiles before it reaches the browser.
+
+    quiz.js hands the pattern straight to new RegExp(...) inside score(); an
+    invalid pattern there breaks the whole quiz at submit time, not just this
+    item. Python's re.compile accepts the same syntax for the patterns a quiz
+    author would write, so reject at the gate.
+    """
+    if not isinstance(answer, dict):
+        return []
+    rx = answer.get("regex")
+    if not isinstance(rx, str):
+        return ["item %r regex answer must be a string" % item_id]
+    try:
+        re.compile(rx)
+    except re.error as e:
+        return ["item %r has invalid regex %r: %s" % (item_id, rx, e)]
+    return []
+
+
 def validate_item(it):
     errs = []
     for k in ("id", "type", "bloom", "prompt", "explanation", "ref"):
@@ -248,12 +279,16 @@ def validate_item(it):
         a = it.get("answer")
         if not (isinstance(a, str) or (isinstance(a, dict) and a.get("regex"))):
             errs.append("fill-blank %r answer must be str or {regex:..}" % it.get("id"))
+        else:
+            errs.extend(regex_answer_errs(a, it.get("id")))
     elif ty == "predict-output":
         if not it.get("code"):
             errs.append("predict-output %r needs 'code'" % it.get("id"))
         a = it.get("answer")
         if not (isinstance(a, str) or (isinstance(a, dict) and a.get("regex"))):
             errs.append("predict-output %r answer must be str or {regex:..}" % it.get("id"))
+        else:
+            errs.extend(regex_answer_errs(a, it.get("id")))
     elif ty == "bug-spot":
         if not it.get("code"):
             errs.append("bug-spot %r needs 'code'" % it.get("id"))
@@ -511,7 +546,7 @@ def render_lesson(lesson, lessons_by_id):
         if fn in lesson["code_files"]:
             files_html += "<h3>%s</h3>" % esc(fn) + code_block(lesson["code_files"][fn], fn)
 
-    quiz_json = json.dumps(lesson["quiz"]) if lesson["quiz"] else "{}"
+    quiz_json = json_for_script(lesson["quiz"]) if lesson["quiz"] else "{}"
 
     body = (
         '<section class="hero" style="padding:32px 0 18px">\n'
@@ -564,7 +599,7 @@ def render_gate(gate, tier):
         return None
     assets = "../assets/"
     home = "../"
-    data = json.dumps(gate)
+    data = json_for_script(gate)
     next_name = TIER_NAME.get(tier + 1, "next")
     body = (
         '<section class="hero" style="padding:32px 0 18px">\n'
@@ -594,7 +629,7 @@ def render_capstone(capstone, tier):
             sol_html += "<h3>%s</h3>" % esc(fn) + code_block(content, fn)
         else:
             sol_html += md_to_html(content)
-    cap_data = json.dumps(
+    cap_data = json_for_script(
         {
             "kind": "capstone",
             "id": "capstone-%s" % tier,
@@ -680,7 +715,7 @@ INDEX_TEMPLATE = """<section class="hero">
 
 <section class="block">
   <h2>Lessons</h2>
-  <p class="lede">17 lessons across four tiers. Each has a runnable scene, two worked examples, exercises, and a Bloom-laddered quiz.</p>
+  <p class="lede">@@LESSONCOUNT@@ lessons across four tiers. Each has a runnable scene, two worked examples, exercises, and a Bloom-laddered quiz.</p>
   @@LIST@@
 </section>
 
@@ -889,12 +924,13 @@ def render_index(lessons, gates, capstones):
 
     body = (
         INDEX_TEMPLATE.replace("@@CARDS@@", cards_html)
+        .replace("@@LESSONCOUNT@@", str(len(lessons)))
         .replace("@@LIST@@", list_html)
         .replace("@@GRAPH@@", graph_html)
         .replace("@@GATES@@", gates_btns)
         .replace("@@CAPS@@", caps_btns)
         .replace("@@SHELL@@", shell_snippet)
-        .replace("@@MANIFEST@@", json.dumps(manifest))
+        .replace("@@MANIFEST@@", json_for_script(manifest))
         .replace("@@INDEXJS@@", index_js)
     )
 
