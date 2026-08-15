@@ -81,6 +81,7 @@ class TestValidateItem:
             _item(answer=5),  # index out of range
             _item(answer="0"),  # not an int
             _item(options=["only one"]),
+            _item(id='x" onmouseover=1'),  # unsafe id charset
         ],
         ids=[
             "bad-type",
@@ -90,6 +91,7 @@ class TestValidateItem:
             "answer-index-out-of-range",
             "answer-not-int",
             "too-few-options",
+            "unsafe-id-charset",
         ],
     )
     def test_invalid_items_are_rejected(self, bad: dict) -> None:
@@ -341,3 +343,65 @@ class TestGateAndCapstoneRendering:
         assert html.startswith("<!doctype html>")
         assert "Beginner Capstone" in html
         assert "solution.py" in html
+
+
+def _write_lesson_dir(root: Any, lid: str, prereqs: list) -> None:
+    """A complete, gate-valid lesson: status.json + 6-item Bloom quiz."""
+    ldir = root / "lessons" / "beginner" / lid
+    (ldir / "assessment").mkdir(parents=True)
+    (ldir / "status.json").write_text(
+        json.dumps(
+            {
+                "id": lid,
+                "tier": 1,
+                "slug": lid,
+                "status": "reviewed",
+                "title": f"T {lid}",
+                "objective": "o",
+                "misconception": "m",
+                "prereqs": prereqs,
+                "ref": "mobjects.md",
+            }
+        ),
+        encoding="utf-8",
+    )
+    blooms = ["Remember", "Understand", "Apply", "Analyze", "Evaluate", "Create"]
+    quiz = {
+        "kind": "quiz",
+        "id": lid,
+        "tier": 1,
+        "title": f"Quiz {lid}",
+        "items": [
+            {
+                "id": f"q{i}",
+                "type": "single-choice",
+                "bloom": b,
+                "prompt": "p",
+                "options": ["a", "b"],
+                "answer": 0,
+                "explanation": "e",
+                "ref": "mobjects.md",
+            }
+            for i, b in enumerate(blooms, 1)
+        ],
+    }
+    (ldir / "assessment" / "quiz.json").write_text(json.dumps(quiz), encoding="utf-8")
+
+
+class TestFirstBuild:
+    def test_new_prereq_pair_builds_from_scratch(self, tmp_path: Any, monkeypatch: Any) -> None:
+        # Regression: the prereq link check once required the TARGET'S
+        # GENERATED PAGE to exist — impossible on a first build that adds a
+        # lesson and its prereq together, deadlocking before any render.
+        import sys as _sys
+
+        monkeypatch.setattr(gen, "HERE", str(tmp_path))
+        _write_lesson_dir(tmp_path, "01-a", [])
+        _write_lesson_dir(tmp_path, "02-b", ["01-a"])
+        monkeypatch.setattr(_sys, "argv", ["generator.py"])
+        gen.R.errors.clear()
+        try:
+            assert gen.main() == 0
+            assert (tmp_path / "lessons/beginner/02-b/index.html").exists()
+        finally:
+            gen.R.errors.clear()

@@ -178,7 +178,7 @@
     var order = shuffle(it.options.map(function (_, i) { return i; }));
     var lineHtml = lines.map(function (ln, i) {
       var n = i + 1;
-      return '<li data-line="' + n + '"><label><input type="radio" name="bug-' + it.id +
+      return '<li data-line="' + n + '"><label><input type="radio" name="bug-' + esc(it.id) +
         '" value="' + n + '"> <span class="ln">' + n + "</span> " + esc(ln) + "</label></li>";
     }).join("");
     var html = codeBlock(it.code, "buggy.py") +
