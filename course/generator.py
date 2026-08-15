@@ -340,6 +340,15 @@ def syntax_check(path):
         return False, str(e)
 
 
+def write_page(path, html):
+    # End every file with a newline: pre-commit's end-of-file-fixer enforces
+    # it, and committed pages must byte-match a fresh generator run.
+    if not html.endswith("\n"):
+        html += "\n"
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(html)
+
+
 # --------------------------------------------------------------------------- #
 # Page shell
 # --------------------------------------------------------------------------- #
@@ -546,8 +555,7 @@ def render_lesson(lesson, lessons_by_id):
     )
     html = page(lesson["title"], body, assets, home, active="Course")
     out = os.path.join(lesson["dir"], "index.html")
-    with open(out, "w", encoding="utf-8") as fh:
-        fh.write(html)
+    write_page(out, html)
     return out
 
 
@@ -570,8 +578,7 @@ def render_gate(gate, tier):
     ) % (TIER_COLOR[tier], tier, esc(TIER_NAME[tier]), esc(TIER_NAME[tier]), esc(next_name), data)
     html = page("%s Gate" % TIER_NAME[tier], body, assets, home, active="Course")
     out = os.path.join(HERE, "exams", "%s-gate.html" % TIER_DIR[tier])
-    with open(out, "w", encoding="utf-8") as fh:
-        fh.write(html)
+    write_page(out, html)
     return out
 
 
@@ -638,8 +645,7 @@ def render_capstone(capstone, tier):
     )
     html = page("%s Capstone" % TIER_NAME[tier], body, assets, home, active="Course")
     out = os.path.join(capstone["dir"], "index.html")
-    with open(out, "w", encoding="utf-8") as fh:
-        fh.write(html)
+    write_page(out, html)
     return out
 
 
@@ -894,8 +900,7 @@ def render_index(lessons, gates, capstones):
 
     html = page("Manim CE Course", body, assets, home="")
     out = os.path.join(HERE, "index.html")
-    with open(out, "w", encoding="utf-8") as fh:
-        fh.write(html)
+    write_page(out, html)
     return out
 
 

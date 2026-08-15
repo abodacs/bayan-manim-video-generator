@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobjects, positioning, and grouping — Manim CE Course</title>
+<link rel="stylesheet" href="../../../assets/app.css">
+</head>
+<body>
+<header class="site"><div class="shell">
+  <a class="brand" href="../../../index.html">Manim&nbsp;CE <span class="dot">▮</span> Beginner&nbsp;→&nbsp;Master</a>
+  <nav><a href="../../../index.html" class="active">Course</a><a href="../../../index.html#assessment-hub">Assessment hub</a><a href="../../../index.html#run-a-scene">How to run a scene</a></nav>
+</div></header>
+<main class="shell">
+<section class="hero" style="padding:32px 0 18px">
+  <div class="accent-bar" style="background:#1d8ac0;"></div>
+  <p class="muted" style="margin:0">Tier 1 · Beginner · <span class="status-pill reviewed">reviewed</span></p>
+  <h1>Mobjects, positioning, and grouping</h1>
+  <p class="promise">Choose the smallest mobject for the idea, position it precisely in Manim's coordinate system, and group it correctly.</p>
+  <div class="lesson-head" style="margin-top:10px">
+    <p class="meta-line"><strong>Misconception it kills:</strong> <span class="misconception">That positions are pixel coordinates you eyeball. Manim uses a math coordinate system centered at the origin; you place objects with next_to/arrange/to_edge and verify with bounding boxes.</span></p>
+    <p class="meta-line"><strong>Prerequisites:</strong> <a href="../01-first-scene/index.html">Install Manim and render your first Scene</a></p>
+    <p class="meta-line"><strong>Source reference:</strong> <code>mobjects.md</code></p>
+    <p class="meta-line"><a href="README.md">raw README.md</a> · <a href="plan.md">plan.md</a> · <a href="exercises.md">exercises.md</a></p>
+  </div>
+</section>
+
+<section class="block" style="padding-top:18px"><article class="lesson-doc"><h1>02 — Mobjects, positioning, and grouping</h1>
+<blockquote><strong>Objective.</strong> Choose the smallest mobject for the idea, position it precisely in Manim's coordinate system, and group it correctly.  <strong>Misconception it kills.</strong> <em>“Positions are pixel coordinates you eyeball.”</em> They are not. Manim uses a <strong>math coordinate system</strong>: the origin is screen center, and <code>UP/DOWN/LEFT/RIGHT</code> are unit vectors. You place objects with <code>move_to</code> / <code>next_to</code> / <code>to_edge</code> / <code>arrange</code> and <strong>verify</strong> with bounding boxes.  <strong>Prerequisites.</strong> <a href="../01-first-scene/index.html">01 — First Scene</a>.  <strong>Source reference.</strong> <code>mobjects.md</code>.</blockquote>
+<h2>Pick the smallest mobject</h2>
+<p>Everything visible is a <strong>mobject</strong>. Use the smallest object that expresses the idea, then compose named mobjects into a group.</p>
+<ul>
+<li>Text: <code>Text</code>, <code>Paragraph</code> (prose); <code>MathTex</code>/<code>Tex</code> (math, raw strings).</li>
+<li>Shapes: <code>Circle</code>, <code>Square</code>, <code>Rectangle</code>, <code>Polygon</code>, <code>Triangle</code>, <code>Dot</code>, <code>Line</code>,</li>
+</ul>
+<p><code>Arrow</code>, <code>Arc</code>, <code>RegularPolygon</code>.</p>
+<ul>
+<li>Annotations: <code>Brace</code>, <code>SurroundingRectangle</code>, <code>Angle</code>, <code>DashedLine</code>.</li>
+</ul>
+<h2>Position precisely</h2>
+<pre class="code"><code class="language-python">row = VGroup(circle, square, triangle).arrange(RIGHT, buff=0.6)  # even spacing
+row.to_edge(UP, buff=1.0)                                         # edge + buffer
+label.next_to(row, DOWN, buff=0.8)                                # relative to bbox
+dot.move_to(np.array([2.0, 1.0, 0.0]))                            # explicit coords</code></pre>
+<p><code>next_to</code> and <code>arrange</code> position relative to <strong>bounding boxes</strong>, so layouts stay correct as content changes. Use <code>buff &gt;= 0.5</code> near frame edges. After placement, check the result by rendering a still (<code>--format=png -s</code>).</p>
+<h2>VGroup vs Group — the rule that bites</h2>
+<ul>
+<li><strong><code>VGroup</code></strong> accepts only compatible <strong><code>VMobject</code></strong> children (shapes, <code>Tex</code>).</li>
+<li><strong><code>Group</code></strong> accepts <strong>mixed</strong> <code>Mobject</code> types (shapes + <code>Text</code> + captions).</li>
+</ul>
+<p>For scene cleanup, always use <code>Group(*self.mobjects)</code> because a scene can contain non-<code>VMobject</code> types:</p>
+<pre class="code"><code class="language-python">self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)</code></pre>
+<p>Do <strong>not</strong> assume <code>Group</code> supports every <code>VMobject</code> convenience (e.g. <code>save_state</code>); save/restore individual compatible mobjects when needed.</p>
+<h2>Annotated minimal scene</h2>
+<p>See <code>scene.py</code>. Three shapes are arranged into a <code>VGroup</code>, pushed to the top edge, and labelled. Cleanup uses <code>Group</code> because <code>Text</code> is mixed in.</p>
+<h2>One practical + one production example</h2>
+<ul>
+<li><strong><code>example-practical.py</code> — <code>RightTriangle</code>.</strong> A geometry diagram: build a</li>
+</ul>
+<p>triangle from points, add a <code>RightAngle</code> marker, label a leg. This is the skeleton of "geometry before algebra".</p>
+<ul>
+<li><strong><code>example-production.py</code> — <code>GridHierarchy</code>.</strong> A 2×2 grid with opacity</li>
+</ul>
+<p>layering (context dimmed, one framed focus, a caption) — full visual hierarchy.</p>
+<h2>Pitfalls and detection</h2>
+<table class="kvtable"><thead><tr><th>Pitfall</th><th>Symptom</th><th>Detection</th></tr></thead><tbody><tr><td><code>VGroup</code> with a non-<code>VMobject</code> child</td><td>Error at creation</td><td>Use <code>Group</code> for mixed types.</td></tr><tr><td>Animating before <code>add</code>/<code>Create</code></td><td>Nothing moves</td><td>Creation animations put the object on screen first.</td></tr><tr><td>Guessing positions</td><td>Overlaps, clipping</td><td>Use <code>next_to</code>/<code>arrange</code>; render a still; check bbox.</td></tr><tr><td>Tiny <code>buff</code> at edges</td><td>Text clipped</td><td><code>buff &gt;= 0.5</code> near the frame edge.</td></tr></tbody></table>
+<h2>Verification step</h2>
+<ol>
+<li>Render <code>scene.py</code> at <code>-ql</code>. The three shapes sit in an even row at the top,</li>
+</ol>
+<p>the label is centered below them, no overlaps.</p>
+<ol>
+<li>Render a still of <code>example-production.py</code>. Confirm the focus rectangle wraps</li>
+</ol>
+<p>exactly one cell and nothing is clipped at the edges.</p></article></section>
+
+<section class="block"><h2>Runnable files</h2>
+<p class="lede">Copy any block, save it locally, and render with the command in <a href="../../../index.html#run-a-scene">How to run a scene</a>.</p>
+<h3>scene.py</h3><pre class="code"><span class="filename">scene.py</span><code class="language-python">"""Lesson 02 — mobjects, positioning, grouping.
+
+Run it:
+
+    manim -ql scene.py Positioning
+"""
+
+from manim import *
+
+BG = "#1C1C1C"
+
+
+class Positioning(Scene):
+    """Arrange three mobjects in a row and label them — no pixel guessing."""
+
+    def construct(self):
+        self.camera.background_color = BG
+
+        circle = Circle(radius=0.8, color=BLUE)
+        square = Square(side_length=1.4, color=YELLOW)
+        triangle = Triangle(color=GREEN)
+
+        # arrange() lays out a VGroup of compatible VMobjects with even spacing.
+        row = VGroup(circle, square, triangle).arrange(RIGHT, buff=0.6)
+        row.to_edge(UP, buff=1.0)
+
+        # next_to places one mobject relative to another's bounding box.
+        label = Text("positioned, not guessed", font_size=24)
+        label.next_to(row, DOWN, buff=0.8)
+
+        self.play(Create(row), run_time=1.2)
+        self.wait(0.5)
+        self.play(Write(label), run_time=0.8)
+        self.wait(1.5)
+
+        # Mixed cleanup (VGroup + Text) uses Group, not VGroup.
+        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
+</code></pre><h3>example-practical.py</h3><pre class="code"><span class="filename">example-practical.py</span><code class="language-python">"""Lesson 02 — practical: a labeled geometric diagram.
+
+A right triangle with its right-angle marker and a leg label. This is the shape
+of most "geometry before algebra" explanations.
+
+    manim -ql example-practical.py RightTriangle
+"""
+
+from manim import *
+
+BG = "#1C1C1C"
+
+
+class RightTriangle(Scene):
+    """Build a right triangle from points and annotate one leg."""
+
+    def construct(self):
+        self.camera.background_color = BG
+
+        a = np.array([-1.5, -1.0, 0.0])
+        b = np.array([1.5, -1.0, 0.0])
+        c = np.array([-1.5, 1.5, 0.0])
+        tri = Polygon(a, b, c, color=BLUE)
+
+        right_angle = RightAngle(Line(a, b), Line(a, c), length=0.4, color=YELLOW)
+        leg = Tex(r"a", font_size=36).next_to(Line(a, b), DOWN, buff=0.2)
+
+        self.play(Create(tri), run_time=1.0)
+        self.wait(0.5)
+        self.play(Create(right_angle), Write(leg), run_time=0.8)
+        self.wait(1.5)
+
+        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
+</code></pre><h3>example-production.py</h3><pre class="code"><span class="filename">example-production.py</span><code class="language-python">"""Lesson 02 — production: positioning with opacity hierarchy.
+
+Demonstrates: named palette, primary/context/structure opacity layering,
+arrange_in_grid, buff &gt;= 0.5 at edges, and Group cleanup.
+
+    manim -qh example-production.py GridHierarchy
+"""
+
+from manim import *
+
+BG = "#1C1C1C"
+PRIMARY = "#58C4DD"
+ACCENT = "#FFFF00"
+INK = "#FFFFFF"
+
+
+class GridHierarchy(Scene):
+    """A 2x2 grid of concepts with a framed focus and a caption."""
+
+    def construct(self):
+        self.camera.background_color = BG
+
+        titles = ["vector", "space", "basis", "transform"]
+        cells = VGroup(
+            *[
+                VGroup(Circle(radius=0.5, color=PRIMARY), Text(t, font_size=22, color=INK))
+                for t in titles
+            ]
+        )
+        for cell in cells:
+            cell[1].next_to(cell[0], DOWN, buff=0.15)
+        cells.arrange_in_grid(rows=2, cols=2, buff=0.8)
+        cells.set_opacity(0.45)  # context layer
+
+        focus = SurroundingRectangle(cells[2], color=ACCENT, buff=0.2)
+        caption = Text("the basis is the focus", font_size=24, color=ACCENT)
+        caption.next_to(cells, DOWN, buff=0.6)
+
+        self.play(Create(cells), run_time=1.2)
+        self.wait(0.8)
+        self.play(Create(focus), run_time=0.6)  # single strong focal point
+        self.wait(0.3)
+        self.play(Write(caption), run_time=0.8)
+        self.wait(2.0)
+
+        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
+</code></pre></section>
+
+<section class="block" id="take-quiz"><h2>Assessment</h2>
+<p class="lede">Bloom-laddered (Remember → Create). Explanations appear only after you answer. Create items are self-assessed against a model answer.</p>
+<div id="assessment"></div>
+<script type="application/json" id="quiz-data">{"kind": "quiz", "id": "02-mobjects-positioning", "tier": 1, "title": "Lesson 02 \u2014 Mobjects & positioning", "items": [{"id": "q1", "type": "single-choice", "bloom": "Remember", "prompt": "Where is the origin (0,0) of Manim's default coordinate system?", "options": ["At the centre of the screen.", "At the top-left pixel.", "At the bottom-left pixel.", "At the top-right pixel."], "answer": 0, "explanation": "Manim's coordinate system is centred on screen; UP/DOWN/LEFT/RIGHT are unit vectors from that centre, not pixel offsets from a corner.", "ref": "mobjects.md"}, {"id": "q2", "type": "single-choice", "bloom": "Understand", "prompt": "You need to clean up a scene that contains shapes and a Text caption. Which call is correct?", "options": ["FadeOut(Group(*self.mobjects))", "FadeOut(VGroup(*self.mobjects))", "FadeOut(self.mobjects)", "FadeOut(list(self.mobjects))"], "answer": 0, "explanation": "A scene can hold non-VMobject types (Text/captions). Group accepts mixed Mobject types; VGroup accepts only compatible VMobjects. So Group(*self.mobjects) is the safe cleanup.", "ref": "mobjects.md, animations.md"}, {"id": "q3", "type": "fill-blank", "bloom": "Apply", "prompt": "Complete the call to place label directly below row with a gap: label.______(row, DOWN, buff=0.8)", "answer": "next_to", "explanation": "next_to(mobject, direction, buff=...) positions one mobject relative to another's bounding box. move_to uses absolute coords; arrange lays out a group.", "ref": "mobjects.md"}, {"id": "q4", "type": "predict-output", "bloom": "Analyze", "prompt": "What is the value of row[1] after this runs?", "code": "row = VGroup(Circle(), Square(), Triangle()).arrange(RIGHT, buff=0.6)", "answer": "Square", "explanation": "VGroup preserves insertion order. arrange() repositions the existing children but does not reorder them, so row[1] is still the Square.", "ref": "mobjects.md"}, {"id": "q5", "type": "bug-spot", "bloom": "Analyze", "prompt": "Find the broken line and choose the fix.", "code": "caption = Text(\"note\")\nvg = VGroup(Circle(), caption)\nvg.arrange(RIGHT)\nself.play(Create(vg))", "brokenLine": 2, "options": ["Use Group instead of VGroup when mixing Text with shapes.", "Replace Circle() with another Text.", "Remove the arrange() call.", "Increase the buff parameter."], "answer": 0, "explanation": "Line 2 puts a Text (not a compatible VMobject for VGroup in all versions) into a VGroup. Mixing types calls for Group, which accepts any Mobject.", "ref": "mobjects.md, troubleshooting.md"}, {"id": "q6", "type": "multi-select", "bloom": "Evaluate", "prompt": "A classmate positions every label with hardcoded coordinates, e.g. label.move_to([3.2, 1.7, 0]). Which critiques are fair?", "options": ["next_to/to_edge survives a change in the mobject's size; hardcoded coordinates do not.", "Hardcoded coordinates read more clearly and should be preferred for exact layouts.", "If the referenced shape animates or resizes, hardcoded labels need manual repositioning.", "buff is purely decorative and plays no part in relative positioning."], "answer": [0, 2], "explanation": "Relative positioning (next_to/to_edge with buff) derives from live bounding boxes, so it stays correct when content changes; hardcoded coordinates encode a snapshot and break on any change. Option 2 is wrong because the coordinates carry no intent, and option 4 is wrong because buff is the gap next_to actually places.", "ref": "mobjects.md"}, {"id": "q7", "type": "code-ordering", "bloom": "Apply", "prompt": "Order these steps to build and clean up a labelled diagram.", "options": ["Create the shapes and arrange them into a VGroup.", "Position the group with to_edge or next_to.", "Create the group on screen with self.play(Create(group)).", "Fade out with Group(*self.mobjects)."], "answer": [0, 1, 2, 3], "explanation": "Build -> position -> reveal -> clean exit. You cannot meaningfully position before creating the mobjects, and you must reveal before cleanup.", "ref": "scene-planning.md, mobjects.md"}, {"id": "q8", "type": "create", "bloom": "Create", "prompt": "Write a scene with three shapes arranged vertically, a title above them, and a clean exit. Paste it and self-score.", "modelAnswer": "from manim import *\n\nclass VerticalThree(Scene):\n    def construct(self):\n        self.camera.background_color = \"#1C1C1C\"\n        title = Text(\"three shapes\", font_size=40).to_edge(UP, buff=0.8)\n        col = VGroup(Circle(0.5, color=BLUE), Square(side_length=1.0, color=YELLOW),\n                     Triangle(color=GREEN)).arrange(DOWN, buff=0.5)\n        col.next_to(title, DOWN, buff=0.8)\n        self.play(Write(title), run_time=0.8)\n        self.wait(0.5)\n        self.play(Create(col), run_time=1.2)\n        self.wait(1.5)\n        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)", "rubric": [{"criterion": "Three distinct shapes arranged vertically.", "weight": 30}, {"criterion": "A title positioned above, not overlapping.", "weight": 20}, {"criterion": "Uses arrange(DOWN) and next_to/to_edge (no pixel guessing).", "weight": 25}, {"criterion": "Pause after each reveal.", "weight": 15}, {"criterion": "Cleans up with Group(*self.mobjects).", "weight": 10}], "explanation": "The model arranges with arrange/next_to, pauses after reveals, and cleans up with Group.", "ref": "mobjects.md, scene-planning.md"}]}</script>
+</section>
+
+</main>
+<footer class="site"><div class="shell">
+  Generated offline by <code>generator.py</code> from <code>course/</code> folders.
+  Grounded in <code>.agents/skills/manim-video/</code>. Manim Community Edition &ge; 0.20.1.
+</div></footer>
+<script src="../../../assets/hl.js"></script>
+<script src="../../../assets/quiz.js"></script>
+</body>
+</html>

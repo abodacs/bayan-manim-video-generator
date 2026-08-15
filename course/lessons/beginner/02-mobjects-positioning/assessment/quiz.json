@@ -72,6 +72,21 @@
     },
     {
       "id": "q6",
+      "type": "multi-select",
+      "bloom": "Evaluate",
+      "prompt": "A classmate positions every label with hardcoded coordinates, e.g. label.move_to([3.2, 1.7, 0]). Which critiques are fair?",
+      "options": [
+        "next_to/to_edge survives a change in the mobject's size; hardcoded coordinates do not.",
+        "Hardcoded coordinates read more clearly and should be preferred for exact layouts.",
+        "If the referenced shape animates or resizes, hardcoded labels need manual repositioning.",
+        "buff is purely decorative and plays no part in relative positioning."
+      ],
+      "answer": [0, 2],
+      "explanation": "Relative positioning (next_to/to_edge with buff) derives from live bounding boxes, so it stays correct when content changes; hardcoded coordinates encode a snapshot and break on any change. Option 2 is wrong because the coordinates carry no intent, and option 4 is wrong because buff is the gap next_to actually places.",
+      "ref": "mobjects.md"
+    },
+    {
+      "id": "q7",
       "type": "code-ordering",
       "bloom": "Apply",
       "prompt": "Order these steps to build and clean up a labelled diagram.",
@@ -86,7 +101,7 @@
       "ref": "scene-planning.md, mobjects.md"
     },
     {
-      "id": "q7",
+      "id": "q8",
       "type": "create",
       "bloom": "Create",
       "prompt": "Write a scene with three shapes arranged vertically, a title above them, and a clean exit. Paste it and self-score.",

@@ -112,6 +112,7 @@ Run it (Manim CE &gt;= 0.20.1):
     manim -ql scene.py HelloManim      # low-quality draft
     manim -qh scene.py HelloManim      # production quality (after review)
 """
+
 from manim import *
 
 BG = "#1C1C1C"  # Manim's default canvas colour, as a named constant
@@ -145,6 +146,7 @@ time and always pause after a reveal so the viewer can read it.
     manim -ql example-practical.py TitleCard
     manim -ql --format=png -s example-practical.py TitleCard   # single still
 """
+
 from manim import *
 
 BG = "#1C1C1C"
@@ -177,13 +179,14 @@ explicit pause after every reveal, a subcaption per beat, and a Group cleanup.
 
     manim -qh example-production.py ConventionsDemo
 """
+
 from manim import *
 
 # Shared, stable constants (see scene-planning.md "Cross-Scene Consistency").
 BG = "#1C1C1C"
-PRIMARY = "#58C4DD"   # the thing being explained
-CONTEXT = "#FFFFFF"   # supporting text
-ACCENT = "#FFFF00"    # the key result / focus
+PRIMARY = "#58C4DD"  # the thing being explained
+CONTEXT = "#FFFFFF"  # supporting text
+ACCENT = "#FFFF00"  # the key result / focus
 
 
 class ConventionsDemo(Scene):
