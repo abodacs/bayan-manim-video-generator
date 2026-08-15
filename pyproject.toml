@@ -39,6 +39,14 @@ select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
 # Manim scenes idiomatically use `from manim import *` -- F401/F403/F405 are
 # the star-import noise that produces.
 "bayan/utils/sanity_check.py" = ["F401", "F403", "F405"]
+# The course ships runnable Manim scenes (star-imports, the idiomatic pattern)
+# plus a zero-dep stdlib generator; mirror the templates ignores so the gate
+# passes without fighting the library's import style.
+"course/**/*.py" = ["F401", "F403", "F405", "E402"]
+# generator.py is a standalone static-site build script (not a library import),
+# with %-formatted HTML templates and loop variables named to match the data
+# they walk -- these ignores are scoped to it alone, not the whole course tree.
+"course/generator.py" = ["E501", "E741", "SIM115", "UP031"]
 
 [tool.ruff.format]
 # Defaults: double quotes, trailing commas.
