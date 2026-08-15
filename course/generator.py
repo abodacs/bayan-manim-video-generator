@@ -270,6 +270,11 @@ def validate_item(it):
     for k in ("id", "type", "bloom", "prompt", "explanation", "ref"):
         if k not in it or it[k] in ("", None):
             errs.append("item %r missing/empty '%s'" % (it.get("id", "?"), k))
+    iid = it.get("id")
+    if isinstance(iid, str) and not re.fullmatch(r"[a-z0-9][a-z0-9-]*", iid):
+        # Item ids are interpolated into attributes and querySelector()
+        # calls by quiz.js; keep them to the same safe charset as lesson dirs.
+        errs.append("item id %r must match [a-z0-9][a-z0-9-]" % iid)
     ty = it.get("type")
     if ty not in ITEM_TYPES:
         errs.append("item %r has invalid type %r" % (it.get("id", "?"), ty))
@@ -758,7 +763,7 @@ INDEX_TEMPLATE = """<section class="hero">
 
 <section class="block" id="assessment-hub">
   <h2>Assessment hub</h2>
-  <p class="lede">Per-lesson quizzes, four tier gates (85% to advance), and four capstones.</p>
+  <p class="lede">Per-lesson quizzes, tier gates (85% to advance), and capstones. Gates and capstones are staged as tiers complete.</p>
   <ul class="lessons">
     <li class="lesson"><div class="num">Q</div><div class="t"><h3>Per-lesson quizzes</h3><p class="obj">Linked from each lesson above (Take quiz).</p></div><div class="actions"><a class="btn subtle" href="#tier-1">jump to lessons</a></div></li>
     <li class="lesson"><div class="num">G</div><div class="t"><h3>Tier gates</h3><p class="obj">85% to unlock the next tier; one attempt per 24h.</p></div><div class="actions">@@GATES@@</div></li>
@@ -867,16 +872,25 @@ def render_index(lessons, gates, capstones):
     graph.append("</ul>")
     graph_html = "\n".join(graph)
 
-    # assessment hub gate/capstone buttons
-    gates_btns = "".join(
-        '<a class="btn" href="%s">%s</a>' % (gates[t]["url"], TIER_NAME[t])
-        for t in (1, 2, 3, 4)
-        if gates.get(t)
+    # assessment hub gate/capstone buttons; tiers are staged incrementally
+    # (see NOTES.md), so unbuilt hubs say so instead of silently rendering
+    # nothing behind copy that promises them.
+    not_staged = "<span class='muted'>not yet staged</span>"
+    gates_btns = (
+        "".join(
+            '<a class="btn" href="%s">%s</a>' % (gates[t]["url"], TIER_NAME[t])
+            for t in (1, 2, 3, 4)
+            if gates.get(t)
+        )
+        or not_staged
     )
-    caps_btns = "".join(
-        '<a class="btn subtle" href="%s">%s</a>' % (capstones[t]["url"], TIER_NAME[t])
-        for t in (1, 2, 3, 4)
-        if capstones.get(t)
+    caps_btns = (
+        "".join(
+            '<a class="btn subtle" href="%s">%s</a>' % (capstones[t]["url"], TIER_NAME[t])
+            for t in (1, 2, 3, 4)
+            if capstones.get(t)
+        )
+        or not_staged
     )
 
     shell_snippet = code_block(
@@ -1007,20 +1021,19 @@ def main():
 
     # Prereq integrity: a typo'd id silently vanished from the rendered
     # links, and a same-tier-only href assumption 404s on cross-tier prereqs.
-    # Neither is caught by byte-freshness, so verify ids and targets here.
+    # Validate the SOURCE (the scanned lesson dir), never the rendered page:
+    # pages are written after this check, so requiring the target page to
+    # exist would deadlock any first build that adds linked lessons together.
     lessons_by_id = {l["id"]: l for l in lessons}
     for l in lessons:
-        page_dir = os.path.join(HERE, os.path.dirname(l["url"]))
         for p in l["prereqs"]:
             target = lessons_by_id.get(p)
             if target is None:
                 R.err("lessons/%s/%s" % (TIER_DIR[l["tier"]], l["id"]), "unknown prereq %r" % p)
-                continue
-            href = os.path.relpath(os.path.join(HERE, target["url"]), page_dir)
-            if not os.path.exists(os.path.join(page_dir, href)):
+            elif not os.path.isdir(target["dir"]):
                 R.err(
                     "lessons/%s/%s" % (TIER_DIR[l["tier"]], l["id"]),
-                    "prereq link target does not exist: %s" % href,
+                    "prereq lesson directory missing: %s" % target["dir"],
                 )
 
     gates = {}
