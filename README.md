@@ -1,5 +1,10 @@
 # Bayan: Arabic AI-Powered Manim Video Generator
 
+> **Status: Proof of Concept.** This repository is a POC that proved the
+> foundations — Arabic rendering in an isolated container and the
+> plan→template→render spine. It is not the end product. The post-POC product
+> direction lives in [`docs/PRODUCT_DIRECTION.md`](docs/PRODUCT_DIRECTION.md).
+
 Bayan is an Arabic AI-powered video generator built on top of Manim.
 
 This project targets **Manim Community Edition**. It installs the Community
@@ -172,7 +177,8 @@ container/
     ├── pyproject.toml             Render-only dependency declarations
     └── uv.lock                    Locked render dependency graph
 docs/
-    ├── PROJECT_NORTH_STAR.md       Product direction and success signals
+    ├── PRODUCT_DIRECTION.md        Post-POC product direction (current)
+    ├── PROJECT_NORTH_STAR.md       POC strategy and success signals
     ├── ARCHITECTURE.md             Target system boundaries
     ├── DOMAIN_MODEL.md             Domain relationships and invariants
     ├── DEVELOPMENT.md              Contributor development loop
@@ -214,6 +220,7 @@ isolated process rather than inside the application host.
 
 See the detailed [architecture](docs/ARCHITECTURE.md), [domain model](docs/DOMAIN_MODEL.md),
 and [project North Star](docs/PROJECT_NORTH_STAR.md) for the proposed direction.
+The current product direction is in [PRODUCT_DIRECTION.md](docs/PRODUCT_DIRECTION.md).
 
 ## Design and engineering decisions
 
