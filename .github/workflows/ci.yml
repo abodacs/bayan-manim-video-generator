@@ -78,6 +78,9 @@ jobs:
         run: python3 course/generator.py --check
 
       - name: Rebuild site and require committed pages to be fresh
+        # Stage the rebuild first: a plain worktree diff misses untracked
+        # paths, so a new lesson whose page was never committed would pass.
         run: |
           python3 course/generator.py
-          git diff --exit-code -- course/
+          git add -A course/
+          git diff --cached --exit-code -- course/

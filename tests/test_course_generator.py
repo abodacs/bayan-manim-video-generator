@@ -109,6 +109,18 @@ class TestRegexAnswers:
         errs = gen.validate_item(_item(type="fill-blank", answer={"regex": 3}))
         assert any("must be a string" in e for e in errs)
 
+    def test_multiselect_answer_indexes_must_be_in_range(self) -> None:
+        ok = gen.validate_item(_item(type="multi-select", options=["a", "b"], answer=[0, 1]))
+        assert ok == []
+
+        out_of_range = gen.validate_item(
+            _item(type="multi-select", options=["a", "b"], answer=[0, 5])
+        )
+        assert any("int indexes into options" in e for e in out_of_range)
+
+        string_el = gen.validate_item(_item(type="multi-select", options=["a", "b"], answer=["0"]))
+        assert any("int indexes into options" in e for e in string_el)
+
     def test_valid_regex_is_accepted(self) -> None:
         assert gen.validate_item(_item(type="fill-blank", answer={"regex": r"v\d+\.\d+"})) == []
 
@@ -203,3 +215,16 @@ class TestJsonForScript:
 
     def test_plain_data_is_unchanged(self) -> None:
         assert gen.json_for_script({"a": 1}) == '{"a": 1}'
+
+
+class TestEscapingAndScriptOrder:
+    def test_esc_neutralizes_attribute_breakouts(self) -> None:
+        out = gen.esc("a\"b'c<d>&e")
+        assert '"' not in out and "'" not in out and "<" not in out
+        assert out == "a&quot;b&#39;c&lt;d&gt;&amp;e"
+
+    def test_page_puts_extra_js_after_quiz_js(self) -> None:
+        # The index dashboard needs window.ManimProgress (defined by quiz.js);
+        # if its script lands earlier, the dashboard silently never renders.
+        html = gen.page("t", "<p>body</p>", "assets/", "", extra_js="<script>INDEXJS</script>")
+        assert html.index("quiz.js") < html.index("INDEXJS")

@@ -65,9 +65,9 @@ self.play(dot.animate.shift(RIGHT * 0.5), rate_func=there_and_back, run_time=1.0
 <ul>
 <li><strong><code>example-production.py</code> — <code>BuildUp</code>.</strong> A <code>LaggedStart</code> of boxes, then a</li>
 </ul>
-<p>single highlighted "result" — composition + the key-pause discipline.</p>
+<p>single highlighted &quot;result&quot; — composition + the key-pause discipline.</p>
 <h2>Pitfalls and detection</h2>
-<table class="kvtable"><thead><tr><th>Pitfall</th><th>Symptom</th><th>Detection</th></tr></thead><tbody><tr><td>Competing animations on one property</td><td>Jitter / override</td><td>Chain via <code>.animate</code>; one state change per <code>play</code>.</td></tr><tr><td>No <code>run_time</code> on key beats</td><td>Feels arbitrary</td><td>Set <code>run_time</code> explicitly.</td></tr><tr><td>Wrong rate function</td><td>Motion feels "off" for the idea</td><td><code>linear</code> for mechanical; <code>smooth</code>/<code>there_and_back</code> for emphasis.</td></tr><tr><td><code>Transform</code> between very different point counts</td><td>Ugly morph</td><td>Use <code>FadeTransform</code>, or morph via an intermediate.</td></tr></tbody></table>
+<table class="kvtable"><thead><tr><th>Pitfall</th><th>Symptom</th><th>Detection</th></tr></thead><tbody><tr><td>Competing animations on one property</td><td>Jitter / override</td><td>Chain via <code>.animate</code>; one state change per <code>play</code>.</td></tr><tr><td>No <code>run_time</code> on key beats</td><td>Feels arbitrary</td><td>Set <code>run_time</code> explicitly.</td></tr><tr><td>Wrong rate function</td><td>Motion feels &quot;off&quot; for the idea</td><td><code>linear</code> for mechanical; <code>smooth</code>/<code>there_and_back</code> for emphasis.</td></tr><tr><td><code>Transform</code> between very different point counts</td><td>Ugly morph</td><td>Use <code>FadeTransform</code>, or morph via an intermediate.</td></tr></tbody></table>
 <h2>Verification step</h2>
 <ol>
 <li>Render <code>scene.py</code>. Confirm the circle <em>draws</em>, the square <em>fades</em>, the circle</li>
@@ -80,20 +80,20 @@ self.play(dot.animate.shift(RIGHT * 0.5), rate_func=there_and_back, run_time=1.0
 
 <section class="block"><h2>Runnable files</h2>
 <p class="lede">Copy any block, save it locally, and render with the command in <a href="../../../index.html#run-a-scene">How to run a scene</a>.</p>
-<h3>scene.py</h3><pre class="code"><span class="filename">scene.py</span><code class="language-python">"""Lesson 03 — creation, visibility, transform, rate functions.
+<h3>scene.py</h3><pre class="code"><span class="filename">scene.py</span><code class="language-python">&quot;&quot;&quot;Lesson 03 — creation, visibility, transform, rate functions.
 
 Run it:
 
     manim -ql scene.py AnimationChoices
-"""
+&quot;&quot;&quot;
 
 from manim import *
 
-BG = "#1C1C1C"
+BG = &quot;#1C1C1C&quot;
 
 
 class AnimationChoices(Scene):
-    """Create, FadeIn, Transform — each chosen for what it means."""
+    &quot;&quot;&quot;Create, FadeIn, Transform — each chosen for what it means.&quot;&quot;&quot;
 
     def construct(self):
         self.camera.background_color = BG
@@ -120,21 +120,21 @@ class AnimationChoices(Scene):
         self.wait(1.0)
 
         self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
-</code></pre><h3>example-practical.py</h3><pre class="code"><span class="filename">example-practical.py</span><code class="language-python">"""Lesson 03 — practical: compare rate functions side by side.
+</code></pre><h3>example-practical.py</h3><pre class="code"><span class="filename">example-practical.py</span><code class="language-python">&quot;&quot;&quot;Lesson 03 — practical: compare rate functions side by side.
 
 Two dots cross the screen; one linear (constant speed), one smooth (ease in/out).
 Seeing them together is the fastest way to internalise rate functions.
 
     manim -ql example-practical.py RateCompare
-"""
+&quot;&quot;&quot;
 
 from manim import *
 
-BG = "#1C1C1C"
+BG = &quot;#1C1C1C&quot;
 
 
 class RateCompare(Scene):
-    """Linear vs smooth: same distance, different feel."""
+    &quot;&quot;&quot;Linear vs smooth: same distance, different feel.&quot;&quot;&quot;
 
     def construct(self):
         self.camera.background_color = BG
@@ -144,8 +144,8 @@ class RateCompare(Scene):
         VGroup(linear_dot, smooth_dot).arrange(UP, buff=1.0)
 
         labels = VGroup(
-            Text("linear", font_size=22, color=YELLOW),
-            Text("smooth", font_size=22, color=BLUE),
+            Text(&quot;linear&quot;, font_size=22, color=YELLOW),
+            Text(&quot;smooth&quot;, font_size=22, color=BLUE),
         )
         labels[0].next_to(linear_dot, LEFT, buff=0.3)
         labels[1].next_to(smooth_dot, LEFT, buff=0.3)
@@ -158,24 +158,24 @@ class RateCompare(Scene):
         self.wait(1.0)
 
         self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
-</code></pre><h3>example-production.py</h3><pre class="code"><span class="filename">example-production.py</span><code class="language-python">"""Lesson 03 — production: a build-up with composition + timing.
+</code></pre><h3>example-production.py</h3><pre class="code"><span class="filename">example-production.py</span><code class="language-python">&quot;&quot;&quot;Lesson 03 — production: a build-up with composition + timing.
 
 Demonstrates LaggedStart (staggered reveals), AnimationGroup (simultaneous),
 explicit run_time on every beat, subcaptions, and a deliberate key pause.
 
     manim -qh example-production.py BuildUp
-"""
+&quot;&quot;&quot;
 
 from manim import *
 
-BG = "#1C1C1C"
-PRIMARY = "#58C4DD"
-ACCENT = "#FFFF00"
-INK = "#FFFFFF"
+BG = &quot;#1C1C1C&quot;
+PRIMARY = &quot;#58C4DD&quot;
+ACCENT = &quot;#FFFF00&quot;
+INK = &quot;#FFFFFF&quot;
 
 
 class BuildUp(Scene):
-    """Grow a row of boxes, then highlight the last as the 'result'."""
+    &quot;&quot;&quot;Grow a row of boxes, then highlight the last as the &#39;result&#39;.&quot;&quot;&quot;
 
     def construct(self):
         self.camera.background_color = BG
@@ -183,9 +183,9 @@ class BuildUp(Scene):
         boxes = VGroup(*[Square(side_length=0.9, color=PRIMARY) for _ in range(4)])
         boxes.arrange(RIGHT, buff=0.4)
 
-        # LaggedStart staggers repeated appearances — clarifies "a sequence".
+        # LaggedStart staggers repeated appearances — clarifies &quot;a sequence&quot;.
         self.play(LaggedStart(*[GrowFromCenter(b) for b in boxes], lag_ratio=0.2))
-        self.add_subcaption("build the sequence", duration=1.2)
+        self.add_subcaption(&quot;build the sequence&quot;, duration=1.2)
         self.wait(0.6)
 
         # The last box becomes the result; one strong focal highlight.
@@ -193,10 +193,10 @@ class BuildUp(Scene):
             boxes[3].animate.set_color(ACCENT).scale(1.15),
             run_time=0.8,
         )
-        self.add_subcaption("and the result emerges", duration=1.0)
+        self.add_subcaption(&quot;and the result emerges&quot;, duration=1.0)
         self.wait(2.0)  # key pause
 
-        caption = Text("the fourth term is special", font_size=24, color=INK)
+        caption = Text(&quot;the fourth term is special&quot;, font_size=24, color=INK)
         caption.next_to(boxes, DOWN, buff=0.6)
         self.play(Write(caption), run_time=0.8)
         self.wait(1.5)

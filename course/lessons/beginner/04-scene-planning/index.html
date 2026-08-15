@@ -26,7 +26,7 @@
 </section>
 
 <section class="block" style="padding-top:18px"><article class="lesson-doc"><h1>04 — Scene planning and the plan file</h1>
-<blockquote><strong>Objective.</strong> Write a <code>plan.md</code> — arc, scenes, palette, beats, timing — <strong>before</strong> code, so every scene carries exactly one concept.  <strong>Misconception it kills.</strong> <em>"Planning slows you down."</em> A plan file prevents rework: it forces one concept per scene, visible beats, and deliberate pauses before you write a line of animation code.  <strong>Prerequisites.</strong> <a href="../03-animations-rate-functions/index.html">03 — Animations &amp; rate functions</a>.  <strong>Source reference.</strong> <code>scene-planning.md</code>.</blockquote>
+<blockquote><strong>Objective.</strong> Write a <code>plan.md</code> — arc, scenes, palette, beats, timing — <strong>before</strong> code, so every scene carries exactly one concept.  <strong>Misconception it kills.</strong> <em>&quot;Planning slows you down.&quot;</em> A plan file prevents rework: it forces one concept per scene, visible beats, and deliberate pauses before you write a line of animation code.  <strong>Prerequisites.</strong> <a href="../03-animations-rate-functions/index.html">03 — Animations &amp; rate functions</a>.  <strong>Source reference.</strong> <code>scene-planning.md</code>.</blockquote>
 <h2>Plan first, then code</h2>
 <p>Every lesson in this course ships a <code>plan.md</code> next to its <code>scene.py</code>. The plan states the arc, the scene breakdown (one sentence per scene), the palette, and a beat table — animation, <code>run_time</code>, wait. Code is then transcription, not composition: you spend your attention on motion, not on structure.</p>
 <p>A plan catches the expensive mistakes while they are still cheap:</p>
@@ -43,7 +43,7 @@
 <p>A scene must be describable in <strong>one sentence</strong>. If it cannot, split it. Production videos are several focused scenes, not one long scene with many internal stages. Typical scene length is <strong>30–90 s</strong>; a 10-minute video is usually <strong>8–14 scenes</strong>.</p>
 <h2>Time every beat</h2>
 <p>The pause <strong>after</strong> a reveal matters more than the animation. A fast reveal with a two-second hold beats a slow reveal with no time to think.</p>
-<table class="kvtable"><thead><tr><th>Beat</th><th>run_time</th><th>Wait after</th></tr></thead><tbody><tr><td>Title/intro appear</td><td>1.5 s</td><td>1.0 s</td></tr><tr><td>Simple object creation</td><td>0.5–0.8 s</td><td>0.5 s</td></tr><tr><td>Complex diagram build</td><td>1.0–1.5 s</td><td>1.0 s</td></tr><tr><td>Formula reveal</td><td>2.0–3.0 s</td><td>2.0 s</td></tr><tr><td>Key insight / "aha"</td><td>1.5 s</td><td>2.5 s</td></tr><tr><td>Transform/morph</td><td>1.5–2.0 s</td><td>0.5 s</td></tr><tr><td>FadeOut cleanup</td><td>0.5 s</td><td>0.2 s</td></tr></tbody></table>
+<table class="kvtable"><thead><tr><th>Beat</th><th>run_time</th><th>Wait after</th></tr></thead><tbody><tr><td>Title/intro appear</td><td>1.5 s</td><td>1.0 s</td></tr><tr><td>Simple object creation</td><td>0.5–0.8 s</td><td>0.5 s</td></tr><tr><td>Complex diagram build</td><td>1.0–1.5 s</td><td>1.0 s</td></tr><tr><td>Formula reveal</td><td>2.0–3.0 s</td><td>2.0 s</td></tr><tr><td>Key insight / &quot;aha&quot;</td><td>1.5 s</td><td>2.5 s</td></tr><tr><td>Transform/morph</td><td>1.5–2.0 s</td><td>0.5 s</td></tr><tr><td>FadeOut cleanup</td><td>0.5 s</td><td>0.2 s</td></tr></tbody></table>
 <h2>Transitions</h2>
 <ul>
 <li><strong>Clean break</strong> (default when changing topics):</li>
@@ -55,7 +55,7 @@
 </ul>
 <p>on them; fade everything else.</p>
 <ul>
-<li><strong>Transform bridge</strong> — transform the previous result into the next scene's</li>
+<li><strong>Transform bridge</strong> — transform the previous result into the next scene&#39;s</li>
 </ul>
 <p>starting object when the relationship itself is the point.</p>
 <ul>
@@ -64,10 +64,10 @@
 <p><code>MovingCameraScene</code> whenever <code>self.camera.frame</code> is touched).</p>
 <h2>Consistency: constants, not vibes</h2>
 <p>Define shared constants at the top of every scene file — the same ones across the whole video:</p>
-<pre class="code"><code class="language-python">BG = "#1C1C1C"
-PRIMARY = "#58C4DD"   # the thing being explained
-SECONDARY = "#83C167" # supporting structure
-ACCENT = "#FFFF00"    # the key result / focus</code></pre>
+<pre class="code"><code class="language-python">BG = &quot;#1C1C1C&quot;
+PRIMARY = &quot;#58C4DD&quot;   # the thing being explained
+SECONDARY = &quot;#83C167&quot; # supporting structure
+ACCENT = &quot;#FFFF00&quot;    # the key result / focus</code></pre>
 <p>Give colors <strong>meanings</strong> and keep them. Establish hierarchy with opacity: primary <code>1.0</code>, context <code>0.4</code>, scaffolding <code>0.15</code>. Keep at most three or four competing elements on screen.</p>
 <h2>One practical + one production example</h2>
 <ul>
@@ -98,23 +98,23 @@ ACCENT = "#FFFF00"    # the key result / focus</code></pre>
 
 <section class="block"><h2>Runnable files</h2>
 <p class="lede">Copy any block, save it locally, and render with the command in <a href="../../../index.html#run-a-scene">How to run a scene</a>.</p>
-<h3>scene.py</h3><pre class="code"><span class="filename">scene.py</span><code class="language-python">"""Lesson 04 — a planned scene: build-up arc, timed beats, clean exit.
+<h3>scene.py</h3><pre class="code"><span class="filename">scene.py</span><code class="language-python">&quot;&quot;&quot;Lesson 04 — a planned scene: build-up arc, timed beats, clean exit.
 
 Written from plan.md (this directory): seed -&gt; perturb -&gt; generalise,
 every beat with run_time and a deliberate wait after each reveal.
 
     manim -ql scene.py PlannedArc
-"""
+&quot;&quot;&quot;
 
 from manim import *
 
-BG = "#1C1C1C"
-PRIMARY = "#58C4DD"
-ACCENT = "#FFFF00"
+BG = &quot;#1C1C1C&quot;
+PRIMARY = &quot;#58C4DD&quot;
+ACCENT = &quot;#FFFF00&quot;
 
 
 class PlannedArc(Scene):
-    """A build-up arc in miniature, transcribed from the beat table."""
+    &quot;&quot;&quot;A build-up arc in miniature, transcribed from the beat table.&quot;&quot;&quot;
 
     def construct(self):
         self.camera.background_color = BG
@@ -134,14 +134,14 @@ class PlannedArc(Scene):
         self.wait(1.0)
 
         # Beat 4 — key insight: the caption IS the payoff. (rt=1.5, wait=2.5)
-        caption = Text("same rule, different size", font_size=28)
+        caption = Text(&quot;same rule, different size&quot;, font_size=28)
         caption.next_to(Group(dot, dot2), DOWN, buff=0.8)
         self.play(Write(caption), run_time=1.5)
         self.wait(2.5)
 
         # Beat 5 — clean exit. (rt=0.6)
         self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
-</code></pre><h3>example-practical.py</h3><pre class="code"><span class="filename">example-practical.py</span><code class="language-python">"""Lesson 04 — practical: the two default transitions, side by side.
+</code></pre><h3>example-practical.py</h3><pre class="code"><span class="filename">example-practical.py</span><code class="language-python">&quot;&quot;&quot;Lesson 04 — practical: the two default transitions, side by side.
 
 CleanBreak fades everything (default between topics); CarryForward keeps one
 key element when the next scene builds directly on it. Two small scenes in one
@@ -149,22 +149,22 @@ file is fine for a prototype; production splits per scene.
 
     manim -ql example-practical.py CleanBreak
     manim -ql example-practical.py CarryForward
-"""
+&quot;&quot;&quot;
 
 from manim import *
 
-BG = "#1C1C1C"
-PRIMARY = "#58C4DD"
-ACCENT = "#FFFF00"
+BG = &quot;#1C1C1C&quot;
+PRIMARY = &quot;#58C4DD&quot;
+ACCENT = &quot;#FFFF00&quot;
 
 
 class CleanBreak(Scene):
-    """Default when changing topics: leave nothing behind."""
+    &quot;&quot;&quot;Default when changing topics: leave nothing behind.&quot;&quot;&quot;
 
     def construct(self):
         self.camera.background_color = BG
 
-        term = MathTex(r"a^2 + b^2", font_size=48, color=PRIMARY)
+        term = MathTex(r&quot;a^2 + b^2&quot;, font_size=48, color=PRIMARY)
         self.play(Write(term), run_time=1.5)
         self.wait(1.0)
 
@@ -174,13 +174,13 @@ class CleanBreak(Scene):
 
 
 class CarryForward(Scene):
-    """Next scene builds on it: keep the key term, fade only the context."""
+    &quot;&quot;&quot;Next scene builds on it: keep the key term, fade only the context.&quot;&quot;&quot;
 
     def construct(self):
         self.camera.background_color = BG
 
-        term = MathTex(r"a^2 + b^2", font_size=48, color=PRIMARY)
-        note = Text("the parts", font_size=24)
+        term = MathTex(r&quot;a^2 + b^2&quot;, font_size=48, color=PRIMARY)
+        note = Text(&quot;the parts&quot;, font_size=24)
         note.next_to(term, DOWN, buff=0.8)
         self.play(Write(term), run_time=1.5)
         self.wait(0.8)
@@ -192,22 +192,22 @@ class CarryForward(Scene):
         self.wait(1.5)
 
         self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
-</code></pre><h3>example-production.py</h3><pre class="code"><span class="filename">example-production.py</span><code class="language-python">"""Lesson 04 — production: the full planning checklist applied.
+</code></pre><h3>example-production.py</h3><pre class="code"><span class="filename">example-production.py</span><code class="language-python">&quot;&quot;&quot;Lesson 04 — production: the full planning checklist applied.
 
 Opacity layering (primary 1.0 / context 0.4 / scaffolding 0.15), shared color
 constants with fixed meanings, subcaptions on every beat, one &gt;= 2.0 s
 thinking pause, safe edge buffing, and a clean Group exit.
 
     manim -qh example-production.py OpacityLayers
-"""
+&quot;&quot;&quot;
 
 from manim import *
 
-BG = "#1C1C1C"
-PRIMARY = "#58C4DD"  # the thing being explained
-SECONDARY = "#83C167"  # supporting structure
-ACCENT = "#FFFF00"  # the key result / focus
-INK = "#FFFFFF"
+BG = &quot;#1C1C1C&quot;
+PRIMARY = &quot;#58C4DD&quot;  # the thing being explained
+SECONDARY = &quot;#83C167&quot;  # supporting structure
+ACCENT = &quot;#FFFF00&quot;  # the key result / focus
+INK = &quot;#FFFFFF&quot;
 
 OPACITY_PRIMARY = 1.0
 OPACITY_CONTEXT = 0.4
@@ -215,7 +215,7 @@ OPACITY_SCAFFOLD = 0.15
 
 
 class OpacityLayers(Scene):
-    """Hierarchy without adding a single new mobject type."""
+    &quot;&quot;&quot;Hierarchy without adding a single new mobject type.&quot;&quot;&quot;
 
     def construct(self):
         self.camera.background_color = BG
@@ -224,29 +224,29 @@ class OpacityLayers(Scene):
         grid = NumberPlane(x_range=(-6, 6, 1), y_range=(-3, 3, 1))
         grid.set_opacity(OPACITY_SCAFFOLD)
         self.play(Create(grid), run_time=1.0)
-        self.add_subcaption("a grid to anchor positions", duration=1.0)
+        self.add_subcaption(&quot;a grid to anchor positions&quot;, duration=1.0)
         self.wait(1.0)
 
         # Context: a secondary curve, present but recessed.
         line = FunctionGraph(lambda x: 0.5 * x, x_range=(-4, 4), color=SECONDARY)
         line.set_opacity(OPACITY_CONTEXT)
         self.play(Create(line), run_time=1.0)
-        self.add_subcaption("and a familiar line for reference", duration=1.2)
+        self.add_subcaption(&quot;and a familiar line for reference&quot;, duration=1.2)
         self.wait(1.0)
 
         # Primary: the thing being explained, full opacity.
         curve = FunctionGraph(lambda x: 0.1 * x * x, x_range=(-4, 4), color=PRIMARY)
         self.play(Create(curve), run_time=1.5)
-        self.add_subcaption("the curve of interest", duration=1.2)
+        self.add_subcaption(&quot;the curve of interest&quot;, duration=1.2)
         self.wait(1.0)
 
         # Key insight: the minimum sits on the reference line.
         dot = Dot(radius=0.12, color=ACCENT).move_to(ORIGIN)
         self.play(FadeIn(dot, scale=2.0), run_time=0.8)
-        self.add_subcaption("its minimum sits exactly on the line", duration=1.5)
+        self.add_subcaption(&quot;its minimum sits exactly on the line&quot;, duration=1.5)
         self.wait(2.0)  # the thinking pause — longest hold in the scene
 
-        caption = Text("hierarchy is opacity, not size", font_size=24, color=INK)
+        caption = Text(&quot;hierarchy is opacity, not size&quot;, font_size=24, color=INK)
         caption.to_edge(DOWN, buff=0.8)
         self.play(Write(caption), run_time=0.8)
         self.wait(1.5)

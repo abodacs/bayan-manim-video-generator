@@ -32,6 +32,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TIER_NAME = {1: "Beginner", 2: "Intermediate", 3: "Advanced", 4: "Master"}
 TIER_DIR = {1: "beginner", 2: "intermediate", 3: "advanced", 4: "master"}
 TIER_COLOR = {1: "#1d8ac0", 2: "#2f8f4e", 3: "#8a4bb0", 4: "#b26a00"}
+# Lesson lifecycle states; the status also names a status-pill CSS class, so
+# an unknown value is a content error, not a free-text field.
+STATUSES = {"draft", "planned", "reviewed", "done"}
 BLOOM_LEVELS = ["Remember", "Understand", "Apply", "Analyze", "Evaluate", "Create"]
 ITEM_TYPES = {
     "single-choice",
@@ -70,7 +73,16 @@ R = Report()
 # Minimal markdown -> HTML
 # --------------------------------------------------------------------------- #
 def esc(s):
-    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    # Quotes too: esc() output lands in double-quoted attributes
+    # (class="status-pill ...", data-score="...") as well as text nodes.
+    return (
+        str(s)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#39;")
+    )
 
 
 def json_for_script(obj):
@@ -275,6 +287,13 @@ def validate_item(it):
             errs.append("multi-select %r needs >=2 options" % it.get("id"))
         if not isinstance(it.get("answer"), list) or not it.get("answer"):
             errs.append("multi-select %r answer must be non-empty [int]" % it.get("id"))
+        elif isinstance(it.get("options"), list) and not all(
+            isinstance(x, int) and not isinstance(x, bool) and 0 <= x < len(it["options"])
+            for x in it["answer"]
+        ):
+            # quiz.js can never match out-of-range or non-int indexes: the
+            # item would be permanently unscorable and a gate would mis-score.
+            errs.append("multi-select %r answer must be int indexes into options" % it.get("id"))
     elif ty == "fill-blank":
         a = it.get("answer")
         if not (isinstance(a, str) or (isinstance(a, dict) and a.get("regex"))):
@@ -387,7 +406,7 @@ def write_page(path, html):
 # --------------------------------------------------------------------------- #
 # Page shell
 # --------------------------------------------------------------------------- #
-def page(title, body, assets, home, active=None):
+def page(title, body, assets, home, active=None, extra_js=""):
     nav_items = [
         ("Course", home + "index.html"),
         ("Assessment hub", home + "index.html#assessment-hub"),
@@ -411,9 +430,9 @@ def page(title, body, assets, home, active=None):
         "  Generated offline by <code>generator.py</code> from <code>course/</code> folders.\n"
         "  Grounded in <code>.agents/skills/manim-video/</code>. Manim Community Edition &ge; 0.20.1.\n"
         "</div></footer>\n"
-        '<script src="%shl.js"></script>\n<script src="%squiz.js"></script>\n'
+        '<script src="%shl.js"></script>\n<script src="%squiz.js"></script>\n%s'
         "</body>\n</html>"
-    ) % (esc(title), assets, home, nav, body, assets, assets)
+    ) % (esc(title), assets, home, nav, body, assets, assets, extra_js)
 
 
 def code_block(code, filename=None, lang="python"):
@@ -437,6 +456,12 @@ def read_lesson(tier, lesson_dir):
     status = load_json(status_path) if os.path.exists(status_path) else {}
     readme = open(readme_path, encoding="utf-8").read() if os.path.exists(readme_path) else ""
     body_html = md_to_html(readme)
+    if status.get("status", "draft") not in STATUSES:
+        R.err(
+            where,
+            "unknown status %r (expected one of %s)"
+            % (status.get("status"), "|".join(sorted(STATUSES))),
+        )
 
     lid = os.path.basename(lesson_dir)
     code_files = {}
@@ -576,7 +601,7 @@ def render_lesson(lesson, lessons_by_id):
         TIER_COLOR[lesson["tier"]],
         lesson["tier"],
         esc(lesson["tierName"]),
-        lesson["status"],
+        esc(lesson["status"]),
         esc(lesson["status"]),
         esc(lesson["title"]),
         esc(lesson["objective"]),
@@ -742,9 +767,6 @@ INDEX_TEMPLATE = """<section class="hero">
 </section>
 
 <script type="application/json" id="manifest">@@MANIFEST@@</script>
-<script>
-@@INDEXJS@@
-</script>
 """
 
 
@@ -807,7 +829,7 @@ def render_index(lessons, gates, capstones):
                     esc(l["objective"]),
                     prereq_txt,
                     esc(l["ref"]),
-                    l["status"],
+                    esc(l["status"]),
                     esc(l["status"]),
                     l["url"],
                     l["id"],
@@ -931,10 +953,14 @@ def render_index(lessons, gates, capstones):
         .replace("@@CAPS@@", caps_btns)
         .replace("@@SHELL@@", shell_snippet)
         .replace("@@MANIFEST@@", json_for_script(manifest))
-        .replace("@@INDEXJS@@", index_js)
     )
 
-    html = page("Manim CE Course", body, assets, home="")
+    # The index dashboard reads window.ManimProgress, which quiz.js defines —
+    # so this script must load AFTER quiz.js (page() appends extra_js last).
+    # Inline in <main> it ran at parse time, found nothing, and silently
+    # disabled the whole progress dashboard.
+    index_script = "<script>\n%s\n</script>\n" % index_js
+    html = page("Manim CE Course", body, assets, home="", extra_js=index_script)
     out = os.path.join(HERE, "index.html")
     write_page(out, html)
     return out

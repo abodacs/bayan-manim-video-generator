@@ -16,7 +16,7 @@
   <div class="accent-bar" style="background:#1d8ac0;"></div>
   <p class="muted" style="margin:0">Tier 1 · Beginner · <span class="status-pill reviewed">reviewed</span></p>
   <h1>Mobjects, positioning, and grouping</h1>
-  <p class="promise">Choose the smallest mobject for the idea, position it precisely in Manim's coordinate system, and group it correctly.</p>
+  <p class="promise">Choose the smallest mobject for the idea, position it precisely in Manim&#39;s coordinate system, and group it correctly.</p>
   <div class="lesson-head" style="margin-top:10px">
     <p class="meta-line"><strong>Misconception it kills:</strong> <span class="misconception">That positions are pixel coordinates you eyeball. Manim uses a math coordinate system centered at the origin; you place objects with next_to/arrange/to_edge and verify with bounding boxes.</span></p>
     <p class="meta-line"><strong>Prerequisites:</strong> <a href="../01-first-scene/index.html">Install Manim and render your first Scene</a></p>
@@ -26,7 +26,7 @@
 </section>
 
 <section class="block" style="padding-top:18px"><article class="lesson-doc"><h1>02 — Mobjects, positioning, and grouping</h1>
-<blockquote><strong>Objective.</strong> Choose the smallest mobject for the idea, position it precisely in Manim's coordinate system, and group it correctly.  <strong>Misconception it kills.</strong> <em>“Positions are pixel coordinates you eyeball.”</em> They are not. Manim uses a <strong>math coordinate system</strong>: the origin is screen center, and <code>UP/DOWN/LEFT/RIGHT</code> are unit vectors. You place objects with <code>move_to</code> / <code>next_to</code> / <code>to_edge</code> / <code>arrange</code> and <strong>verify</strong> with bounding boxes.  <strong>Prerequisites.</strong> <a href="../01-first-scene/index.html">01 — First Scene</a>.  <strong>Source reference.</strong> <code>mobjects.md</code>.</blockquote>
+<blockquote><strong>Objective.</strong> Choose the smallest mobject for the idea, position it precisely in Manim&#39;s coordinate system, and group it correctly.  <strong>Misconception it kills.</strong> <em>“Positions are pixel coordinates you eyeball.”</em> They are not. Manim uses a <strong>math coordinate system</strong>: the origin is screen center, and <code>UP/DOWN/LEFT/RIGHT</code> are unit vectors. You place objects with <code>move_to</code> / <code>next_to</code> / <code>to_edge</code> / <code>arrange</code> and <strong>verify</strong> with bounding boxes.  <strong>Prerequisites.</strong> <a href="../01-first-scene/index.html">01 — First Scene</a>.  <strong>Source reference.</strong> <code>mobjects.md</code>.</blockquote>
 <h2>Pick the smallest mobject</h2>
 <p>Everything visible is a <strong>mobject</strong>. Use the smallest object that expresses the idea, then compose named mobjects into a group.</p>
 <ul>
@@ -57,7 +57,7 @@ dot.move_to(np.array([2.0, 1.0, 0.0]))                            # explicit coo
 <ul>
 <li><strong><code>example-practical.py</code> — <code>RightTriangle</code>.</strong> A geometry diagram: build a</li>
 </ul>
-<p>triangle from points, add a <code>RightAngle</code> marker, label a leg. This is the skeleton of "geometry before algebra".</p>
+<p>triangle from points, add a <code>RightAngle</code> marker, label a leg. This is the skeleton of &quot;geometry before algebra&quot;.</p>
 <ul>
 <li><strong><code>example-production.py</code> — <code>GridHierarchy</code>.</strong> A 2×2 grid with opacity</li>
 </ul>
@@ -76,20 +76,20 @@ dot.move_to(np.array([2.0, 1.0, 0.0]))                            # explicit coo
 
 <section class="block"><h2>Runnable files</h2>
 <p class="lede">Copy any block, save it locally, and render with the command in <a href="../../../index.html#run-a-scene">How to run a scene</a>.</p>
-<h3>scene.py</h3><pre class="code"><span class="filename">scene.py</span><code class="language-python">"""Lesson 02 — mobjects, positioning, grouping.
+<h3>scene.py</h3><pre class="code"><span class="filename">scene.py</span><code class="language-python">&quot;&quot;&quot;Lesson 02 — mobjects, positioning, grouping.
 
 Run it:
 
     manim -ql scene.py Positioning
-"""
+&quot;&quot;&quot;
 
 from manim import *
 
-BG = "#1C1C1C"
+BG = &quot;#1C1C1C&quot;
 
 
 class Positioning(Scene):
-    """Arrange three mobjects in a row and label them — no pixel guessing."""
+    &quot;&quot;&quot;Arrange three mobjects in a row and label them — no pixel guessing.&quot;&quot;&quot;
 
     def construct(self):
         self.camera.background_color = BG
@@ -102,8 +102,8 @@ class Positioning(Scene):
         row = VGroup(circle, square, triangle).arrange(RIGHT, buff=0.6)
         row.to_edge(UP, buff=1.0)
 
-        # next_to places one mobject relative to another's bounding box.
-        label = Text("positioned, not guessed", font_size=24)
+        # next_to places one mobject relative to another&#39;s bounding box.
+        label = Text(&quot;positioned, not guessed&quot;, font_size=24)
         label.next_to(row, DOWN, buff=0.8)
 
         self.play(Create(row), run_time=1.2)
@@ -113,21 +113,21 @@ class Positioning(Scene):
 
         # Mixed cleanup (VGroup + Text) uses Group, not VGroup.
         self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
-</code></pre><h3>example-practical.py</h3><pre class="code"><span class="filename">example-practical.py</span><code class="language-python">"""Lesson 02 — practical: a labeled geometric diagram.
+</code></pre><h3>example-practical.py</h3><pre class="code"><span class="filename">example-practical.py</span><code class="language-python">&quot;&quot;&quot;Lesson 02 — practical: a labeled geometric diagram.
 
 A right triangle with its right-angle marker and a leg label. This is the shape
-of most "geometry before algebra" explanations.
+of most &quot;geometry before algebra&quot; explanations.
 
     manim -ql example-practical.py RightTriangle
-"""
+&quot;&quot;&quot;
 
 from manim import *
 
-BG = "#1C1C1C"
+BG = &quot;#1C1C1C&quot;
 
 
 class RightTriangle(Scene):
-    """Build a right triangle from points and annotate one leg."""
+    &quot;&quot;&quot;Build a right triangle from points and annotate one leg.&quot;&quot;&quot;
 
     def construct(self):
         self.camera.background_color = BG
@@ -138,7 +138,7 @@ class RightTriangle(Scene):
         tri = Polygon(a, b, c, color=BLUE)
 
         right_angle = RightAngle(Line(a, b), Line(a, c), length=0.4, color=YELLOW)
-        leg = Tex(r"a", font_size=36).next_to(Line(a, b), DOWN, buff=0.2)
+        leg = Tex(r&quot;a&quot;, font_size=36).next_to(Line(a, b), DOWN, buff=0.2)
 
         self.play(Create(tri), run_time=1.0)
         self.wait(0.5)
@@ -146,29 +146,29 @@ class RightTriangle(Scene):
         self.wait(1.5)
 
         self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
-</code></pre><h3>example-production.py</h3><pre class="code"><span class="filename">example-production.py</span><code class="language-python">"""Lesson 02 — production: positioning with opacity hierarchy.
+</code></pre><h3>example-production.py</h3><pre class="code"><span class="filename">example-production.py</span><code class="language-python">&quot;&quot;&quot;Lesson 02 — production: positioning with opacity hierarchy.
 
 Demonstrates: named palette, primary/context/structure opacity layering,
 arrange_in_grid, buff &gt;= 0.5 at edges, and Group cleanup.
 
     manim -qh example-production.py GridHierarchy
-"""
+&quot;&quot;&quot;
 
 from manim import *
 
-BG = "#1C1C1C"
-PRIMARY = "#58C4DD"
-ACCENT = "#FFFF00"
-INK = "#FFFFFF"
+BG = &quot;#1C1C1C&quot;
+PRIMARY = &quot;#58C4DD&quot;
+ACCENT = &quot;#FFFF00&quot;
+INK = &quot;#FFFFFF&quot;
 
 
 class GridHierarchy(Scene):
-    """A 2x2 grid of concepts with a framed focus and a caption."""
+    &quot;&quot;&quot;A 2x2 grid of concepts with a framed focus and a caption.&quot;&quot;&quot;
 
     def construct(self):
         self.camera.background_color = BG
 
-        titles = ["vector", "space", "basis", "transform"]
+        titles = [&quot;vector&quot;, &quot;space&quot;, &quot;basis&quot;, &quot;transform&quot;]
         cells = VGroup(
             *[
                 VGroup(Circle(radius=0.5, color=PRIMARY), Text(t, font_size=22, color=INK))
@@ -181,7 +181,7 @@ class GridHierarchy(Scene):
         cells.set_opacity(0.45)  # context layer
 
         focus = SurroundingRectangle(cells[2], color=ACCENT, buff=0.2)
-        caption = Text("the basis is the focus", font_size=24, color=ACCENT)
+        caption = Text(&quot;the basis is the focus&quot;, font_size=24, color=ACCENT)
         caption.next_to(cells, DOWN, buff=0.6)
 
         self.play(Create(cells), run_time=1.2)
