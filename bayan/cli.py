@@ -4,7 +4,6 @@ from typing import Annotated
 import typer
 from dotenv import load_dotenv
 
-# الـ imports الخاصة بالمشروع بقت ورا بعضها مباشرة بدون فواصل تنفيذية
 from bayan.generator.llm_client import LLMClient
 from bayan.planner.service import run_planning_pipeline
 from bayan.renderer.executor import RenderError, execute_manim_script
@@ -19,7 +18,6 @@ app = typer.Typer(
 @app.callback()
 def main() -> None:
     """Bayan CLI root command."""
-    # شحن متغيرات البيئة هنا لضمان تشغيلها مع أي أمر يتم استدعاؤه في الـ CLI
     load_dotenv()
 
 
@@ -90,10 +88,6 @@ def render(
     )
 
 
-if __name__ == "__main__":
-    app()
-
-
 @app.command(name="plan")
 def plan(
     input_path: Annotated[
@@ -121,3 +115,7 @@ def plan(
     except Exception as e:
         typer.secho(f"Planning Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e
+
+
+if __name__ == "__main__":
+    app()
