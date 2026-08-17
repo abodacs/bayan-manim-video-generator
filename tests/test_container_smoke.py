@@ -1,5 +1,6 @@
 import json
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,8 @@ from bayan.renderer.models import ImageMetadata, PhaseRecord, RenderSettings, Sm
 from bayan.renderer.process import CaptureResult, CommandResult
 from bayan.renderer.security import security_args
 from bayan.renderer.smoke import (
+    CONTAINER_OUTPUT_ROOT,
+    FIXTURES_ROOT,
     SmokeConfig,
     SmokeError,
     SmokeRunner,
@@ -18,6 +21,7 @@ from bayan.renderer.smoke import (
     first_artifact,
     validate_png,
 )
+from bayan.templates.catalogue import fixture_filename, get_template_catalogue
 
 
 def make_executor(tmp_path: Path, *, max_log_bytes: int = 1_048_576) -> DockerExecutor:
@@ -215,3 +219,125 @@ def test_streaming_output_is_bounded(tmp_path: Path) -> None:
     assert result.output_limited
     assert not result.succeeded
     assert len(result.output_tail) <= 4096
+
+
+def test_windows_stream_branch_terminates_a_silent_child(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The win32 read path must honor its deadline even with no output."""
+    executor = make_executor(tmp_path)
+    log_path = tmp_path / "render.log"
+    log_path.touch()
+    monkeypatch.setattr(sys, "platform", "win32")
+    started = time.monotonic()
+
+    result = executor._run_streaming(
+        (sys.executable, "-c", "import time; time.sleep(30)"),
+        "silent child",
+        log_path,
+        1,
+    )
+
+    assert result.timed_out
+    assert result.returncode is not None
+    assert time.monotonic() - started < 15
+
+
+def test_windows_stream_branch_collects_output_until_eof(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executor = make_executor(tmp_path)
+    log_path = tmp_path / "render.log"
+    log_path.touch()
+    monkeypatch.setattr(sys, "platform", "win32")
+
+    result = executor._run_streaming(
+        (sys.executable, "-c", "print('win32-probe')"),
+        "windows output",
+        log_path,
+        10,
+    )
+
+    assert result.succeeded
+    assert "win32-probe" in result.output_tail
+
+
+def test_windows_stream_branch_bounds_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executor = make_executor(tmp_path, max_log_bytes=128)
+    log_path = tmp_path / "render.log"
+    log_path.touch()
+    monkeypatch.setattr(sys, "platform", "win32")
+
+    result = executor._run_streaming(
+        (sys.executable, "-c", "print('win32-probe'); print('x' * 10000)"),
+        "windows output",
+        log_path,
+        10,
+    )
+
+    assert result.output_limited
+    assert "win32-probe" in result.output_tail
+    assert len(result.output_tail) <= 4096
+
+
+def test_catalogue_templates_are_rendered_and_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every catalogue fixture must produce video+preview evidence in the manifest."""
+    run_directory = tmp_path / "smoke-run"
+    run_directory.mkdir()
+    media_directory = run_directory / "manim-output"
+    media_directory.mkdir()
+    log_path = run_directory / "render.log"
+    log_path.touch()
+
+    smoke_runner = SmokeRunner(SmokeConfig(output_root=tmp_path))
+    smoke_runner.run_directory = run_directory
+    smoke_runner.manifest = SmokeManifest(
+        scene="ArabicSanityCheck",
+        quality="low",
+        docker_server="27.0",
+        container_user="1000:1000",
+        settings=RenderSettings(),
+        image=ImageMetadata(reference="bayan/manim-smoke:0.20.1"),
+    )
+    executor = make_executor(tmp_path)
+    rendered: list[tuple[str, ...]] = []
+
+    def fake_run_container(
+        image: str,
+        command: tuple[str, ...],
+        log: Path,
+        timeout_seconds: int,
+        **kwargs: object,
+    ) -> CommandResult:
+        del image, log, timeout_seconds, kwargs
+        normalized = tuple(str(part) for part in command)
+        rendered.append(normalized)
+        media_root_arg = Path(normalized[normalized.index("--media_dir") + 1])
+        host_dir = media_directory / media_root_arg.relative_to(CONTAINER_OUTPUT_ROOT)
+        host_dir.mkdir(parents=True, exist_ok=True)
+        class_name = normalized[normalized.index("--media_dir") - 1]
+        if "--format=png" in normalized:
+            (host_dir / f"{class_name}_00000.png").write_bytes(b"\x89PNG\r\n\x1a\nfake")
+        else:
+            (host_dir / f"{class_name}.mp4").write_bytes(b"fake video bytes")
+        return CommandResult(command=("docker", *normalized), returncode=0, output_tail="done\n")
+
+    monkeypatch.setattr(executor, "run_container", fake_run_container)
+
+    outputs = smoke_runner._render_catalogue_templates(executor, media_directory, log_path)
+
+    catalogue = get_template_catalogue()
+    assert len(rendered) == 2 * len(catalogue)
+    for slug in catalogue:
+        scene_path = str(FIXTURES_ROOT / fixture_filename(slug))
+        slug_commands = [cmd for cmd in rendered if scene_path in cmd]
+        assert len(slug_commands) == 2
+        assert catalogue[slug]["class_name"] in slug_commands[0]
+        assert f"template_{slug}_video" in outputs
+        assert f"template_{slug}_preview" in outputs
+    assert len(smoke_runner.manifest.phases) == 2 * len(catalogue)
+    assert all(phase.status == "passed" for phase in smoke_runner.manifest.phases)

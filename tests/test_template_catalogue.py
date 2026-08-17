@@ -6,9 +6,15 @@ from typing import Any
 from typer.testing import CliRunner
 
 from bayan.cli import app
-from bayan.templates.catalogue import get_template_catalogue, validate_catalogue_entries
+from bayan.templates.catalogue import (
+    fixture_filename,
+    get_template_catalogue,
+    validate_catalogue_entries,
+)
 
 runner = CliRunner()
+
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "bayan" / "templates" / "fixtures"
 
 
 def test_catalogue_lists_all_six_templates() -> None:
@@ -25,6 +31,17 @@ def test_catalogue_lists_all_six_templates() -> None:
     }
 
     assert set(catalogue.keys()) == expected_slugs
+
+
+def test_every_catalogue_template_has_a_matching_fixture_scene() -> None:
+    """Each catalogue slug must map to a fixture file declaring its scene class."""
+    for slug, meta in get_template_catalogue().items():
+        fixture = FIXTURES_DIR / fixture_filename(slug)
+        assert fixture.is_file(), f"Missing fixture scene for catalogue template '{slug}'"
+        content = fixture.read_text(encoding="utf-8")
+        assert f"class {meta['class_name']}" in content, (
+            f"Fixture for '{slug}' does not declare class {meta['class_name']}"
+        )
 
 
 def test_template_metadata_shape() -> None:

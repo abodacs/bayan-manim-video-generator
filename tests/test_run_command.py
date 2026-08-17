@@ -63,3 +63,40 @@ def test_bayan_run_complete_workflow_offline(tmp_path: Path) -> None:
     )
     assert second_run.exit_code == 1
     assert "Skipping completed stage: plan" in second_run.output
+
+
+def test_bayan_run_reports_corrupt_manifest_without_traceback(tmp_path: Path) -> None:
+    lesson_file = tmp_path / "lesson.json"
+    lesson_file.write_text('{"request": "shapes"}', encoding="utf-8")
+    output_dir = tmp_path / "run"
+    output_dir.mkdir()
+    (output_dir / "manifest.json").write_text("{ not valid json", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["run", "--input", str(lesson_file), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 1
+    assert "Manifest Error" in result.output
+    assert "unreadable manifest" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_bayan_run_reports_foreign_manifest_shape_without_traceback(tmp_path: Path) -> None:
+    lesson_file = tmp_path / "lesson.json"
+    lesson_file.write_text('{"request": "shapes"}', encoding="utf-8")
+    output_dir = tmp_path / "run"
+    output_dir.mkdir()
+    (output_dir / "manifest.json").write_text(
+        json.dumps({"stages": {"plan": {"bogus_field": 1}}}), encoding="utf-8"
+    )
+
+    result = runner.invoke(
+        app,
+        ["run", "--input", str(lesson_file), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 1
+    assert "Manifest Error" in result.output
+    assert "Traceback" not in result.output

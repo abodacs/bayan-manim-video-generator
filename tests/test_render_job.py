@@ -2,9 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from bayan.planner.models import RenderSettings, ScenePlan
+from bayan.planner.models import PlanRenderPreferences, ScenePlan
 from bayan.renderer.executor import RenderJobRunner
 from bayan.renderer.models import RenderJob
+from bayan.templates.catalogue import get_template_catalogue
 
 
 def test_render_job_dataclass_lifecycle() -> None:
@@ -15,40 +16,45 @@ def test_render_job_dataclass_lifecycle() -> None:
         scene_id="ArabicSanityCheck",
     )
     assert job.status == "requested"
-    assert "requested" in ["requested", "running", "succeeded", "failed"]
 
     data = job.to_dict()
     assert data["job_id"] == "job-123"
     assert data["status"] == "requested"
 
 
-def test_unknown_template_fails_preflight(tmp_path: Path) -> None:
-    plan = ScenePlan(
+def _plan_for(template: str) -> ScenePlan:
+    return ScenePlan(
         learning_objective="اختبار القالب",
         language="ar",
         visual_concept="دائرة متحرّكة",
-        selected_template="unknown_template_xyz",
-        render_settings=RenderSettings(),
+        selected_template=template,
+        render_settings=PlanRenderPreferences(),
         provider_fingerprint="fake-provider-hash",
     )
 
+
+@pytest.mark.parametrize("slug", sorted(get_template_catalogue().keys()))
+def test_every_catalogue_template_passes_preflight(slug: str, tmp_path: Path) -> None:
+    runner = RenderJobRunner()
+
+    job = runner.run_job(_plan_for(slug), output_dir=tmp_path)
+
+    assert job.status == "requested"
+    assert job.scene_id == slug
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "arabic_template",
+        "ArabicSanityCheck",
+        "إنشاء دائرة",
+        "unknown_template_xyz",
+        "../../etc/passwd",
+    ],
+)
+def test_non_catalogue_template_fails_preflight(template: str, tmp_path: Path) -> None:
     runner = RenderJobRunner()
 
     with pytest.raises(ValueError, match="Unknown or unapproved template"):
-        runner.run_job(plan, output_dir=tmp_path)
-
-
-def test_unsafe_path_traversal_fails_preflight(tmp_path: Path) -> None:
-    plan = ScenePlan(
-        learning_objective="اختبار الأمان",
-        language="ar",
-        visual_concept="دائرة",
-        selected_template="../../etc/passwd",
-        render_settings=RenderSettings(),
-        provider_fingerprint="fake-provider-hash",
-    )
-
-    runner = RenderJobRunner()
-
-    with pytest.raises(ValueError):
-        runner.run_job(plan, output_dir=tmp_path)
+        runner.run_job(_plan_for(template), output_dir=tmp_path)

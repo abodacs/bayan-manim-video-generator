@@ -22,10 +22,6 @@ class PlanRenderPreferences(BaseModel):
     preview: bool = Field(default=False)
 
 
-# Alias maintained for test compatibility across modules
-RenderSettings = PlanRenderPreferences
-
-
 class ScenePlan(BaseModel):
     """Typed Scene plan output structure."""
 

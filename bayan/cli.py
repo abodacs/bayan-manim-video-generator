@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import shutil
 from pathlib import Path
 from typing import Annotated
@@ -9,10 +8,10 @@ import typer
 from dotenv import load_dotenv
 
 from bayan.generator.llm_client import LLMClient
-from bayan.orchestrator import WorkflowOrchestrator
+from bayan.orchestrator import ManifestError, WorkflowOrchestrator
 from bayan.planner.service import run_planning_pipeline
 from bayan.renderer.executor import RenderError, execute_manim_script
-from bayan.templates.catalogue import get_template_catalogue
+from bayan.templates.catalogue import fixture_filename, get_template_catalogue
 
 app = typer.Typer(
     name="bayan",
@@ -25,6 +24,28 @@ template_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(template_app, name="template")
+
+
+class TyperStageReporter:
+    """Render orchestrator progress events on the terminal."""
+
+    def stage_skipped(self, name: str) -> None:
+        typer.echo(f"Skipping completed stage: {name}")
+
+    def stage_started(self, name: str) -> None:
+        typer.echo(f"Executing stage: {name}...")
+
+    def stage_finished(self, name: str, status: str, error: str | None) -> None:
+        if status == "completed":
+            typer.secho(f"Stage '{name}': SUCCESS", fg=typer.colors.GREEN)
+        elif status == "stub":
+            typer.secho(f"Stage '{name}' (STUB): {error}", fg=typer.colors.YELLOW)
+        else:
+            typer.secho(f"Stage '{name}' FAILED: {error}", fg=typer.colors.RED)
+
+    def workflow_finished(self, success: bool) -> None:
+        if success:
+            typer.secho("\nWorkflow completed successfully!", fg=typer.colors.GREEN, bold=True)
 
 
 @app.callback()
@@ -58,8 +79,8 @@ def copy_template(
         raise typer.Exit(code=1)
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    source_file = Path(__file__).parent / "templates" / "fixtures" / f"{name.replace('-', '_')}.py"
-    target_file = output_dir / f"{name.replace('-', '_')}.py"
+    source_file = Path(__file__).parent / "templates" / "fixtures" / fixture_filename(name)
+    target_file = output_dir / fixture_filename(name)
 
     if not source_file.exists():
         typer.secho(f"Error: Source file for template '{name}' not found.", fg=typer.colors.RED)
@@ -157,7 +178,7 @@ def plan(
     except FileNotFoundError as e:
         typer.secho(f"Input File Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e
-    except (ValueError, json.JSONDecodeError) as e:
+    except ValueError as e:  # json.JSONDecodeError is a ValueError subclass
         typer.secho(f"JSON Parse / Validation Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e
     except FileExistsError as e:
@@ -170,7 +191,7 @@ def plan(
 
 @app.command(name="run")
 def run(
-    input: Annotated[
+    input_path: Annotated[
         Path,
         typer.Option(
             "--input",
@@ -200,8 +221,15 @@ def run(
     ] = "fake",
 ) -> None:
     """Executes the complete Bayan educator workflow."""
-    orchestrator = WorkflowOrchestrator(input_path=input, output_dir=output, provider=provider)
-    success = orchestrator.run()
+    try:
+        orchestrator = WorkflowOrchestrator(
+            input_path=input_path, output_dir=output, provider=provider
+        )
+    except ManifestError as e:
+        typer.secho(f"Manifest Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
+
+    success = orchestrator.run(reporter=TyperStageReporter())
     if not success:
         raise typer.Exit(code=1)
 

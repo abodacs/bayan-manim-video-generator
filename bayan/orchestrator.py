@@ -1,20 +1,24 @@
 """Orchestrator for managing the complete Bayan educator workflow and manifest lifecycle."""
 
+from __future__ import annotations
+
 import json
 import shutil
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
-
-import typer
+from typing import Any, Protocol
 
 from bayan.planner.service import run_planning_pipeline
-from bayan.templates.catalogue import get_template_catalogue
+from bayan.templates.catalogue import fixture_filename, get_template_catalogue
 
 
 def _get_utc_now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+class ManifestError(RuntimeError):
+    """The run directory holds a manifest that cannot be trusted."""
 
 
 @dataclass
@@ -49,7 +53,7 @@ class Manifest:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Manifest":
+    def from_dict(cls, data: dict[str, Any]) -> Manifest:
         stages_data = data.get("stages", {})
         # Guard against KeyError if stage sets differ across versions
         stages = {
@@ -65,6 +69,38 @@ class Manifest:
         )
 
 
+class StageReporter(Protocol):
+    """Presentation port for workflow progress events.
+
+    Orchestration owns stage execution and state; the presenter owns how
+    progress is rendered. Implementations print, log, or stay silent.
+    """
+
+    def stage_skipped(self, name: str) -> None: ...
+
+    def stage_started(self, name: str) -> None: ...
+
+    def stage_finished(self, name: str, status: str, error: str | None) -> None: ...
+
+    def workflow_finished(self, success: bool) -> None: ...
+
+
+class _NullReporter:
+    """Discard progress events when no presenter is attached."""
+
+    def stage_skipped(self, name: str) -> None:
+        pass
+
+    def stage_started(self, name: str) -> None:
+        pass
+
+    def stage_finished(self, name: str, status: str, error: str | None) -> None:
+        pass
+
+    def workflow_finished(self, success: bool) -> None:
+        pass
+
+
 class WorkflowOrchestrator:
     """Coordinates stages, retries, and manifest persistence for bayan run."""
 
@@ -78,8 +114,15 @@ class WorkflowOrchestrator:
     def _load_or_create_manifest(self) -> Manifest:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         if self.manifest_path.exists():
-            data = json.loads(self.manifest_path.read_text(encoding="utf-8"))
-            return Manifest.from_dict(data)
+            try:
+                data = json.loads(self.manifest_path.read_text(encoding="utf-8"))
+                return Manifest.from_dict(data)
+            except (json.JSONDecodeError, TypeError, KeyError) as error:
+                raise ManifestError(
+                    f"Run '{self.output_dir.name}' has an unreadable manifest at "
+                    f"{self.manifest_path}: {error}. Delete the file or fix it before "
+                    "resuming this run."
+                ) from error
 
         manifest = Manifest(run_id=self.output_dir.name)
         self._save_manifest(manifest)
@@ -92,8 +135,9 @@ class WorkflowOrchestrator:
         tmp_path.write_text(json.dumps(manifest.to_dict(), indent=2), encoding="utf-8")
         tmp_path.replace(self.manifest_path)
 
-    def run(self) -> bool:
+    def run(self, reporter: StageReporter | None = None) -> bool:
         """Executes all workflow stages sequentially with state tracking."""
+        report = reporter if reporter is not None else _NullReporter()
         stages = [
             ("plan", self._run_plan_stage),
             ("template_select", self._run_template_select_stage),
@@ -105,55 +149,44 @@ class WorkflowOrchestrator:
         for stage_name, stage_fn in stages:
             stage_state = self.manifest.stages[stage_name]
             if stage_state.status == "completed":
-                typer.echo(f"Skipping completed stage: {stage_name}")
+                report.stage_skipped(stage_name)
                 continue
 
-            typer.echo(f"Executing stage: {stage_name}...")
+            report.stage_started(stage_name)
             stage_state.started_at = _get_utc_now()
             stage_state.attempts += 1
 
             try:
                 stage_fn()
-                stage_state.status = "completed"
-                stage_state.completed_at = _get_utc_now()
-                stage_state.error = None
-                self._save_manifest(self.manifest)
-                typer.secho(f"Stage '{stage_name}': SUCCESS", fg=typer.colors.GREEN)
             except NotImplementedError as exc:
                 stage_state.status = "stub"
                 stage_state.error = str(exc)
                 self.manifest.status = "stub"
                 self._save_manifest(self.manifest)
-                typer.secho(f"Stage '{stage_name}' (STUB): {exc}", fg=typer.colors.YELLOW)
+                report.stage_finished(stage_name, "stub", str(exc))
                 return False
             except Exception as exc:
                 stage_state.status = "failed"
                 stage_state.error = str(exc)
                 self.manifest.status = "failed"
                 self._save_manifest(self.manifest)
-                typer.secho(f"Stage '{stage_name}' FAILED: {exc}", fg=typer.colors.RED)
+                report.stage_finished(stage_name, "failed", str(exc))
                 return False
+
+            stage_state.status = "completed"
+            stage_state.completed_at = _get_utc_now()
+            stage_state.error = None
+            self._save_manifest(self.manifest)
+            report.stage_finished(stage_name, "completed", None)
 
         self.manifest.status = "completed"
         self._save_manifest(self.manifest)
-        typer.secho("\nWorkflow completed successfully!", fg=typer.colors.GREEN, bold=True)
+        report.workflow_finished(True)
         return True
 
     def _run_plan_stage(self) -> None:
+        # run_planning_pipeline either raises or always writes scene_plan.json.
         run_planning_pipeline(input_path=self.input_path, output_dir=self.output_dir, force=True)
-
-        plan_file = self.output_dir / "scene_plan.json"
-        if not plan_file.exists():
-            dummy_plan = {
-                "scenes": [
-                    {
-                        "title": "Lesson Scene",
-                        "description": "Generated scene plan",
-                        "template": "create-circle",
-                    }
-                ]
-            }
-            plan_file.write_text(json.dumps(dummy_plan, indent=2), encoding="utf-8")
 
     def _run_template_select_stage(self) -> None:
         catalogue = get_template_catalogue()
@@ -161,7 +194,7 @@ class WorkflowOrchestrator:
         if template_name not in catalogue:
             raise RuntimeError(f"Template '{template_name}' not found in catalogue")
 
-        fixture_name = f"{template_name.replace('-', '_')}.py"
+        fixture_name = fixture_filename(template_name)
         source_file = Path(__file__).parent / "templates" / "fixtures" / fixture_name
         target_scene = self.output_dir / "scene.py"
 
@@ -177,11 +210,14 @@ class WorkflowOrchestrator:
         raise NotImplementedError("Validation stage is not yet implemented.")
 
     def _run_review_packet_stage(self) -> None:
+        # Namespaced apart from agents/roles.py repair escalation packets.
         review_md = (
             "# Lesson Review Packet\n\n"
             "## Status\n"
             "- Planning & Template Selection: COMPLETED\n"
             "- Render & Validation: STUB (Not Yet Implemented)\n"
         )
-        review_file = self.output_dir / "review_packet.md"
-        review_file.write_text(review_md, encoding="utf-8")
+        review_file = self.output_dir / "lesson_review_packet.md"
+        tmp_path = review_file.with_suffix(".tmp")
+        tmp_path.write_text(review_md, encoding="utf-8")
+        tmp_path.replace(review_file)

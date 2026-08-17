@@ -49,16 +49,17 @@ jobs:
             --max-turns 50 \
             --model "$CLAUDE_MODEL" \
             --allowedTools "Read,Grep,Glob,Bash(git diff *),Bash(git log *),Bash(git show *),Bash(git merge-base *),Agent" \
-            > review.json || true
+            > "$RUNNER_TEMP/review.json" || true
           jq -r 'if (.result // "") != "" then .result
             else "⚠️ AI review did not complete (" + (.subtype // "no subtype") + ", "
             + ((.num_turns // 0) | tostring) + " turns)\n\n"
-            + ((.errors // ["no error details"]) | join("\n")) end' review.json > ai-review-output.txt \
-            || echo "⚠️ AI review crashed without producing JSON" > ai-review-output.txt
+            + ((.errors // ["no error details"]) | join("\n")) end' \
+            "$RUNNER_TEMP/review.json" > "$RUNNER_TEMP/ai-review-output.txt" \
+            || echo "⚠️ AI review crashed without producing JSON" > "$RUNNER_TEMP/ai-review-output.txt"
 
       - name: Post review comment
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr comment ${{ github.event.pull_request.number }} \
-            --body-file ai-review-output.txt
+            --body-file "$RUNNER_TEMP/ai-review-output.txt"

@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import os
+import queue
 import selectors
 import shlex
 import signal
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import IO
 
 from bayan.renderer.models import PhaseRecord, PhaseStatus
 
@@ -70,6 +73,48 @@ class CaptureResult:
     stdout: str = ""
     stderr: str = ""
     timed_out: bool = False
+
+
+class _PipeReader:
+    """Read a pipe on a worker thread so deadlines stay enforceable.
+
+    Windows pipes cannot be used with selectors, and a blocking read on the
+    calling thread would let a silent child hang the loop past its deadline.
+    """
+
+    def __init__(self, stream: IO[bytes]) -> None:
+        self._stream = stream
+        self._chunks: queue.Queue[bytes] = queue.Queue()
+        self._thread = threading.Thread(target=self._read, daemon=True)
+
+    def start(self) -> None:
+        """Begin draining the pipe in the background."""
+        self._thread.start()
+
+    def next_chunk(self, timeout_seconds: float) -> bytes | None:
+        """Return the next chunk, or None when the wait window elapsed."""
+        try:
+            return self._chunks.get(timeout=timeout_seconds)
+        except queue.Empty:
+            return None
+
+    def join(self, timeout_seconds: float) -> None:
+        """Wait briefly for the reader to observe the closed pipe."""
+        self._thread.join(timeout_seconds)
+
+    def _read(self) -> None:
+        try:
+            while True:
+                chunk = (
+                    self._stream.read1(65_536)
+                    if hasattr(self._stream, "read1")
+                    else self._stream.read(65_536)
+                )
+                self._chunks.put(chunk)
+                if not chunk:
+                    return
+        except (OSError, ValueError):
+            self._chunks.put(b"")
 
 
 class BoundedProcessRunner:
@@ -131,24 +176,24 @@ class BoundedProcessRunner:
         timed_out = False
         output_limited = False
         deadline = time.monotonic() + timeout_seconds
+        reader: _PipeReader | None = None
 
         with log_path.open("ab") as log:
             if sys.platform == "win32":
-                # Windows select() only works on sockets (WinError 10038)
+                # Windows pipes are not selectable (WinError 10038), so drain
+                # the pipe on a worker thread and keep the deadline on this one.
+                reader = _PipeReader(process.stdout)
+                reader.start()
+
                 while stream_open:
                     remaining_time = deadline - time.monotonic()
                     if remaining_time <= 0:
                         timed_out = True
                         break
 
-                    try:
-                        chunk = (
-                            process.stdout.read1(65_536)
-                            if hasattr(process.stdout, "read1")
-                            else process.stdout.read(65_536)
-                        )
-                    except OSError:
-                        break
+                    chunk = reader.next_chunk(min(0.1, remaining_time))
+                    if chunk is None:
+                        continue
 
                     if not chunk:
                         stream_open = False
@@ -165,21 +210,6 @@ class BoundedProcessRunner:
                     output_bytes += len(accepted)
                     if len(accepted) != len(chunk):
                         output_limited = True
-                        break
-
-                    if timed_out or output_limited:
-                        break
-                    if process.poll() is not None:
-                        # Read remaining buffer if available before exiting
-                        try:
-                            remaining_chunk = process.stdout.read()
-                            if remaining_chunk:
-                                rem_bytes = self.max_output_bytes - output_bytes
-                                accepted_rem = remaining_chunk[:rem_bytes]
-                                log.write(accepted_rem)
-                                output_tail.extend(accepted_rem)
-                        except OSError:
-                            pass
                         break
             else:
                 selector = selectors.DefaultSelector()
@@ -238,6 +268,11 @@ class BoundedProcessRunner:
             except subprocess.TimeoutExpired:
                 timed_out = True
                 self.terminate(process)
+
+        if reader is not None:
+            # The reader owns blocking reads on stdout; after termination it
+            # observes the closed pipe. Never close the handle underneath it.
+            reader.join(2.0)
 
         if process.stdout is not None:
             process.stdout.close()

@@ -12,12 +12,16 @@ from bayan.renderer.docker import DockerExecutor, check_docker
 from bayan.renderer.errors import DockerError
 from bayan.renderer.models import ImageMetadata, RenderSettings, SmokeManifest
 from bayan.renderer.process import CommandResult
+from bayan.templates.catalogue import fixture_filename, get_template_catalogue
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_IMAGE = "bayan/manim-smoke:0.20.1"
 DEFAULT_OUTPUT_ROOT = Path("artifacts/container-smoke")
 SCENE_PATH = "/workspace/bayan/utils/sanity_check.py"
 SCENE_NAME = "ArabicSanityCheck"
+CONTAINER_OUTPUT_ROOT = Path("/workspace/output")
+CONTAINER_SOURCE_ROOT = Path("/workspace/bayan")
+FIXTURES_ROOT = CONTAINER_SOURCE_ROOT / "templates" / "fixtures"
 
 
 class SmokeError(RuntimeError):
@@ -185,6 +189,8 @@ class SmokeRunner:
             self._validate_video(executor, media_directory, video_path, log_path)
             validate_png(preview_path)
 
+            template_outputs = self._render_catalogue_templates(executor, media_directory, log_path)
+
             draft_path = run_directory / "draft.mp4"
             still_path = run_directory / "preview.png"
             shutil.copy2(video_path, draft_path)
@@ -195,6 +201,7 @@ class SmokeRunner:
                 "preview": str(still_path.relative_to(run_directory)),
                 "log": str(log_path.relative_to(run_directory)),
                 "raw_media": str(media_directory.relative_to(run_directory)),
+                **template_outputs,
             }
             manifest.write(run_directory)
             return SmokeResult(run_directory, draft_path, still_path, manifest)
@@ -245,6 +252,84 @@ class SmokeRunner:
         require_success("Validating the MP4 video", result, self.config.render_timeout)
         if not result.output_tail.strip():
             raise SmokeError("The MP4 video has no readable duration. See render.log.")
+
+    def _render_catalogue_templates(
+        self,
+        executor: DockerExecutor,
+        media_directory: Path,
+        log_path: Path,
+    ) -> dict[str, str]:
+        """Render every catalogue fixture in the isolated worker for evidence.
+
+        Each approved template is rendered to a low-quality video and a PNG
+        preview inside the same security boundary as the sanity scene, so the
+        catalogue cannot drift away from scenes that actually render.
+        """
+        outputs: dict[str, str] = {}
+        for slug, metadata in get_template_catalogue().items():
+            class_name = str(metadata["class_name"])
+            scene_path = str(FIXTURES_ROOT / fixture_filename(slug))
+
+            video_dir = media_directory / "templates" / slug / "video"
+            video_result = executor.run_container(
+                self.config.image,
+                (
+                    "manim",
+                    "-ql",
+                    scene_path,
+                    class_name,
+                    "--media_dir",
+                    str(CONTAINER_OUTPUT_ROOT / "templates" / slug / "video"),
+                ),
+                log_path,
+                self.config.render_timeout,
+                include_source_mount=True,
+                output_directory=media_directory,
+                phase=f"render template {slug} video",
+            )
+            self._record_phase(f"render template {slug} (video)", video_result, log_path)
+            require_success(
+                f"Rendering template '{slug}' video", video_result, self.config.render_timeout
+            )
+
+            preview_dir = media_directory / "templates" / slug / "preview"
+            preview_result = executor.run_container(
+                self.config.image,
+                (
+                    "manim",
+                    "-ql",
+                    "-s",
+                    "--format=png",
+                    scene_path,
+                    class_name,
+                    "--media_dir",
+                    str(CONTAINER_OUTPUT_ROOT / "templates" / slug / "preview"),
+                ),
+                log_path,
+                self.config.render_timeout,
+                include_source_mount=True,
+                output_directory=media_directory,
+                phase=f"render template {slug} preview",
+            )
+            self._record_phase(f"render template {slug} (preview)", preview_result, log_path)
+            require_success(
+                f"Rendering template '{slug}' preview", preview_result, self.config.render_timeout
+            )
+
+            video_path = first_artifact(
+                video_dir,
+                f"{class_name}.mp4",
+                f"MP4 video for template '{slug}'",
+            )
+            preview_path = first_artifact(
+                preview_dir,
+                f"{class_name}*.png",
+                f"PNG preview for template '{slug}'",
+            )
+            validate_png(preview_path)
+            outputs[f"template_{slug}_video"] = str(video_path.relative_to(media_directory))
+            outputs[f"template_{slug}_preview"] = str(preview_path.relative_to(media_directory))
+        return outputs
 
 
 def allocate_run_directory(output_root: Path) -> Path:
@@ -307,9 +392,13 @@ def source_hashes(project_root: Path) -> dict[str, str]:
         "bayan/renderer/process.py": project_root / "bayan/renderer/process.py",
         "bayan/renderer/security.py": project_root / "bayan/renderer/security.py",
         "bayan/renderer/smoke.py": project_root / "bayan/renderer/smoke.py",
+        "bayan/templates/catalogue.py": project_root / "bayan/templates/catalogue.py",
         "bayan/utils/arabic_helper.py": project_root / "bayan/utils/arabic_helper.py",
         "bayan/utils/sanity_check.py": project_root / "bayan/utils/sanity_check.py",
     }
+    for slug in get_template_catalogue():
+        relative = f"bayan/templates/fixtures/{fixture_filename(slug)}"
+        files[relative] = project_root / relative
     return {name: sha256_file(path) for name, path in files.items()}
 
 

@@ -1,5 +1,7 @@
 """Catalogue registry and validation logic for Bayan Arabic templates."""
 
+from __future__ import annotations
+
 from typing import Any
 
 # Define the required metadata shape for all Bayan templates
@@ -64,6 +66,11 @@ CATALOGUE: dict[str, dict[str, Any]] = {
 def get_template_catalogue() -> dict[str, dict[str, Any]]:
     """Return the registry of available Bayan Arabic templates."""
     return CATALOGUE
+
+
+def fixture_filename(slug: str) -> str:
+    """Return the fixture scene filename for a catalogue slug."""
+    return f"{slug.replace('-', '_')}.py"
 
 
 def validate_catalogue_entries(catalogue: dict[str, dict[str, Any]]) -> list[str]:
