@@ -12,8 +12,7 @@ concurrency:
 jobs:
   ai-review:
     runs-on: ubuntu-latest
-    # 50 turns * ~15s/turn through the model API plus setup headroom.
-    timeout-minutes: 20
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: write
@@ -39,22 +38,13 @@ jobs:
           ANTHROPIC_BASE_URL: https://api.z.ai/api/anthropic
           ANTHROPIC_API_KEY: ${{ secrets.AI_CODE_REVIEW_ANTHROPIC_API_KEY }}
           CLAUDE_MODEL: glm-5.3
-          # Keep background calls (session titles, etc.) off the main model.
-          ANTHROPIC_SMALL_FAST_MODEL: glm-5.1
         run: |
-          # claude exits 1 on error_max_turns / API errors; keep going so the
-          # diagnostic message below still reaches the PR.
           claude -p "$(cat .claude/commands/code-review.md)" \
             --output-format json \
-            --max-turns 50 \
+            --max-turns 30 \
             --model "$CLAUDE_MODEL" \
             --allowedTools "Read,Grep,Glob,Bash(git diff *),Bash(git log *),Bash(git show *),Bash(git merge-base *),Agent" \
-            > review.json || true
-          jq -r 'if (.result // "") != "" then .result
-            else "⚠️ AI review did not complete (" + (.subtype // "no subtype") + ", "
-            + ((.num_turns // 0) | tostring) + " turns)\n\n"
-            + ((.errors // ["no error details"]) | join("\n")) end' review.json > ai-review-output.txt \
-            || echo "⚠️ AI review crashed without producing JSON" > ai-review-output.txt
+            | jq -r '.result // "Review produced no output"' > ai-review-output.txt
 
       - name: Post review comment
         env:
