@@ -10,9 +10,20 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
+from typing import Protocol
 
-from bayan.planner.models import ScenePlan
 from bayan.renderer.models import RenderJob
+from bayan.templates.catalogue import get_template_catalogue
+
+# Derive allowlist directly from template catalogue keys to prevent catalog drift
+APPROVED_TEMPLATES = set(get_template_catalogue().keys())
+
+
+class PlanLike(Protocol):
+    """Protocol interface to decouple renderer from planner domain models."""
+
+    selected_template: str
+    provider_fingerprint: str | None
 
 APPROVED_TEMPLATES = {
     "create-circle",
@@ -31,7 +42,7 @@ class RenderError(Exception):
 class RenderJobRunner:
     """Executes rendering jobs with preflight checks and isolation."""
 
-    def run_job(self, plan: ScenePlan, output_dir: Path) -> RenderJob:
+    def run_job(self, plan: PlanLike, output_dir: Path) -> RenderJob:
         # Preflight validation: fail fast before invoking container
         if plan.selected_template not in APPROVED_TEMPLATES:
             raise ValueError(f"Unknown or unapproved template: '{plan.selected_template}'")
@@ -42,6 +53,9 @@ class RenderJobRunner:
             if plan.provider_fingerprint
             else f"plan-{uuid.uuid4().hex[:8]}"
         )
+
+        # Ensure output directory exists for incoming job artifacts
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         return RenderJob(
             job_id=job_id,
