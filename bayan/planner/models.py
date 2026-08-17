@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -13,11 +15,15 @@ class LessonSegment(BaseModel):
     raw_request: str = Field(..., description="Original natural-language input request")
 
 
-class RenderSettings(BaseModel):
+class PlanRenderPreferences(BaseModel):
     """Configuration settings required for scene rendering."""
 
     quality: str = Field(default="medium_quality")
     preview: bool = Field(default=False)
+
+
+# Alias maintained for test compatibility across modules
+RenderSettings = PlanRenderPreferences
 
 
 class ScenePlan(BaseModel):
@@ -27,6 +33,6 @@ class ScenePlan(BaseModel):
     language: str = "ar"
     visual_concept: str
     selected_template: str
-    render_settings: RenderSettings = Field(default_factory=RenderSettings)
+    render_settings: PlanRenderPreferences = Field(default_factory=PlanRenderPreferences)
     provider_fingerprint: str
     extra_details: dict[str, Any] | None = None

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from pathlib import Path
 from typing import Annotated
 
@@ -48,7 +51,7 @@ def render(
     """
     Generates a Manim animation based on your educational prompt.
     """
-    typer.echo(f"🚀 Initializing rendering pipeline for prompt: '{prompt}'")
+    typer.echo(f"✨ Initializing rendering pipeline for prompt: '{prompt}'")
 
     try:
         # Pass configuration dynamically to follow the decoupled provider interface
@@ -112,6 +115,15 @@ def plan(
             f"✨ Scene plan generated successfully in: {output_dir.resolve()}",
             fg=typer.colors.GREEN,
         )
+    except FileNotFoundError as e:
+        typer.secho(f"Input File Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
+    except (ValueError, json.JSONDecodeError) as e:
+        typer.secho(f"JSON Parse / Validation Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
+    except FileExistsError as e:
+        typer.secho(f"Output Directory Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         typer.secho(f"Planning Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e
