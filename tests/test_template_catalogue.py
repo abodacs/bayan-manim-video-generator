@@ -63,6 +63,7 @@ def test_missing_metadata_reports_template_by_name() -> None:
             "name": "valid-template",
             "purpose": "A valid test template",
             "arabic_title": "قالب صالح",
+            "class_name": "ValidTemplate",
             "dependencies": "none",
             "provenance": "bayan-authored",
         },

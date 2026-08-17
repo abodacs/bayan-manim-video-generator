@@ -54,12 +54,12 @@ def test_bayan_run_complete_workflow_offline(tmp_path: Path, monkeypatch) -> Non
         ],
     )
 
-    # Workflow stops gracefully at 'validate' stage as it is currently a stub
+    # Workflow records the 'validate' stub and still exits non-zero
     assert result.exit_code == 1
 
     # 3. Verify valid stage artifacts exist while stub stages produced no fake outputs
     assert (output_dir / "scene_plan.json").exists()
-    assert (output_dir / "scene.py").exists()
+    assert (output_dir / "template_selection.json").exists()
     assert (output_dir / "manifest.json").exists()
     assert (output_dir / "draft.mp4").exists()
 
@@ -70,6 +70,9 @@ def test_bayan_run_complete_workflow_offline(tmp_path: Path, monkeypatch) -> Non
     assert manifest["stages"]["template_select"]["status"] == "completed"
     assert manifest["stages"]["render"]["status"] == "completed"
     assert manifest["stages"]["validate"]["status"] == "stub"
+    # The review packet documents the stub instead of being skipped by it.
+    assert manifest["stages"]["review_packet"]["status"] == "completed"
+    assert (output_dir / "lesson_review_packet.md").exists()
 
     # 5. Run command a second time to verify resume logic (completed stages skipped)
     second_run = runner.invoke(
@@ -102,14 +105,17 @@ def test_bayan_run_selects_the_template_from_the_scene_plan(tmp_path: Path, monk
         ["run", "--input", str(lesson_file), "--output", str(output_dir), "--provider", "fake"],
     )
 
-    assert result.exit_code == 1  # still stops at the validate stub
+    assert result.exit_code == 1  # still reports the validate stub
 
     scene_plan = json.loads((output_dir / "scene_plan.json").read_text(encoding="utf-8"))
     selected = scene_plan["selected_template"]
     assert selected in get_template_catalogue()
 
-    fixture = (FIXTURES_DIR / fixture_filename(selected)).read_text(encoding="utf-8")
-    assert (output_dir / "scene.py").read_text(encoding="utf-8") == fixture
+    selection = json.loads((output_dir / "template_selection.json").read_text(encoding="utf-8"))
+    assert selection["template"] == selected
+    assert selection["fixture"] == fixture_filename(selected)
+    assert selection["class_name"] == str(get_template_catalogue()[selected]["class_name"])
+    assert (FIXTURES_DIR / selection["fixture"]).exists()
 
 
 def test_bayan_run_reports_missing_scene_plan(tmp_path: Path, monkeypatch) -> None:

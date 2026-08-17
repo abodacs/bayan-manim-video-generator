@@ -75,7 +75,7 @@ class SmokeRunner:
         media_directory.mkdir()
         uid, gid = current_container_user()
         container_user = f"{uid}:{gid}"
-        _prepare_media_directory(media_directory, uid, gid)
+        prepare_writable_directory(media_directory, uid, gid)
 
         settings = RenderSettings(
             build_timeout_seconds=self.config.build_timeout,
@@ -425,7 +425,7 @@ def require_success(phase: str, result: CommandResult, timeout_seconds: int) -> 
     raise SmokeError(f"{phase} failed with exit code {code}: {summary}")
 
 
-def _prepare_media_directory(directory: Path, uid: str, gid: str) -> None:
+def prepare_writable_directory(directory: Path, uid: str, gid: str) -> None:
     """Make the dedicated output bind mount writable for a root host user."""
     if getattr(os, "getuid", lambda: -1)() != 0 or not hasattr(os, "chown"):
         return

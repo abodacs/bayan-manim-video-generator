@@ -1,4 +1,6 @@
+from collections.abc import Sequence
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -32,16 +34,17 @@ def _fake_successful_render(
 
     def fake_run_container(
         image: str,
-        command: object,
+        command: Sequence[str],
         log_path: Path,
         timeout_seconds: int,
         **kwargs: object,
     ) -> CommandResult:
-        del image, log_path, timeout_seconds, kwargs
+        del image, log_path, timeout_seconds
         if rendered is not None:
             rendered.append(tuple(str(part) for part in command))
-        (tmp_path / "media" / "video").mkdir(parents=True, exist_ok=True)
-        (tmp_path / "media" / "video" / "GeneratedScene.mp4").write_bytes(b"fake video bytes")
+        run_dir = cast(Path, kwargs["output_directory"])
+        (run_dir / "media" / "video").mkdir(parents=True, exist_ok=True)
+        (run_dir / "media" / "video" / "GeneratedScene.mp4").write_bytes(b"fake video bytes")
         return CommandResult(command=("docker",), returncode=0, output_tail="done\n")
 
     monkeypatch.setattr(executor, "run_container", fake_run_container)
@@ -60,12 +63,81 @@ def test_render_scene_code_renders_in_the_worker(
 
     assert output_path == tmp_path / "final.mp4"
     assert output_path.read_bytes() == b"fake video bytes"
-    assert (tmp_path / "generated_scene.py").read_text(encoding="utf-8") == GENERATED_CODE
+    run_dirs = list((tmp_path / "final-runs").iterdir())
+    assert len(run_dirs) == 1
+    assert (run_dirs[0] / "generated_scene.py").read_text(encoding="utf-8") == GENERATED_CODE
     # The generated scene runs from the writable output mount, never the host.
     assert rendered[0][rendered[0].index("--media_dir") - 2] == str(
         CONTAINER_OUTPUT_ROOT / "generated_scene.py"
     )
     assert rendered[0][rendered[0].index("--media_dir") + 1] == "/workspace/output/media/video"
+
+
+def test_render_scene_code_mounts_only_a_fresh_run_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The untrusted scene may only ever write inside its fresh run directory."""
+    executor = DockerExecutor(
+        docker="docker",
+        run_directory=tmp_path,
+        source_directory=tmp_path,
+        container_user="1000:1000",
+        settings=RenderSettings(render_timeout_seconds=77),
+    )
+    monkeypatch.setattr(executor, "inspect_image", lambda image: ImageMetadata(reference=image))
+    argvs: list[tuple[str, ...]] = []
+    timeouts: list[int] = []
+
+    def spy_run_container(
+        image: str,
+        command: Sequence[str],
+        log_path: Path,
+        timeout_seconds: int,
+        **kwargs: object,
+    ) -> CommandResult:
+        del log_path
+        timeouts.append(timeout_seconds)
+        argvs.append(
+            executor.create_command(
+                image,
+                command,
+                container_name="render-spy",
+                include_source_mount=cast(bool, kwargs["include_source_mount"]),
+                output_directory=cast(Path, kwargs["output_directory"]),
+                output_read_only=cast(bool, kwargs.get("output_read_only", False)),
+            )
+        )
+        run_dir = cast(Path, kwargs["output_directory"])
+        (run_dir / "media" / "video").mkdir(parents=True, exist_ok=True)
+        (run_dir / "media" / "video" / "GeneratedScene.mp4").write_bytes(b"fake video bytes")
+        return CommandResult(command=("docker",), returncode=0, output_tail="done\n")
+
+    monkeypatch.setattr(executor, "run_container", spy_run_container)
+
+    output_path = render_scene_code(
+        GENERATED_CODE, output_path=tmp_path / "final.mp4", executor=executor
+    )
+
+    assert output_path.read_bytes() == b"fake video bytes"
+    # The executor's settings drive the timeout, not a detached module constant.
+    assert timeouts == [77]
+
+    argv = argvs[0]
+    assert argv[0:2] == ("docker", "create")
+    assert "--read-only" in argv
+    assert "--cap-drop=ALL" in argv
+    assert "1000:1000" in argv
+    specs = [token for index, token in enumerate(argv) if argv[index - 1] == "--mount"]
+    writable = [spec for spec in specs if not spec.endswith(",readonly")]
+    assert len(writable) == 1  # exactly one writable mount ...
+    source = Path(writable[0].split("source=", 1)[1].split(",", 1)[0])
+    assert source.parent == (tmp_path / "final-runs").resolve()  # ... under the run root ...
+    assert source.name == "run" or source.name.startswith("run-")
+    assert source != tmp_path.resolve()  # ... and never the output parent itself.
+    assert any(spec.endswith("destination=/workspace/bayan,readonly") for spec in specs)
+
+    # Nothing leaks next to the requested output except the run root and the video.
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["final-runs", "final.mp4"]
 
 
 def test_render_scene_code_wraps_worker_failure(

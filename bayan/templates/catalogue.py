@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 # Define the required metadata shape for all Bayan templates
-CATALOGUE: dict[str, dict[str, Any]] = {
+CATALOGUE: dict[str, dict[str, object]] = {
     "create-circle": {
         "name": "create-circle",
         "purpose": "First shape + the Create animation",
@@ -63,9 +61,12 @@ CATALOGUE: dict[str, dict[str, Any]] = {
 }
 
 
-def get_template_catalogue() -> dict[str, dict[str, Any]]:
-    """Return the registry of available Bayan Arabic templates."""
-    return CATALOGUE
+def get_template_catalogue() -> dict[str, dict[str, object]]:
+    """Return a validated copy of the registry of available Bayan Arabic templates."""
+    errors = validate_catalogue_entries(CATALOGUE)
+    if errors:
+        raise RuntimeError(f"The template catalogue is malformed: {'; '.join(errors)}")
+    return {slug: dict(metadata) for slug, metadata in CATALOGUE.items()}
 
 
 def fixture_filename(slug: str) -> str:
@@ -73,10 +74,17 @@ def fixture_filename(slug: str) -> str:
     return f"{slug.replace('-', '_')}.py"
 
 
-def validate_catalogue_entries(catalogue: dict[str, dict[str, Any]]) -> list[str]:
+def validate_catalogue_entries(catalogue: dict[str, dict[str, object]]) -> list[str]:
     """Validate catalogue metadata shape and report errors by template name."""
     errors: list[str] = []
-    required_fields = {"name", "purpose", "arabic_title", "provenance", "dependencies"}
+    required_fields = {
+        "name",
+        "purpose",
+        "arabic_title",
+        "class_name",
+        "provenance",
+        "dependencies",
+    }
 
     for name, metadata in catalogue.items():
         missing = required_fields - set(metadata.keys())

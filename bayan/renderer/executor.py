@@ -22,18 +22,15 @@ from bayan.renderer.smoke import (
     FIXTURES_ROOT,
     PROJECT_ROOT,
     SmokeError,
+    allocate_run_directory,
     current_container_user,
     first_artifact,
+    prepare_writable_directory,
     require_success,
     validate_png,
 )
 from bayan.templates.catalogue import fixture_filename, get_template_catalogue
 from bayan.utils.atomic_io import atomic_write_text
-
-# Derive allowlist directly from template catalogue keys to prevent catalog drift
-APPROVED_TEMPLATES = set(get_template_catalogue().keys())
-
-RENDER_TIMEOUT_SECONDS = 180
 
 
 class PlanLike(Protocol):
@@ -47,6 +44,11 @@ class RenderError(Exception):
     """Custom exception raised when Manim fails to render the scene."""
 
 
+def approved_templates() -> set[str]:
+    """Derive the template allowlist from the catalogue at call time."""
+    return set(get_template_catalogue().keys())
+
+
 class RenderJobRunner:
     """Executes rendering jobs with preflight checks and isolation."""
 
@@ -55,10 +57,6 @@ class RenderJobRunner:
         self._image = image
 
     def run_job(self, plan: PlanLike, output_dir: Path) -> RenderJob:
-        # Preflight validation: fail fast before invoking container
-        if plan.selected_template not in APPROVED_TEMPLATES:
-            raise ValueError(f"Unknown or unapproved template: '{plan.selected_template}'")
-
         job_id = f"job-{uuid.uuid4().hex[:8]}"
         fallback_plan_id = f"plan-{uuid.uuid4().hex[:8]}"
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -70,6 +68,15 @@ class RenderJobRunner:
         )
         job_path = output_dir / "render_job.json"
 
+        # Preflight validation: fail fast, but leave failure evidence behind.
+        if plan.selected_template not in approved_templates():
+            message = f"Unknown or unapproved template: '{plan.selected_template}'"
+            job.status = "failed"
+            job.failure_stage = "preflight"
+            job.exit_reason = message
+            self._persist_job(job_path, job)
+            raise ValueError(message)
+
         failure_stage = "setup"
         try:
             executor = _resolve_executor(self._executor, output_dir)
@@ -79,24 +86,29 @@ class RenderJobRunner:
             class_name = str(catalogue[plan.selected_template]["class_name"])
             scene_path = str(FIXTURES_ROOT / fixture_filename(plan.selected_template))
 
+            # The fresh run directory is the container's only writable mount, so
+            # render_job.json and render.log stay outside the worker's reach.
+            render_run = allocate_run_directory(output_dir / "render-runs")
+            _prepare_writable_mount(render_run, executor)
+
             self._persist_job(job_path, job)
             log_path = output_dir / "render.log"
             log_path.touch()
 
             failure_stage = "render video"
-            _run_manim(executor, self._image, scene_path, class_name, output_dir, log_path, "video")
+            _run_manim(executor, self._image, scene_path, class_name, render_run, log_path, "video")
 
             failure_stage = "render preview"
             _run_manim(
-                executor, self._image, scene_path, class_name, output_dir, log_path, "preview"
+                executor, self._image, scene_path, class_name, render_run, log_path, "preview"
             )
 
             failure_stage = "collect artifacts"
             video_path = first_artifact(
-                output_dir / "media" / "video", f"{class_name}.mp4", "MP4 video"
+                render_run / "media" / "video", f"{class_name}.mp4", "MP4 video"
             )
             preview_path = first_artifact(
-                output_dir / "media" / "preview", f"{class_name}*.png", "PNG preview"
+                render_run / "media" / "preview", f"{class_name}*.png", "PNG preview"
             )
             validate_png(preview_path)
             draft_path = output_dir / "draft.mp4"
@@ -105,10 +117,13 @@ class RenderJobRunner:
             shutil.copy2(preview_path, still_path)
 
             job.status = "succeeded"
-            job.artifacts = {"video": str(draft_path), "preview": str(still_path)}
+            job.artifacts = {
+                "video": str(draft_path.relative_to(output_dir)),
+                "preview": str(still_path.relative_to(output_dir)),
+            }
             self._persist_job(job_path, job)
             return job
-        except (DockerError, SmokeError) as error:
+        except (DockerError, OSError, SmokeError) as error:
             job.status = "failed"
             job.failure_stage = failure_stage
             job.exit_reason = str(error)
@@ -128,18 +143,19 @@ def render_scene_code(
 ) -> Path:
     """Render generated scene code in the isolated worker.
 
-    The code is written next to the requested output, mounted into the worker
-    as its only writable surface, and the produced video is placed at
-    ``output_path``.
+    The untrusted code is written into a fresh per-render run directory that
+    is mounted as the worker's only writable surface, and the produced video
+    is copied to ``output_path``.
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    scene_file = output_path.parent / "generated_scene.py"
-    scene_file.write_text(code_content, encoding="utf-8")
+    render_run = allocate_run_directory(output_path.parent / f"{output_path.stem}-runs")
+    atomic_write_text(render_run / "generated_scene.py", code_content)
 
     try:
-        resolved_executor = _resolve_executor(executor, output_path.parent)
+        resolved_executor = _resolve_executor(executor, render_run)
+        _prepare_writable_mount(render_run, resolved_executor)
         resolved_executor.inspect_image(image)
-        log_path = output_path.parent / "render.log"
+        log_path = render_run / "render.log"
         log_path.touch()
         scene_path = str(CONTAINER_OUTPUT_ROOT / "generated_scene.py")
         _run_manim(
@@ -147,19 +163,19 @@ def render_scene_code(
             image,
             scene_path,
             scene_class_name,
-            output_path.parent,
+            render_run,
             log_path,
             "video",
         )
         video_path = first_artifact(
-            output_path.parent / "media" / "video",
+            render_run / "media" / "video",
             f"{scene_class_name}.mp4",
             "MP4 video",
         )
         shutil.copy2(video_path, output_path)
         return output_path
     except (DockerError, SmokeError) as error:
-        raise RenderError(str(error)) from error
+        raise RenderError(f"{error} (run directory: {render_run})") from error
 
 
 def _resolve_executor(executor: DockerExecutor | None, run_directory: Path) -> DockerExecutor:
@@ -177,17 +193,24 @@ def _resolve_executor(executor: DockerExecutor | None, run_directory: Path) -> D
     )
 
 
+def _prepare_writable_mount(render_run: Path, executor: DockerExecutor) -> None:
+    """Make the fresh render run directory writable for the container user."""
+    uid_text, _, gid_text = executor.container_user.partition(":")
+    prepare_writable_directory(render_run, uid_text, gid_text or uid_text)
+
+
 def _run_manim(
     executor: DockerExecutor,
     image: str,
     scene_path: str,
     class_name: str,
-    output_dir: Path,
+    render_run: Path,
     log_path: Path,
     kind: str,
 ) -> None:
     """Render one scene to a video or PNG preview inside the worker."""
     media_dir = CONTAINER_OUTPUT_ROOT / "media" / kind
+    timeout_seconds = executor.settings.render_timeout_seconds
     command: list[str] = ["manim", "-ql"]
     if kind == "preview":
         command.extend(("-s", "--format=png"))
@@ -196,9 +219,9 @@ def _run_manim(
         image,
         command,
         log_path,
-        RENDER_TIMEOUT_SECONDS,
+        timeout_seconds,
         include_source_mount=True,
-        output_directory=output_dir,
+        output_directory=render_run,
         phase=f"render {kind}",
     )
-    require_success(f"Rendering the {kind}", result, RENDER_TIMEOUT_SECONDS)
+    require_success(f"Rendering the {kind}", result, timeout_seconds)

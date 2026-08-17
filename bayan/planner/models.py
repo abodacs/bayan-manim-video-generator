@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, Field
 
 
@@ -31,4 +29,4 @@ class ScenePlan(BaseModel):
     selected_template: str
     render_settings: PlanRenderPreferences = Field(default_factory=PlanRenderPreferences)
     provider_fingerprint: str
-    extra_details: dict[str, Any] | None = None
+    extra_details: dict[str, object] | None = None

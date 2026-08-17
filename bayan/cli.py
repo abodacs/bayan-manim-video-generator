@@ -61,7 +61,7 @@ def list_templates() -> None:
     typer.echo(f"{'NAME':<28} {'ARABIC TITLE':<22} {'PURPOSE'}")
     typer.echo("-" * 85)
     for slug, meta in catalogue.items():
-        typer.echo(f"{slug:<28} {meta['arabic_title']:<22} {meta['purpose']}")
+        typer.echo(f"{slug:<28} {str(meta['arabic_title']):<22} {meta['purpose']}")
 
 
 @template_app.command(name="copy")
@@ -185,7 +185,7 @@ def plan(
         typer.secho(f"Output Directory Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e
     except Exception as e:
-        typer.secho(f"Planning Error: {e}", fg=typer.colors.RED)
+        typer.secho(f"Planning Error: {type(e).__name__}: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e
 
 
