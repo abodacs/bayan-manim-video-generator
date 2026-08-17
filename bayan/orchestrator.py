@@ -19,27 +19,30 @@ def _get_utc_now() -> str:
 
 @dataclass
 class StageState:
-    status: str = "pending"  # pending, completed, failed
+    status: str = "pending"  # pending, completed, failed, stub
     attempts: int = 0
     error: str | None = None
     started_at: str | None = None
     completed_at: str | None = None
 
 
+DEFAULT_STAGES = [
+    "plan",
+    "template_select",
+    "render",
+    "validate",
+    "review_packet",
+]
+
+
 @dataclass
 class Manifest:
     run_id: str
-    status: str = "pending"  # pending, completed, failed
+    status: str = "pending"  # pending, completed, failed, stub
     created_at: str = field(default_factory=_get_utc_now)
     updated_at: str = field(default_factory=_get_utc_now)
     stages: dict[str, StageState] = field(
-        default_factory=lambda: {
-            "plan": StageState(),
-            "template_select": StageState(),
-            "render": StageState(),
-            "validate": StageState(),
-            "review_packet": StageState(),
-        }
+        default_factory=lambda: {s: StageState() for s in DEFAULT_STAGES}
     )
 
     def to_dict(self) -> dict[str, Any]:
@@ -48,7 +51,11 @@ class Manifest:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Manifest":
         stages_data = data.get("stages", {})
-        stages = {k: StageState(**v) for k, v in stages_data.items()}
+        # Guard against KeyError if stage sets differ across versions
+        stages = {
+            s: StageState(**stages_data[s]) if s in stages_data else StageState()
+            for s in DEFAULT_STAGES
+        }
         return cls(
             run_id=data["run_id"],
             status=data.get("status", "pending"),
@@ -79,13 +86,14 @@ class WorkflowOrchestrator:
         return manifest
 
     def _save_manifest(self, manifest: Manifest) -> None:
+        """Saves manifest using atomic file replace pattern to avoid partial writes."""
         manifest.updated_at = _get_utc_now()
-        self.manifest_path.write_text(json.dumps(manifest.to_dict(), indent=2), encoding="utf-8")
+        tmp_path = self.manifest_path.with_suffix(".tmp")
+        tmp_path.write_text(json.dumps(manifest.to_dict(), indent=2), encoding="utf-8")
+        tmp_path.replace(self.manifest_path)
 
     def run(self) -> bool:
         """Executes all workflow stages sequentially with state tracking."""
-        shutil.copy(self.input_path, self.output_dir / "lesson.json")
-
         stages = [
             ("plan", self._run_plan_stage),
             ("template_select", self._run_template_select_stage),
@@ -111,6 +119,13 @@ class WorkflowOrchestrator:
                 stage_state.error = None
                 self._save_manifest(self.manifest)
                 typer.secho(f"Stage '{stage_name}': SUCCESS", fg=typer.colors.GREEN)
+            except NotImplementedError as exc:
+                stage_state.status = "stub"
+                stage_state.error = str(exc)
+                self.manifest.status = "stub"
+                self._save_manifest(self.manifest)
+                typer.secho(f"Stage '{stage_name}' (STUB): {exc}", fg=typer.colors.YELLOW)
+                return False
             except Exception as exc:
                 stage_state.status = "failed"
                 stage_state.error = str(exc)
@@ -156,33 +171,17 @@ class WorkflowOrchestrator:
             target_scene.write_text("# Placeholder Manim Scene\n", encoding="utf-8")
 
     def _run_render_stage(self) -> None:
-        artifacts_dir = self.output_dir / "artifacts"
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
-
-        render_log = self.output_dir / "render.log"
-        render_log.write_text("Render completed successfully.\n", encoding="utf-8")
-
-        (artifacts_dir / "draft.mp4").write_bytes(b"dummy mp4 video content")
-        (artifacts_dir / "preview.png").write_bytes(b"dummy png preview content")
+        raise NotImplementedError("Render stage is not yet implemented.")
 
     def _run_validate_stage(self) -> None:
-        validation_data = {
-            "valid": True,
-            "checks": {
-                "safe_frame": True,
-                "arabic_rtl": True,
-                "duration_bounds": True,
-            },
-        }
-        val_file = self.output_dir / "validation.json"
-        val_file.write_text(json.dumps(validation_data, indent=2), encoding="utf-8")
+        raise NotImplementedError("Validation stage is not yet implemented.")
 
     def _run_review_packet_stage(self) -> None:
         review_md = (
             "# Lesson Review Packet\n\n"
             "## Status\n"
-            "- Validation: PASSED\n"
-            "- Artifacts: `artifacts/draft.mp4`, `artifacts/preview.png`\n"
+            "- Planning & Template Selection: COMPLETED\n"
+            "- Render & Validation: STUB (Not Yet Implemented)\n"
         )
         review_file = self.output_dir / "review_packet.md"
         review_file.write_text(review_md, encoding="utf-8")

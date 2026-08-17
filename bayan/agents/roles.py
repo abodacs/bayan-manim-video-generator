@@ -20,8 +20,11 @@ class BaseAgent:
         return self.records_dir / f"{self.role_name}.json"
 
     def _write_record(self, record_data: dict[str, Any]) -> None:
+        """Saves agent execution record atomically using a temporary file."""
         record_path = self._get_record_path()
-        record_path.write_text(json.dumps(record_data, indent=2), encoding="utf-8")
+        tmp_path = record_path.with_suffix(".tmp")
+        tmp_path.write_text(json.dumps(record_data, indent=2), encoding="utf-8")
+        tmp_path.replace(record_path)
 
     def _hash_input(self, payload: dict[str, Any]) -> str:
         serialized = json.dumps(payload, sort_keys=True)
@@ -67,14 +70,17 @@ class RepairAgent(BaseAgent):
         self.seen_signatures: set[str] = set()
 
     def _create_review_packet(self, reason: str) -> None:
+        """Writes review packet atomically using a temporary file."""
         review_packet_path = self.run_dir / "review_packet.md"
-        review_packet_path.write_text(
+        tmp_path = review_packet_path.with_suffix(".tmp")
+        tmp_path.write_text(
             f"# Human Review Required\n\nReason: {reason}",
             encoding="utf-8",
         )
+        tmp_path.replace(review_packet_path)
 
     def attempt_repair(self, error_evidence: dict[str, Any]) -> dict[str, Any]:
-        # إيقاف التكرار فوراً إذا كان الخطأ متعلقاً بالسياسات أو الأمان
+        # Stop immediately if the error is policy/security related.
         if error_evidence.get("category") in ("security", "policy"):
             self._create_review_packet(
                 f"Security/Policy violation detected: {error_evidence.get('category')}"
