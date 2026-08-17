@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 from pathlib import Path
 
@@ -11,7 +13,7 @@ def run_planning_pipeline(
     provider: ModelProvider | None = None,
     force: bool = False,
 ) -> None:
-    """Reads input lesson, creates typed LessonSegment and ScenePlan, and outputs files."""
+    """Reads input lesson, creates typed models, and outputs files atomically."""
     if provider is None:
         provider = FakeProvider()
 
@@ -21,10 +23,16 @@ def run_planning_pipeline(
             "Use --force to overwrite."
         )
 
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file not found at '{input_path}'")
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(input_path, encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(input_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON content in input file '{input_path}': {e}") from e
 
     raw_request = data.get("request", "")
     learning_objective = data.get("learning_objective", raw_request)
@@ -37,12 +45,19 @@ def run_planning_pipeline(
 
     plan = provider.generate_plan(segment)
 
-    # Save outputs
+    # Save outputs atomically
     lesson_out = output_dir / "lesson.json"
+    lesson_tmp = output_dir / "lesson.json.tmp"
+    lesson_tmp.write_text(
+        segment.model_dump_json(indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    lesson_tmp.replace(lesson_out)
+
     scene_plan_out = output_dir / "scene_plan.json"
-
-    with open(lesson_out, "w", encoding="utf-8") as f:
-        f.write(segment.model_dump_json(indent=2, ensure_ascii=False))
-
-    with open(scene_plan_out, "w", encoding="utf-8") as f:
-        f.write(plan.model_dump_json(indent=2, ensure_ascii=False))
+    scene_plan_tmp = output_dir / "scene_plan.json.tmp"
+    scene_plan_tmp.write_text(
+        plan.model_dump_json(indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    scene_plan_tmp.replace(scene_plan_out)

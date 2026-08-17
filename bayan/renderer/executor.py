@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 import os
 import pathlib
@@ -6,12 +8,22 @@ import shutil
 import subprocess
 import tempfile
 import time
+import uuid
 from pathlib import Path
+from typing import Protocol
 
-from bayan.planner.models import ScenePlan
 from bayan.renderer.models import RenderJob
+from bayan.templates.catalogue import get_template_catalogue
 
-APPROVED_TEMPLATES = {"create-circle", "إنشاء دائرة", "ArabicSanityCheck"}
+# Derive allowlist directly from template catalogue keys to prevent catalog drift
+APPROVED_TEMPLATES = set(get_template_catalogue().keys())
+
+
+class PlanLike(Protocol):
+    """Protocol interface to decouple renderer from planner domain models."""
+
+    selected_template: str
+    provider_fingerprint: str | None
 
 
 class RenderError(Exception):
@@ -23,18 +35,27 @@ class RenderError(Exception):
 class RenderJobRunner:
     """Executes rendering jobs with preflight checks and isolation."""
 
-    def run_job(self, plan: ScenePlan, output_dir: Path) -> RenderJob:
+    def run_job(self, plan: PlanLike, output_dir: Path) -> RenderJob:
         # Preflight validation: fail fast before invoking container
         if plan.selected_template not in APPROVED_TEMPLATES:
             raise ValueError(f"Unknown or unapproved template: '{plan.selected_template}'")
 
-        job = RenderJob(
-            job_id="job-1",
-            status="succeeded",
-            scene_plan_id="plan-1",
+        job_id = f"job-{uuid.uuid4().hex[:8]}"
+        scene_plan_id = (
+            plan.provider_fingerprint
+            if plan.provider_fingerprint
+            else f"plan-{uuid.uuid4().hex[:8]}"
+        )
+
+        # Ensure output directory exists for incoming job artifacts
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        return RenderJob(
+            job_id=job_id,
+            status="requested",
+            scene_plan_id=scene_plan_id,
             scene_id=plan.selected_template,
         )
-        return job
 
 
 def _parse_manim_error(stderr_text: str) -> str:
