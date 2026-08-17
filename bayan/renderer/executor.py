@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 import os
 import pathlib
@@ -6,12 +8,18 @@ import shutil
 import subprocess
 import tempfile
 import time
+import uuid
 from pathlib import Path
 
 from bayan.planner.models import ScenePlan
 from bayan.renderer.models import RenderJob
 
-APPROVED_TEMPLATES = {"create-circle", "إنشاء دائرة", "ArabicSanityCheck"}
+APPROVED_TEMPLATES = {
+    "create-circle",
+    "إنشاء دائرة",
+    "ArabicSanityCheck",
+    "arabic_template",
+}
 
 
 class RenderError(Exception):
@@ -28,13 +36,19 @@ class RenderJobRunner:
         if plan.selected_template not in APPROVED_TEMPLATES:
             raise ValueError(f"Unknown or unapproved template: '{plan.selected_template}'")
 
-        job = RenderJob(
-            job_id="job-1",
-            status="succeeded",
-            scene_plan_id="plan-1",
+        job_id = f"job-{uuid.uuid4().hex[:8]}"
+        scene_plan_id = (
+            plan.provider_fingerprint
+            if plan.provider_fingerprint
+            else f"plan-{uuid.uuid4().hex[:8]}"
+        )
+
+        return RenderJob(
+            job_id=job_id,
+            status="requested",
+            scene_plan_id=scene_plan_id,
             scene_id=plan.selected_template,
         )
-        return job
 
 
 def _parse_manim_error(stderr_text: str) -> str:
