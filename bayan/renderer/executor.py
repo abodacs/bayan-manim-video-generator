@@ -25,6 +25,13 @@ class PlanLike(Protocol):
     selected_template: str
     provider_fingerprint: str | None
 
+APPROVED_TEMPLATES = {
+    "create-circle",
+    "إنشاء دائرة",
+    "ArabicSanityCheck",
+    "arabic_template",
+}
+
 
 class RenderError(Exception):
     """Custom exception raised when Manim fails to render the scene."""
