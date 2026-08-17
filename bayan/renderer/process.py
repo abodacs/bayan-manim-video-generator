@@ -7,6 +7,7 @@ import selectors
 import shlex
 import signal
 import subprocess
+import sys
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -114,7 +115,7 @@ class BoundedProcessRunner:
             process = subprocess.Popen(
                 normalized,
                 env=self.environment,
-                start_new_session=True,
+                start_new_session=(sys.platform != "win32"),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
             )
@@ -124,8 +125,6 @@ class BoundedProcessRunner:
             return CommandResult(normalized, 127, error=str(error))
 
         assert process.stdout is not None
-        selector = selectors.DefaultSelector()
-        selector.register(process.stdout, selectors.EVENT_READ)
         output_tail = bytearray()
         output_bytes = 0
         stream_open = True
@@ -134,19 +133,24 @@ class BoundedProcessRunner:
         deadline = time.monotonic() + timeout_seconds
 
         with log_path.open("ab") as log:
-            while stream_open:
-                remaining_time = deadline - time.monotonic()
-                if remaining_time <= 0:
-                    timed_out = True
-                    break
-                events = selector.select(min(0.1, remaining_time))
-                for key, _ in events:
+            if sys.platform == "win32":
+                # Windows select() only works on sockets (WinError 10038)
+                while stream_open:
+                    remaining_time = deadline - time.monotonic()
+                    if remaining_time <= 0:
+                        timed_out = True
+                        break
+
                     try:
-                        chunk = os.read(key.fd, 65_536)
-                    except BlockingIOError:
-                        continue
+                        chunk = (
+                            process.stdout.read1(65_536)
+                            if hasattr(process.stdout, "read1")
+                            else process.stdout.read(65_536)
+                        )
+                    except OSError:
+                        break
+
                     if not chunk:
-                        selector.unregister(key.fileobj)
                         stream_open = False
                         break
 
@@ -154,6 +158,7 @@ class BoundedProcessRunner:
                     if remaining_bytes <= 0:
                         output_limited = True
                         break
+
                     accepted = chunk[:remaining_bytes]
                     log.write(accepted)
                     output_tail.extend(accepted)
@@ -162,10 +167,68 @@ class BoundedProcessRunner:
                         output_limited = True
                         break
 
-                if timed_out or output_limited:
-                    break
-                if process.poll() is not None and not stream_open:
-                    break
+                    if timed_out or output_limited:
+                        break
+                    if process.poll() is not None:
+                        # Read remaining buffer if available before exiting
+                        try:
+                            remaining_chunk = process.stdout.read()
+                            if remaining_chunk:
+                                rem_bytes = self.max_output_bytes - output_bytes
+                                accepted_rem = remaining_chunk[:rem_bytes]
+                                log.write(accepted_rem)
+                                output_tail.extend(accepted_rem)
+                        except OSError:
+                            pass
+                        break
+            else:
+                selector = selectors.DefaultSelector()
+                selector.register(process.stdout, selectors.EVENT_READ)
+
+                try:
+                    while stream_open:
+                        remaining_time = deadline - time.monotonic()
+                        if remaining_time <= 0:
+                            timed_out = True
+                            break
+
+                        try:
+                            events = selector.select(min(0.1, remaining_time))
+                        except OSError:
+                            break
+
+                        for key, _ in events:
+                            try:
+                                chunk = os.read(key.fd, 65_536)
+                            except BlockingIOError:
+                                continue
+                            except OSError:
+                                stream_open = False
+                                break
+
+                            if not chunk:
+                                selector.unregister(key.fileobj)
+                                stream_open = False
+                                break
+
+                            remaining_bytes = self.max_output_bytes - output_bytes
+                            if remaining_bytes <= 0:
+                                output_limited = True
+                                break
+                            accepted = chunk[:remaining_bytes]
+                            log.write(accepted)
+                            output_tail.extend(accepted)
+                            output_bytes += len(accepted)
+                            if len(accepted) != len(chunk):
+                                output_limited = True
+                                break
+
+                        if timed_out or output_limited:
+                            break
+                        if process.poll() is not None and not stream_open:
+                            break
+                finally:
+                    selector.close()
 
         if timed_out or output_limited:
             self.terminate(process)
@@ -175,7 +238,7 @@ class BoundedProcessRunner:
             except subprocess.TimeoutExpired:
                 timed_out = True
                 self.terminate(process)
-        selector.close()
+
         if process.stdout is not None:
             process.stdout.close()
 

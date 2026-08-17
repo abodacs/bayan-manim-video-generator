@@ -11,8 +11,6 @@ dependencies = [
     "python-bidi>=0.6.11",
     "openai>=3.2.0",
     "python-dotenv>=1.2.2",
-    "ruff>=0.16.1",
-    "pre-commit>=4.6.1",
 ]
 
 [dependency-groups]
@@ -78,7 +76,7 @@ omit = ["bayan/utils/sanity_check.py"]
 
 [tool.coverage.report]
 show_missing = true
-[tool.setuptools.packages.find]
 
+[tool.setuptools.packages.find]
 where = ["."]
 include = ["bayan*"]

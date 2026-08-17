@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 import shutil
 from pathlib import Path
 from typing import Annotated
@@ -151,6 +154,15 @@ def plan(
             f"Scene plan generated successfully in: {output_dir.resolve()}",
             fg=typer.colors.GREEN,
         )
+    except FileNotFoundError as e:
+        typer.secho(f"Input File Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
+    except (ValueError, json.JSONDecodeError) as e:
+        typer.secho(f"JSON Parse / Validation Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
+    except FileExistsError as e:
+        typer.secho(f"Output Directory Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         typer.secho(f"Planning Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e
@@ -192,3 +204,7 @@ def run(
     success = orchestrator.run()
     if not success:
         raise typer.Exit(code=1)
+
+
+if __name__ == "__main__":
+    app()
