@@ -5,6 +5,7 @@ from pathlib import Path
 
 from bayan.planner.models import LessonSegment
 from bayan.planner.provider import FakeProvider, ModelProvider
+from bayan.utils.atomic_io import atomic_write_text
 
 
 def run_planning_pipeline(
@@ -46,18 +47,11 @@ def run_planning_pipeline(
     plan = provider.generate_plan(segment)
 
     # Save outputs atomically
-    lesson_out = output_dir / "lesson.json"
-    lesson_tmp = output_dir / "lesson.json.tmp"
-    lesson_tmp.write_text(
+    atomic_write_text(
+        output_dir / "lesson.json",
         segment.model_dump_json(indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
     )
-    lesson_tmp.replace(lesson_out)
-
-    scene_plan_out = output_dir / "scene_plan.json"
-    scene_plan_tmp = output_dir / "scene_plan.json.tmp"
-    scene_plan_tmp.write_text(
+    atomic_write_text(
+        output_dir / "scene_plan.json",
         plan.model_dump_json(indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
     )
-    scene_plan_tmp.replace(scene_plan_out)

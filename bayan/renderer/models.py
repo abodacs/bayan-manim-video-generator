@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from bayan.utils.atomic_io import atomic_write_text
+
 RunStatus = Literal["running", "succeeded", "failed"]
 PhaseStatus = Literal["passed", "failed", "timed_out", "output_limited"]
 JobStatus = Literal["requested", "running", "succeeded", "failed"]
@@ -124,13 +126,10 @@ class SmokeManifest:
 
     def write(self, run_directory: Path) -> None:
         """Atomically update the manifest in the run directory."""
-        manifest_path = run_directory / "smoke_manifest.json"
-        temporary_path = run_directory / "smoke_manifest.json.tmp"
-        temporary_path.write_text(
+        atomic_write_text(
+            run_directory / "smoke_manifest.json",
             json.dumps(self.to_dict(), ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
         )
-        temporary_path.replace(manifest_path)
 
 
 @dataclass
@@ -143,6 +142,7 @@ class RenderJob:
     scene_id: str
     failure_stage: str | None = None
     exit_reason: str | None = None
+    artifacts: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-compatible representation."""
@@ -153,4 +153,5 @@ class RenderJob:
             "scene_id": self.scene_id,
             "failure_stage": self.failure_stage,
             "exit_reason": self.exit_reason,
+            "artifacts": dict(self.artifacts),
         }

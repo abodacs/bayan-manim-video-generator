@@ -4,6 +4,7 @@ import hashlib
 from typing import Protocol
 
 from bayan.planner.models import LessonSegment, PlanRenderPreferences, ScenePlan
+from bayan.templates.catalogue import get_template_catalogue
 
 
 class ModelProvider(Protocol):
@@ -17,6 +18,8 @@ class FakeProvider:
 
     def __init__(self, model_name: str = "fake-model-v1") -> None:
         self.model_name = model_name
+        # Plans must select a template the render preflight will accept.
+        self.default_template = sorted(get_template_catalogue())[0]
 
     def _generate_fingerprint(self, segment: LessonSegment) -> str:
         content = (
@@ -31,7 +34,7 @@ class FakeProvider:
             learning_objective=segment.learning_objective,
             language=segment.language,
             visual_concept=f"Visual explanation for: {segment.learning_objective}",
-            selected_template="arabic_template",
+            selected_template=self.default_template,
             render_settings=PlanRenderPreferences(),
             provider_fingerprint=fingerprint,
         )

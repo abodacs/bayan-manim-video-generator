@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from bayan.generator.llm_client import LLMClient
 from bayan.orchestrator import ManifestError, WorkflowOrchestrator
 from bayan.planner.service import run_planning_pipeline
-from bayan.renderer.executor import RenderError, execute_manim_script
+from bayan.renderer.executor import RenderError, render_scene_code
 from bayan.templates.catalogue import fixture_filename, get_template_catalogue
 
 app = typer.Typer(
@@ -130,9 +130,9 @@ def render(
         typer.secho(f"Generation Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e
 
-    typer.echo("Rendering video via local Manim engine (this may take a moment)...")
+    typer.echo("Rendering video in the isolated Manim worker (this may take a moment)...")
     try:
-        execute_manim_script(
+        render_scene_code(
             code_content=generated_code,
             output_path=output_path,
             scene_class_name="GeneratedScene",

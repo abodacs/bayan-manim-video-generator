@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from bayan.utils.atomic_io import atomic_write_text
+
 
 class BaseAgent:
     """Base class for all typed agent roles."""
@@ -23,10 +25,7 @@ class BaseAgent:
 
     def _write_record(self, record_data: dict[str, Any]) -> None:
         """Saves agent execution record atomically using a temporary file."""
-        record_path = self._get_record_path()
-        tmp_path = record_path.with_suffix(".tmp")
-        tmp_path.write_text(json.dumps(record_data, indent=2), encoding="utf-8")
-        tmp_path.replace(record_path)
+        atomic_write_text(self._get_record_path(), json.dumps(record_data, indent=2) + "\n")
 
     def _hash_input(self, payload: dict[str, Any]) -> str:
         serialized = json.dumps(payload, sort_keys=True)
@@ -73,13 +72,10 @@ class RepairAgent(BaseAgent):
 
     def _create_review_packet(self, reason: str) -> None:
         """Writes review packet atomically using a temporary file."""
-        review_packet_path = self.run_dir / "review_packet.md"
-        tmp_path = review_packet_path.with_suffix(".tmp")
-        tmp_path.write_text(
-            f"# Human Review Required\n\nReason: {reason}",
-            encoding="utf-8",
+        atomic_write_text(
+            self.run_dir / "review_packet.md",
+            f"# Human Review Required\n\nReason: {reason}\n",
         )
-        tmp_path.replace(review_packet_path)
 
     def attempt_repair(self, error_evidence: dict[str, Any]) -> dict[str, Any]:
         # Stop immediately if the error is policy/security related.

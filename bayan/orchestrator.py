@@ -9,8 +9,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from pydantic import ValidationError
+
+from bayan.planner.models import ScenePlan
 from bayan.planner.service import run_planning_pipeline
+from bayan.renderer.executor import RenderJobRunner
 from bayan.templates.catalogue import fixture_filename, get_template_catalogue
+from bayan.utils.atomic_io import atomic_write_text
 
 
 def _get_utc_now() -> str:
@@ -131,9 +136,7 @@ class WorkflowOrchestrator:
     def _save_manifest(self, manifest: Manifest) -> None:
         """Saves manifest using atomic file replace pattern to avoid partial writes."""
         manifest.updated_at = _get_utc_now()
-        tmp_path = self.manifest_path.with_suffix(".tmp")
-        tmp_path.write_text(json.dumps(manifest.to_dict(), indent=2), encoding="utf-8")
-        tmp_path.replace(self.manifest_path)
+        atomic_write_text(self.manifest_path, json.dumps(manifest.to_dict(), indent=2) + "\n")
 
     def run(self, reporter: StageReporter | None = None) -> bool:
         """Executes all workflow stages sequentially with state tracking."""
@@ -188,9 +191,22 @@ class WorkflowOrchestrator:
         # run_planning_pipeline either raises or always writes scene_plan.json.
         run_planning_pipeline(input_path=self.input_path, output_dir=self.output_dir, force=True)
 
+    def _load_scene_plan(self) -> ScenePlan:
+        """Read the typed Scene plan written by the plan stage."""
+        plan_path = self.output_dir / "scene_plan.json"
+        try:
+            return ScenePlan.model_validate_json(plan_path.read_text(encoding="utf-8"))
+        except FileNotFoundError as error:
+            raise RuntimeError(
+                f"Scene plan not found at {plan_path}. Re-run the plan stage."
+            ) from error
+        except ValidationError as error:
+            raise RuntimeError(f"Scene plan at {plan_path} is invalid: {error}") from error
+
     def _run_template_select_stage(self) -> None:
+        plan = self._load_scene_plan()
         catalogue = get_template_catalogue()
-        template_name = "create-circle"
+        template_name = plan.selected_template
         if template_name not in catalogue:
             raise RuntimeError(f"Template '{template_name}' not found in catalogue")
 
@@ -201,10 +217,13 @@ class WorkflowOrchestrator:
         if source_file.exists():
             shutil.copy(source_file, target_scene)
         else:
-            target_scene.write_text("# Placeholder Manim Scene\n", encoding="utf-8")
+            raise RuntimeError(
+                f"Fixture scene '{fixture_name}' for template '{template_name}' not found."
+            )
 
     def _run_render_stage(self) -> None:
-        raise NotImplementedError("Render stage is not yet implemented.")
+        plan = self._load_scene_plan()
+        RenderJobRunner().run_job(plan, output_dir=self.output_dir)
 
     def _run_validate_stage(self) -> None:
         raise NotImplementedError("Validation stage is not yet implemented.")
@@ -218,6 +237,4 @@ class WorkflowOrchestrator:
             "- Render & Validation: STUB (Not Yet Implemented)\n"
         )
         review_file = self.output_dir / "lesson_review_packet.md"
-        tmp_path = review_file.with_suffix(".tmp")
-        tmp_path.write_text(review_md, encoding="utf-8")
-        tmp_path.replace(review_file)
+        atomic_write_text(review_file, review_md)
