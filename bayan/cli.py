@@ -1,13 +1,14 @@
+import shutil
 from pathlib import Path
 from typing import Annotated
 
 import typer
 from dotenv import load_dotenv
 
-# الـ imports الخاصة بالمشروع بقت ورا بعضها مباشرة بدون فواصل تنفيذية
 from bayan.generator.llm_client import LLMClient
 from bayan.planner.service import run_planning_pipeline
 from bayan.renderer.executor import RenderError, execute_manim_script
+from bayan.templates.catalogue import get_template_catalogue
 
 app = typer.Typer(
     name="bayan",
@@ -15,12 +16,53 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
+template_app = typer.Typer(
+    help="Manage Arabic template catalogue.",
+    no_args_is_help=True,
+)
+app.add_typer(template_app, name="template")
+
 
 @app.callback()
 def main() -> None:
     """Bayan CLI root command."""
-    # شحن متغيرات البيئة هنا لضمان تشغيلها مع أي أمر يتم استدعاؤه في الـ CLI
     load_dotenv()
+
+
+@template_app.command(name="list")
+def list_templates() -> None:
+    """List all available Arabic templates in the catalogue."""
+    catalogue = get_template_catalogue()
+    typer.echo(f"{'NAME':<28} {'ARABIC TITLE':<22} {'PURPOSE'}")
+    typer.echo("-" * 85)
+    for slug, meta in catalogue.items():
+        typer.echo(f"{slug:<28} {meta['arabic_title']:<22} {meta['purpose']}")
+
+
+@template_app.command(name="copy")
+def copy_template(
+    name: Annotated[str, typer.Argument(help="Name of the template to copy.")],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Target output directory."),
+    ],
+) -> None:
+    """Copy an approved template into a target directory."""
+    catalogue = get_template_catalogue()
+    if name not in catalogue:
+        typer.secho(f"Error: Unknown template '{name}'.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    source_file = Path(__file__).parent / "templates" / "fixtures" / f"{name.replace('-', '_')}.py"
+    target_file = output_dir / f"{name.replace('-', '_')}.py"
+
+    if not source_file.exists():
+        typer.secho(f"Error: Source file for template '{name}' not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    shutil.copy(source_file, target_file)
+    typer.secho(f"Copied template '{name}' to {target_file}", fg=typer.colors.GREEN)
 
 
 @app.command(name="render")
@@ -47,13 +89,10 @@ def render(
         typer.Option("--model", help="Custom model name to override environment variable."),
     ] = None,
 ) -> None:
-    """
-    Generates a Manim animation based on your educational prompt.
-    """
+    """Generates a Manim animation based on your educational prompt."""
     typer.echo(f"🚀 Initializing rendering pipeline for prompt: '{prompt}'")
 
     try:
-        # Pass configuration dynamically to follow the decoupled provider interface
         client = LLMClient(api_key=api_key, base_url=base_url, model=model)
     except Exception as e:
         typer.secho(f"Configuration Error: {e}", fg=typer.colors.RED)
@@ -68,7 +107,6 @@ def render(
 
     typer.echo("🎬 Rendering video via local Manim engine (this may take a moment)...")
     try:
-        # Pass the output_path directly to eliminate race conditions
         execute_manim_script(
             code_content=generated_code,
             output_path=output_path,
@@ -90,10 +128,6 @@ def render(
     )
 
 
-if __name__ == "__main__":
-    app()
-
-
 @app.command(name="plan")
 def plan(
     input_path: Annotated[
@@ -109,9 +143,7 @@ def plan(
         typer.Option("--force", "-f", help="Overwrite output directory if it exists."),
     ] = False,
 ) -> None:
-    """
-    Turns a natural-language request into a typed Scene plan.
-    """
+    """Turns a natural-language request into a typed Scene plan."""
     try:
         run_planning_pipeline(input_path=input_path, output_dir=output_dir, force=force)
         typer.secho(
@@ -121,3 +153,7 @@ def plan(
     except Exception as e:
         typer.secho(f"Planning Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e
+
+
+if __name__ == "__main__":
+    app()
