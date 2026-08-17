@@ -35,7 +35,7 @@ def test_bayan_plan_with_fake_provider(tmp_path: Path):
     scene_plan_file = output_dir / "scene_plan.json"
     assert scene_plan_file.exists()
 
-    with open(scene_plan_file, "r", encoding="utf-8") as f:
+    with open(scene_plan_file, encoding="utf-8") as f:
         data = json.load(f)
 
     assert data.get("language") == "ar"

@@ -6,8 +6,9 @@ from dotenv import load_dotenv
 
 # الـ imports الخاصة بالمشروع بقت ورا بعضها مباشرة بدون فواصل تنفيذية
 from bayan.generator.llm_client import LLMClient
-from bayan.renderer.executor import RenderError, execute_manim_script
 from bayan.planner.service import run_planning_pipeline
+from bayan.renderer.executor import RenderError, execute_manim_script
+
 app = typer.Typer(
     name="bayan",
     help="Bayan: Arabic AI-Powered Manim Video Generator",
@@ -91,6 +92,7 @@ def render(
 
 if __name__ == "__main__":
     app()
+
 
 @app.command(name="plan")
 def plan(
