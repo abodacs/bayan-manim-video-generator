@@ -8,21 +8,19 @@ dependencies = [
     "manim>=0.20.1",
     "typer>=0.27.0",
     "arabic-reshaper>=3.0.1",
-    "python-bidi>=0.6.11",
+    "python-bidi>=0.4.2",
     "openai>=2.52.0",
     "python-dotenv>=1.2.2",
-    "ruff>=0.16.1",
-    "pre-commit>=4.6.1",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
-    "ruff>=0.15.22",
+    "ruff>=0.16.1",
     "setuptools<84",
     "mypy>=2.3.0",
-    "pre-commit>=4.6.0",
+    "pre-commit>=4.6.1",
 ]
 
 # -----------------------------------------------------------------------------
@@ -78,3 +76,7 @@ omit = ["bayan/utils/sanity_check.py"]
 
 [tool.coverage.report]
 show_missing = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bayan*"]
