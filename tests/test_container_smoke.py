@@ -13,12 +13,14 @@ from bayan.renderer.security import security_args
 from bayan.renderer.smoke import (
     CONTAINER_OUTPUT_ROOT,
     FIXTURES_ROOT,
+    MAX_RETAINED_RUN_DIRECTORIES,
     SmokeConfig,
     SmokeError,
     SmokeRunner,
     allocate_run_directory,
     current_container_user,
     first_artifact,
+    prune_run_directories,
     validate_png,
 )
 from bayan.templates.catalogue import fixture_filename, get_template_catalogue
@@ -45,6 +47,23 @@ def test_allocate_run_directory_preserves_previous_runs(tmp_path: Path) -> None:
     assert second.name == "run-001"
     assert first.exists()
     assert second.exists()
+
+
+def test_prune_run_directories_keeps_the_newest(tmp_path: Path) -> None:
+    run_root = tmp_path / "render-runs"
+    run_root.mkdir()
+    created = [allocate_run_directory(run_root) for _ in range(MAX_RETAINED_RUN_DIRECTORIES + 3)]
+    # A foreign directory and file must never be pruned.
+    (run_root / "evidence").mkdir()
+    (run_root / "notes.txt").write_text("keep me", encoding="utf-8")
+
+    prune_run_directories(run_root)
+
+    remaining = {path.name for path in run_root.iterdir()}
+    expected = {path.name for path in created[3:]}  # the 3 oldest run dirs are pruned
+    expected |= {"evidence", "notes.txt"}
+    assert remaining == expected
+    assert (run_root / "notes.txt").read_text(encoding="utf-8") == "keep me"
 
 
 def test_security_args_deny_network_and_host_privileges(tmp_path: Path) -> None:
@@ -316,6 +335,8 @@ def test_catalogue_templates_are_rendered_and_recorded(
         del image, log, timeout_seconds, kwargs
         normalized = tuple(str(part) for part in command)
         rendered.append(normalized)
+        if command[0] == "ffprobe":
+            return CommandResult(command=("docker", *normalized), returncode=0, output_tail="6.2\n")
         media_root_arg = Path(normalized[normalized.index("--media_dir") + 1])
         host_dir = media_directory / media_root_arg.relative_to(CONTAINER_OUTPUT_ROOT)
         host_dir.mkdir(parents=True, exist_ok=True)
@@ -331,7 +352,8 @@ def test_catalogue_templates_are_rendered_and_recorded(
     outputs = smoke_runner._render_catalogue_templates(executor, media_directory, log_path)
 
     catalogue = get_template_catalogue()
-    assert len(rendered) == 2 * len(catalogue)
+    # Two manim renders plus one ffprobe validation per template.
+    assert len(rendered) == 3 * len(catalogue)
     for slug in catalogue:
         scene_path = str(FIXTURES_ROOT / fixture_filename(slug))
         slug_commands = [cmd for cmd in rendered if scene_path in cmd]
@@ -339,5 +361,6 @@ def test_catalogue_templates_are_rendered_and_recorded(
         assert catalogue[slug]["class_name"] in slug_commands[0]
         assert f"template_{slug}_video" in outputs
         assert f"template_{slug}_preview" in outputs
-    assert len(smoke_runner.manifest.phases) == 2 * len(catalogue)
+        assert any(cmd[0] == "ffprobe" and f"templates/{slug}/" in cmd[-1] for cmd in rendered)
+    assert len(smoke_runner.manifest.phases) == 3 * len(catalogue)
     assert all(phase.status == "passed" for phase in smoke_runner.manifest.phases)

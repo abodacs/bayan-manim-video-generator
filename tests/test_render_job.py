@@ -20,7 +20,7 @@ def test_render_job_dataclass_lifecycle() -> None:
         job_id="job-123",
         status="succeeded",
         scene_plan_id="plan-123",
-        scene_id="create-circle",
+        template_id="create-circle",
     )
     assert job.artifacts == {}
 
@@ -97,7 +97,7 @@ def test_every_catalogue_template_renders_in_the_worker(
     job = runner.run_job(_plan_for(slug), output_dir=tmp_path)
 
     assert job.status == "succeeded"
-    assert job.scene_id == slug
+    assert job.template_id == slug
     assert job.artifacts["video"] == "draft.mp4"
     assert job.artifacts["preview"] == "preview.png"
     assert (tmp_path / "draft.mp4").read_bytes() == b"fake video bytes"
@@ -105,7 +105,7 @@ def test_every_catalogue_template_renders_in_the_worker(
 
     record = json.loads((tmp_path / "render_job.json").read_text(encoding="utf-8"))
     assert record["status"] == "succeeded"
-    assert record["scene_id"] == slug
+    assert record["template_id"] == slug
 
 
 def test_render_job_uses_the_catalogue_fixture_scene(

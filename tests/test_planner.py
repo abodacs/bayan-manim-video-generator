@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from bayan.cli import app
@@ -101,3 +102,20 @@ def test_run_planning_pipeline_default_provider(tmp_path: Path):
     run_planning_pipeline(input_path=input_file, output_dir=output_dir)
 
     assert (output_dir / "scene_plan.json").exists()
+
+
+@pytest.mark.parametrize("request_value", ["", "   ", None, 42])
+def test_run_planning_pipeline_rejects_empty_request(request_value: object, tmp_path: Path):
+    input_file = tmp_path / "lesson.json"
+    input_file.write_text(json.dumps({"request": request_value}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="non-empty 'request'"):
+        run_planning_pipeline(input_path=input_file, output_dir=tmp_path / "run")
+
+
+def test_run_planning_pipeline_rejects_missing_request(tmp_path: Path):
+    input_file = tmp_path / "lesson.json"
+    input_file.write_text(json.dumps({"topic": "no request key"}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="non-empty 'request'"):
+        run_planning_pipeline(input_path=input_file, output_dir=tmp_path / "run")

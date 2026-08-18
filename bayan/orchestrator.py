@@ -108,10 +108,20 @@ class _NullReporter:
         pass
 
 
+SUPPORTED_PROVIDERS = ("fake",)
+
+
 class WorkflowOrchestrator:
     """Coordinates stages, retries, and manifest persistence for bayan run."""
 
     def __init__(self, input_path: Path, output_dir: Path, provider: str = "fake") -> None:
+        if provider not in SUPPORTED_PROVIDERS:
+            supported = ", ".join(repr(name) for name in SUPPORTED_PROVIDERS)
+            raise ValueError(
+                f"Unknown LLM provider {provider!r}. Supported providers: {supported}. "
+                "Real LLM providers are not wired up yet; planning currently runs "
+                "offline with the fake provider."
+            )
         self.input_path = input_path
         self.output_dir = output_dir
         self.provider_name = provider

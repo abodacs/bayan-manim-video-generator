@@ -226,6 +226,8 @@ class SmokeRunner:
         media_directory: Path,
         video_path: Path,
         log_path: Path,
+        phase: str = "validate video",
+        label: str = "MP4 video",
     ) -> None:
         """Ask the same pinned image to parse the produced MP4."""
         relative_path = video_path.relative_to(media_directory)
@@ -246,12 +248,12 @@ class SmokeRunner:
             self.config.render_timeout,
             output_directory=media_directory,
             output_read_only=True,
-            phase="validate video",
+            phase=phase,
         )
-        self._record_phase("validate video", result, log_path)
-        require_success("Validating the MP4 video", result, self.config.render_timeout)
+        self._record_phase(phase, result, log_path)
+        require_success(f"Validating the {label}", result, self.config.render_timeout)
         if not result.output_tail.strip():
-            raise SmokeError("The MP4 video has no readable duration. See render.log.")
+            raise SmokeError(f"The {label} has no readable duration. See render.log.")
 
     def _render_catalogue_templates(
         self,
@@ -321,6 +323,14 @@ class SmokeRunner:
                 f"{class_name}.mp4",
                 f"MP4 video for template '{slug}'",
             )
+            self._validate_video(
+                executor,
+                media_directory,
+                video_path,
+                log_path,
+                phase=f"validate template {slug} video",
+                label=f"template '{slug}' MP4 video",
+            )
             preview_path = first_artifact(
                 preview_dir,
                 f"{class_name}*.png",
@@ -330,6 +340,9 @@ class SmokeRunner:
             outputs[f"template_{slug}_video"] = str(video_path.relative_to(media_directory))
             outputs[f"template_{slug}_preview"] = str(preview_path.relative_to(media_directory))
         return outputs
+
+
+MAX_RETAINED_RUN_DIRECTORIES = 5
 
 
 def allocate_run_directory(output_root: Path) -> Path:
@@ -347,10 +360,30 @@ def allocate_run_directory(output_root: Path) -> Path:
         return candidate
 
 
+def prune_run_directories(output_root: Path, keep: int = MAX_RETAINED_RUN_DIRECTORIES) -> None:
+    """Delete the oldest run directories beyond the retained window.
+
+    Repeated renders against the same output must not grow host disk
+    without bound. This is hygiene after a successful copy, so failures
+    to delete are ignored rather than failing the render.
+    """
+    if not output_root.is_dir():
+        return
+    run_directories = [
+        path
+        for path in output_root.iterdir()
+        if path.is_dir() and (path.name == "run" or path.name.startswith("run-"))
+    ]
+    run_directories.sort(key=lambda path: (path.stat().st_mtime, path.name))
+    excess = run_directories[:-keep] if keep > 0 else run_directories
+    for stale in excess:
+        shutil.rmtree(stale, ignore_errors=True)
+
+
 def current_container_user() -> tuple[str, str]:
     """Return a non-root UID and GID for the container process."""
     uid = getattr(os, "getuid", lambda: 10001)()
-    gid = os.getgid() if hasattr(os, "getgid") else 10001
+    gid = getattr(os, "getgid", lambda: 10001)()
     if uid == 0:
         return "10001", "10001"
     return str(uid), str(gid)
@@ -387,6 +420,7 @@ def source_hashes(project_root: Path) -> dict[str, str]:
         "container/uv.lock": project_root / "container/uv.lock",
         "scripts/container_smoke.py": project_root / "scripts/container_smoke.py",
         "bayan/renderer/docker.py": project_root / "bayan/renderer/docker.py",
+        "bayan/renderer/executor.py": project_root / "bayan/renderer/executor.py",
         "bayan/renderer/errors.py": project_root / "bayan/renderer/errors.py",
         "bayan/renderer/models.py": project_root / "bayan/renderer/models.py",
         "bayan/renderer/process.py": project_root / "bayan/renderer/process.py",

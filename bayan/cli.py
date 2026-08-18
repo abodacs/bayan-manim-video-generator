@@ -228,6 +228,9 @@ def run(
     except ManifestError as e:
         typer.secho(f"Manifest Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e
+    except ValueError as e:
+        typer.secho(f"Provider Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
 
     success = orchestrator.run(reporter=TyperStageReporter())
     if not success:

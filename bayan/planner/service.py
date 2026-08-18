@@ -36,6 +36,8 @@ def run_planning_pipeline(
         raise ValueError(f"Invalid JSON content in input file '{input_path}': {e}") from e
 
     raw_request = data.get("request", "")
+    if not isinstance(raw_request, str) or not raw_request.strip():
+        raise ValueError(f"Input file '{input_path}' must contain a non-empty 'request' field.")
     learning_objective = data.get("learning_objective", raw_request)
 
     segment = LessonSegment(

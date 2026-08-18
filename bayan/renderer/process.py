@@ -199,18 +199,11 @@ class BoundedProcessRunner:
                         stream_open = False
                         break
 
-                    remaining_bytes = self.max_output_bytes - output_bytes
-                    if remaining_bytes <= 0:
+                    accepted_bytes = self._accept_chunk(chunk, log, output_tail, output_bytes)
+                    if accepted_bytes is None:
                         output_limited = True
                         break
-
-                    accepted = chunk[:remaining_bytes]
-                    log.write(accepted)
-                    output_tail.extend(accepted)
-                    output_bytes += len(accepted)
-                    if len(accepted) != len(chunk):
-                        output_limited = True
-                        break
+                    output_bytes = accepted_bytes
             else:
                 selector = selectors.DefaultSelector()
                 selector.register(process.stdout, selectors.EVENT_READ)
@@ -241,17 +234,13 @@ class BoundedProcessRunner:
                                 stream_open = False
                                 break
 
-                            remaining_bytes = self.max_output_bytes - output_bytes
-                            if remaining_bytes <= 0:
+                            accepted_bytes = self._accept_chunk(
+                                chunk, log, output_tail, output_bytes
+                            )
+                            if accepted_bytes is None:
                                 output_limited = True
                                 break
-                            accepted = chunk[:remaining_bytes]
-                            log.write(accepted)
-                            output_tail.extend(accepted)
-                            output_bytes += len(accepted)
-                            if len(accepted) != len(chunk):
-                                output_limited = True
-                                break
+                            output_bytes = accepted_bytes
 
                         if timed_out or output_limited:
                             break
@@ -291,6 +280,28 @@ class BoundedProcessRunner:
             f"output_limited={result.output_limited}\n",
         )
         return result
+
+    def _accept_chunk(
+        self,
+        chunk: bytes,
+        log: IO[bytes],
+        output_tail: bytearray,
+        output_bytes: int,
+    ) -> int | None:
+        """Write one chunk within the byte budget shared by both platforms.
+
+        Returns the updated accepted-byte count, or None when the output
+        limit was reached (before or partway through this chunk).
+        """
+        remaining_bytes = self.max_output_bytes - output_bytes
+        if remaining_bytes <= 0:
+            return None
+        accepted = chunk[:remaining_bytes]
+        log.write(accepted)
+        output_tail.extend(accepted)
+        if len(accepted) != len(chunk):
+            return None
+        return output_bytes + len(accepted)
 
     @staticmethod
     def terminate(process: subprocess.Popen[bytes]) -> None:

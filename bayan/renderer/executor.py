@@ -26,6 +26,7 @@ from bayan.renderer.smoke import (
     current_container_user,
     first_artifact,
     prepare_writable_directory,
+    prune_run_directories,
     require_success,
     validate_png,
 )
@@ -64,7 +65,7 @@ class RenderJobRunner:
             job_id=job_id,
             status="running",
             scene_plan_id=plan.provider_fingerprint or fallback_plan_id,
-            scene_id=plan.selected_template,
+            template_id=plan.selected_template,
         )
         job_path = output_dir / "render_job.json"
 
@@ -122,6 +123,7 @@ class RenderJobRunner:
                 "preview": str(still_path.relative_to(output_dir)),
             }
             self._persist_job(job_path, job)
+            prune_run_directories(output_dir / "render-runs")
             return job
         except (DockerError, OSError, SmokeError) as error:
             job.status = "failed"
@@ -148,14 +150,18 @@ def render_scene_code(
     is copied to ``output_path``.
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    render_run = allocate_run_directory(output_path.parent / f"{output_path.stem}-runs")
+    run_root = output_path.parent / f"{output_path.stem}-runs"
+    render_run = allocate_run_directory(run_root)
     atomic_write_text(render_run / "generated_scene.py", code_content)
 
     try:
         resolved_executor = _resolve_executor(executor, render_run)
         _prepare_writable_mount(render_run, resolved_executor)
         resolved_executor.inspect_image(image)
-        log_path = render_run / "render.log"
+        # The log must stay outside the run directory: it is the container's
+        # only writable mount, and untrusted scene code must not be able to
+        # truncate or forge its own diagnostics.
+        log_path = output_path.with_suffix(".render.log")
         log_path.touch()
         scene_path = str(CONTAINER_OUTPUT_ROOT / "generated_scene.py")
         _run_manim(
@@ -173,8 +179,9 @@ def render_scene_code(
             "MP4 video",
         )
         shutil.copy2(video_path, output_path)
+        prune_run_directories(run_root)
         return output_path
-    except (DockerError, SmokeError) as error:
+    except (DockerError, SmokeError, OSError) as error:
         raise RenderError(f"{error} (run directory: {render_run})") from error
 
 

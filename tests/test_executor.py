@@ -8,7 +8,7 @@ from bayan.renderer.docker import DockerExecutor
 from bayan.renderer.executor import RenderError, render_scene_code
 from bayan.renderer.models import ImageMetadata, RenderSettings
 from bayan.renderer.process import CommandResult
-from bayan.renderer.smoke import CONTAINER_OUTPUT_ROOT
+from bayan.renderer.smoke import CONTAINER_OUTPUT_ROOT, MAX_RETAINED_RUN_DIRECTORIES
 
 GENERATED_CODE = "class GeneratedScene(Scene):\n    pass\n"
 
@@ -136,8 +136,13 @@ def test_render_scene_code_mounts_only_a_fresh_run_directory(
     assert source != tmp_path.resolve()  # ... and never the output parent itself.
     assert any(spec.endswith("destination=/workspace/bayan,readonly") for spec in specs)
 
-    # Nothing leaks next to the requested output except the run root and the video.
-    assert sorted(path.name for path in tmp_path.iterdir()) == ["final-runs", "final.mp4"]
+    # Nothing leaks next to the requested output except the run root, the
+    # video, and the host-owned render log (kept outside the writable mount).
+    assert sorted(path.name for path in tmp_path.iterdir()) == [
+        "final-runs",
+        "final.mp4",
+        "final.render.log",
+    ]
 
 
 def test_render_scene_code_wraps_worker_failure(
@@ -155,3 +160,21 @@ def test_render_scene_code_wraps_worker_failure(
 
     with pytest.raises(RenderError, match="Rendering the video"):
         render_scene_code("broken code", output_path=tmp_path / "final.mp4", executor=executor)
+
+
+def test_render_scene_code_prunes_old_run_directories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Repeated renders to one output keep only the latest run directories."""
+    executor = _fake_successful_render(tmp_path, monkeypatch)
+    output_path = tmp_path / "final.mp4"
+
+    for _ in range(MAX_RETAINED_RUN_DIRECTORIES + 2):
+        render_scene_code(GENERATED_CODE, output_path=output_path, executor=executor)
+
+    run_root = tmp_path / "final-runs"
+    remaining = sorted(path.name for path in run_root.iterdir() if path.is_dir())
+    assert len(remaining) == MAX_RETAINED_RUN_DIRECTORIES
+    # The run directory of the most recent render is always retained.
+    assert remaining[-1] != "run"
+    assert output_path.read_bytes() == b"fake video bytes"

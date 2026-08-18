@@ -23,7 +23,7 @@ class FakeRenderJobRunner:
             job_id="job-test",
             status="succeeded",
             scene_plan_id="plan-test",
-            scene_id=selected,
+            template_id=selected,
         )
 
 
@@ -34,7 +34,7 @@ def test_bayan_run_complete_workflow_offline(tmp_path: Path, monkeypatch) -> Non
     lesson_file = tmp_path / "lesson.json"
     lesson_data = {
         "topic": "Shapes and Rotations",
-        "prompt": "Create a scene showing a circle and square transforming",
+        "request": "Create a scene showing a circle and square transforming",
     }
     lesson_file.write_text(json.dumps(lesson_data), encoding="utf-8")
 
@@ -116,6 +116,47 @@ def test_bayan_run_selects_the_template_from_the_scene_plan(tmp_path: Path, monk
     assert selection["fixture"] == fixture_filename(selected)
     assert selection["class_name"] == str(get_template_catalogue()[selected]["class_name"])
     assert (FIXTURES_DIR / selection["fixture"]).exists()
+
+
+def test_bayan_run_rejects_unknown_provider_without_traceback(tmp_path: Path) -> None:
+    """--provider openai must fail loudly, not silently plan with FakeProvider."""
+    lesson_file = tmp_path / "lesson.json"
+    lesson_file.write_text(json.dumps({"request": "shapes"}), encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--input",
+            str(lesson_file),
+            "--output",
+            str(tmp_path / "run"),
+            "--provider",
+            "openai",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "Provider Error" in result.output
+    assert "Unknown LLM provider 'openai'" in result.output
+    assert "Traceback" not in result.output
+    assert not (tmp_path / "run" / "scene_plan.json").exists()
+
+
+def test_bayan_run_rejects_lesson_without_request(tmp_path: Path, monkeypatch) -> None:
+    """An empty lesson request must fail the plan stage, not fake a plan."""
+    monkeypatch.setattr("bayan.orchestrator.RenderJobRunner", FakeRenderJobRunner)
+
+    lesson_file = tmp_path / "lesson.json"
+    lesson_file.write_text(json.dumps({"topic": "no request field"}), encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["run", "--input", str(lesson_file), "--output", str(tmp_path / "run")],
+    )
+
+    assert result.exit_code == 1
+    assert "non-empty 'request'" in result.output
 
 
 def test_bayan_run_reports_missing_scene_plan(tmp_path: Path, monkeypatch) -> None:

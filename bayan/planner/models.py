@@ -10,7 +10,9 @@ class LessonSegment(BaseModel):
         ..., description="Primary learning objective derived from request"
     )
     language: str = Field(default="ar", description="Language code (e.g. 'ar')")
-    raw_request: str = Field(..., description="Original natural-language input request")
+    raw_request: str = Field(
+        ..., min_length=1, description="Original natural-language input request"
+    )
 
 
 class PlanRenderPreferences(BaseModel):

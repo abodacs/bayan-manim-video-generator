@@ -139,7 +139,7 @@ class RenderJob:
     job_id: str
     status: JobStatus
     scene_plan_id: str
-    scene_id: str
+    template_id: str
     failure_stage: str | None = None
     exit_reason: str | None = None
     artifacts: dict[str, str] = field(default_factory=dict)
@@ -150,7 +150,7 @@ class RenderJob:
             "job_id": self.job_id,
             "status": self.status,
             "scene_plan_id": self.scene_plan_id,
-            "scene_id": self.scene_id,
+            "template_id": self.template_id,
             "failure_stage": self.failure_stage,
             "exit_reason": self.exit_reason,
             "artifacts": dict(self.artifacts),
