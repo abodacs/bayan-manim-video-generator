@@ -23,8 +23,10 @@ Useful symbols include `α β θ π ∑ ∞ ≈ ≠ ≤ ≥ × ± → √ °`. V
 
 ```python
 axes = Axes(
-    x_range=[0, 100, 10], y_range=[0, 100, 10],
-    x_length=8, y_length=4,
+    x_range=[0, 100, 10],
+    y_range=[0, 100, 10],
+    x_length=8,
+    y_length=4,
     axis_config={"include_numbers": False},
 )
 labels = VGroup()

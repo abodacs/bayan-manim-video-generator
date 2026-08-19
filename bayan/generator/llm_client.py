@@ -21,7 +21,8 @@ SYSTEM_PROMPT = (
     "2. ONLY return executable Python code. Do not write explanations. Do not "
     "include markdown blocks like ```python.\n"
     "3. If there is any Arabic text in the video, you MUST:\n"
-    "   - Import ArabicText using: `from bayan.utils.arabic_helper import ArabicText`\n"
+    "   - Import the helpers using: `from bayan.utils.arabic_helper import "
+    "ArabicText, rtl_glyphs`\n"
     '   - Use `ArabicText("your arabic text")` instead of `Text(...)` or `Tex(...)`.\n'
     "4. ALL elements (both shapes like Circle and texts) MUST be explicitly "
     "animated using `self.play(...)` in sequence. Do NOT use `self.add()` or "
@@ -31,7 +32,7 @@ SYSTEM_PROMPT = (
     "   - NEVER add the ArabicText object to the scene before animating it.\n"
     "   - Set its position FIRST using `.next_to()`, `.to_edge()`, etc.\n"
     "   - Write Arabic smoothly from Right-to-Left using: "
-    "`self.play(Write(arabic_text[::-1]))`.\n"
+    "`self.play(Write(rtl_glyphs(arabic_text)))`.\n"
 )
 
 

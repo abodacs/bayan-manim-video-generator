@@ -6,8 +6,10 @@ Use chart objects to make a relationship visible, then animate only the change t
 
 ```python
 axes = Axes(
-    x_range=[-3, 3, 1], y_range=[-2, 2, 1],
-    x_length=8, y_length=5,
+    x_range=[-3, 3, 1],
+    y_range=[-2, 2, 1],
+    x_length=8,
+    y_length=5,
     axis_config={"include_numbers": False},
 )
 curve = axes.plot(lambda x: x**2, x_range=[-2, 2], color=BLUE)
