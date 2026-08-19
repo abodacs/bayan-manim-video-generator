@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+RenderQuality = Literal["low_quality", "medium_quality", "high_quality", "highest_quality"]
 
 
 class LessonSegment(BaseModel):
@@ -18,7 +22,7 @@ class LessonSegment(BaseModel):
 class PlanRenderPreferences(BaseModel):
     """Configuration settings required for scene rendering."""
 
-    quality: str = Field(default="medium_quality")
+    quality: RenderQuality = Field(default="medium_quality")
     preview: bool = Field(default=False)
 
 

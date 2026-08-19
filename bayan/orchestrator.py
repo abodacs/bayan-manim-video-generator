@@ -89,7 +89,7 @@ class StageReporter(Protocol):
 
     def stage_finished(self, name: str, status: StageStatus, error: str | None) -> None: ...
 
-    def workflow_finished(self, success: bool) -> None: ...
+    def workflow_finished(self, status: StageStatus) -> None: ...
 
 
 class _NullReporter:
@@ -104,7 +104,7 @@ class _NullReporter:
     def stage_finished(self, name: str, status: StageStatus, error: str | None) -> None:
         pass
 
-    def workflow_finished(self, success: bool) -> None:
+    def workflow_finished(self, status: StageStatus) -> None:
         pass
 
 
@@ -151,7 +151,13 @@ class WorkflowOrchestrator:
         atomic_write_text(self.manifest_path, json.dumps(manifest.to_dict(), indent=2) + "\n")
 
     def run(self, reporter: StageReporter | None = None) -> bool:
-        """Executes all workflow stages sequentially with state tracking."""
+        """Execute all workflow stages sequentially with state tracking.
+
+        Returns True when no stage failed. A stubbed (not yet implemented)
+        stage is incomplete, not failed: the run still returns True, and the
+        outcome is recorded as ``stub`` in the manifest and passed to the
+        reporter's ``workflow_finished``.
+        """
         report = reporter if reporter is not None else _NullReporter()
         stages = [
             ("plan", self._run_plan_stage),
@@ -190,6 +196,7 @@ class WorkflowOrchestrator:
                 self.manifest.status = "failed"
                 self._save_manifest(self.manifest)
                 report.stage_finished(stage_name, "failed", str(exc))
+                report.workflow_finished("failed")
                 return False
 
             stage_state.status = "completed"
@@ -200,8 +207,8 @@ class WorkflowOrchestrator:
 
         self.manifest.status = "stub" if saw_stub else "completed"
         self._save_manifest(self.manifest)
-        report.workflow_finished(not saw_stub)
-        return not saw_stub
+        report.workflow_finished(self.manifest.status)
+        return True
 
     def _run_plan_stage(self) -> None:
         # run_planning_pipeline either raises or always writes scene_plan.json.
@@ -258,10 +265,31 @@ class WorkflowOrchestrator:
             "template_select": "Template Selection",
             "render": "Render",
             "validate": "Validation",
+            "review_packet": "Review Packet",
         }
         lines = ["# Lesson Review Packet", "", "## Status"]
         for stage_name, label in labels.items():
             state = self.manifest.stages[stage_name]
+            if stage_name == "review_packet":
+                # This packet only exists once its stage has succeeded.
+                lines.append(f"- {label}: COMPLETED (this file)")
+                continue
             lines.append(f"- {label}: {state.status.upper()}")
+            if state.error:
+                lines.append(f"  - Error: {state.error}")
+
+        lines += ["", "## Artifacts"]
+        artifact_names = [
+            "scene_plan.json",
+            "template_selection.json",
+            "render_job.json",
+            "render.log",
+            "draft.mp4",
+            "preview.png",
+        ]
+        for name in artifact_names:
+            if (self.output_dir / name).exists():
+                lines.append(f"- [{name}]({name})")
+
         review_file = self.output_dir / "lesson_review_packet.md"
         atomic_write_text(review_file, "\n".join(lines) + "\n")

@@ -364,8 +364,9 @@ def prune_run_directories(output_root: Path, keep: int = MAX_RETAINED_RUN_DIRECT
     """Delete the oldest run directories beyond the retained window.
 
     Repeated renders against the same output must not grow host disk
-    without bound. This is hygiene after a successful copy, so failures
-    to delete are ignored rather than failing the render.
+    without bound. Callers prune before allocating a new run directory
+    (so failed renders stay bounded too) and after a successful copy.
+    Failures to delete are ignored rather than failing the render.
     """
     if not output_root.is_dir():
         return

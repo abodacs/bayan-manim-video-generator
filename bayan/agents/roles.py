@@ -1,3 +1,12 @@
+"""Typed agent roles with bounded repair semantics.
+
+Deliberately not wired into the orchestrator yet: the render failure path
+currently uses the orchestrator's own retry model, and the error-evidence
+shape consumed here (category/message) is defined by the preflight and
+critic gates. Integration is tracked by MVP issue #83 (RepairService and
+failure taxonomy), which supersedes these roles' bounded-repair loop.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -80,8 +89,9 @@ class RepairAgent(BaseAgent):
     def attempt_repair(self, error_evidence: dict[str, Any]) -> dict[str, Any]:
         # Stop immediately if the error is policy/security related.
         if error_evidence.get("category") in ("security", "policy"):
+            message = str(error_evidence.get("message") or "no message recorded")
             self._create_review_packet(
-                f"Security/Policy violation detected: {error_evidence.get('category')}"
+                f"Security/Policy violation detected ({error_evidence.get('category')}): {message}"
             )
             result = {
                 "role": self.role_name,

@@ -75,4 +75,6 @@ def test_repair_agent_policy_failure_stops_immediately(tmp_path: Path) -> None:
     res = repair.attempt_repair({"category": "security", "message": "unauthorized access"})
     assert res["status"] == "policy_blocked"
     assert res["next_action"] == "human_review"
-    assert (run_dir / "review_packet.md").exists()
+    packet = (run_dir / "review_packet.md").read_text(encoding="utf-8")
+    # The escalation packet must carry the evidence message for human review.
+    assert "unauthorized access" in packet

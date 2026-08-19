@@ -34,15 +34,42 @@ from bayan.templates.catalogue import fixture_filename, get_template_catalogue
 from bayan.utils.atomic_io import atomic_write_text
 
 
+class PlanRenderSettingsLike(Protocol):
+    """Render preferences the renderer consumes from a scene plan."""
+
+    @property
+    def quality(self) -> str: ...
+
+
 class PlanLike(Protocol):
     """Protocol interface to decouple renderer from planner domain models."""
 
     selected_template: str
     provider_fingerprint: str
 
+    @property
+    def render_settings(self) -> PlanRenderSettingsLike: ...
+
 
 class RenderError(Exception):
     """Custom exception raised when Manim fails to render the scene."""
+
+
+# Manim quality flags for the scene plan's render quality names.
+QUALITY_FLAGS = {
+    "low_quality": "-ql",
+    "medium_quality": "-qm",
+    "high_quality": "-qh",
+    "highest_quality": "-qk",
+}
+
+
+def _quality_flag(quality: str) -> str:
+    """Map a scene plan render quality onto its Manim quality flag."""
+    try:
+        return QUALITY_FLAGS[quality]
+    except KeyError:
+        raise RenderError(f"Unknown render quality: {quality!r}") from None
 
 
 def approved_templates() -> set[str]:
@@ -76,7 +103,7 @@ class RenderJobRunner:
             job.failure_stage = "preflight"
             job.exit_reason = message
             self._persist_job(job_path, job)
-            raise ValueError(message)
+            raise RenderError(message)
 
         failure_stage = "setup"
         try:
@@ -86,10 +113,15 @@ class RenderJobRunner:
             catalogue = get_template_catalogue()
             class_name = str(catalogue[plan.selected_template]["class_name"])
             scene_path = str(FIXTURES_ROOT / fixture_filename(plan.selected_template))
+            quality_flag = _quality_flag(plan.render_settings.quality)
 
             # The fresh run directory is the container's only writable mount, so
             # render_job.json and render.log stay outside the worker's reach.
-            render_run = allocate_run_directory(output_dir / "render-runs")
+            run_root = output_dir / "render-runs"
+            # Prune before allocating: failed renders must not accumulate
+            # unbounded run directories on the host either.
+            prune_run_directories(run_root)
+            render_run = allocate_run_directory(run_root)
             _prepare_writable_mount(render_run, executor)
 
             self._persist_job(job_path, job)
@@ -97,11 +129,27 @@ class RenderJobRunner:
             log_path.touch()
 
             failure_stage = "render video"
-            _run_manim(executor, self._image, scene_path, class_name, render_run, log_path, "video")
+            _run_manim(
+                executor,
+                self._image,
+                scene_path,
+                class_name,
+                render_run,
+                log_path,
+                "video",
+                quality_flag,
+            )
 
             failure_stage = "render preview"
             _run_manim(
-                executor, self._image, scene_path, class_name, render_run, log_path, "preview"
+                executor,
+                self._image,
+                scene_path,
+                class_name,
+                render_run,
+                log_path,
+                "preview",
+                quality_flag,
             )
 
             failure_stage = "collect artifacts"
@@ -125,7 +173,7 @@ class RenderJobRunner:
             self._persist_job(job_path, job)
             prune_run_directories(output_dir / "render-runs")
             return job
-        except (DockerError, OSError, SmokeError) as error:
+        except (DockerError, OSError, SmokeError, RenderError) as error:
             job.status = "failed"
             job.failure_stage = failure_stage
             job.exit_reason = str(error)
@@ -151,6 +199,8 @@ def render_scene_code(
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
     run_root = output_path.parent / f"{output_path.stem}-runs"
+    # Prune before allocating so failed renders stay bounded too.
+    prune_run_directories(run_root)
     render_run = allocate_run_directory(run_root)
     atomic_write_text(render_run / "generated_scene.py", code_content)
 
@@ -164,6 +214,7 @@ def render_scene_code(
         log_path = output_path.with_suffix(".render.log")
         log_path.touch()
         scene_path = str(CONTAINER_OUTPUT_ROOT / "generated_scene.py")
+        # Generated-code renders have no scene plan; default to low quality.
         _run_manim(
             resolved_executor,
             image,
@@ -172,6 +223,7 @@ def render_scene_code(
             render_run,
             log_path,
             "video",
+            "-ql",
         )
         video_path = first_artifact(
             render_run / "media" / "video",
@@ -214,13 +266,16 @@ def _run_manim(
     render_run: Path,
     log_path: Path,
     kind: str,
+    quality_flag: str,
 ) -> None:
     """Render one scene to a video or PNG preview inside the worker."""
     media_dir = CONTAINER_OUTPUT_ROOT / "media" / kind
     timeout_seconds = executor.settings.render_timeout_seconds
-    command: list[str] = ["manim", "-ql"]
     if kind == "preview":
-        command.extend(("-s", "--format=png"))
+        # A preview is a single final frame; it stays fast at low quality.
+        command: list[str] = ["manim", "-ql", "-s", "--format=png"]
+    else:
+        command = ["manim", quality_flag]
     command.extend((scene_path, class_name, "--media_dir", str(media_dir)))
     result = executor.run_container(
         image,

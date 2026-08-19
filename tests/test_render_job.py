@@ -5,13 +5,17 @@ from typing import cast
 
 import pytest
 
-from bayan.planner.models import PlanRenderPreferences, ScenePlan
+from bayan.planner.models import PlanRenderPreferences, RenderQuality, ScenePlan
 from bayan.renderer.docker import DockerExecutor
 from bayan.renderer.errors import DockerError
 from bayan.renderer.executor import RenderError, RenderJobRunner
 from bayan.renderer.models import ImageMetadata, RenderJob, RenderSettings
 from bayan.renderer.process import CommandResult
-from bayan.renderer.smoke import CONTAINER_OUTPUT_ROOT, FIXTURES_ROOT
+from bayan.renderer.smoke import (
+    CONTAINER_OUTPUT_ROOT,
+    FIXTURES_ROOT,
+    MAX_RETAINED_RUN_DIRECTORIES,
+)
 from bayan.templates.catalogue import fixture_filename, get_template_catalogue
 
 
@@ -175,7 +179,7 @@ def test_render_job_reports_missing_worker_image(
 def test_non_catalogue_template_fails_preflight(template: str, tmp_path: Path) -> None:
     runner = RenderJobRunner()
 
-    with pytest.raises(ValueError, match="Unknown or unapproved template"):
+    with pytest.raises(RenderError, match="Unknown or unapproved template"):
         runner.run_job(_plan_for(template), output_dir=tmp_path)
 
     record = json.loads((tmp_path / "render_job.json").read_text(encoding="utf-8"))
@@ -253,3 +257,66 @@ def test_render_job_mounts_only_a_fresh_render_run_directory(
         assert any(spec.endswith("destination=/workspace/bayan,readonly") for spec in specs)
         mounted.add(source)
     assert len(mounted) == 1
+
+
+@pytest.mark.parametrize(
+    ("quality", "flag"),
+    [
+        ("low_quality", "-ql"),
+        ("medium_quality", "-qm"),
+        ("high_quality", "-qh"),
+        ("highest_quality", "-qk"),
+    ],
+)
+def test_render_job_maps_the_plan_quality_onto_manim(
+    quality: RenderQuality,
+    flag: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The video pass honors ScenePlan.render_settings.quality."""
+    rendered: list[tuple[str, ...]] = []
+    executor = _fake_successful_render(tmp_path, monkeypatch, rendered)
+    plan = ScenePlan(
+        learning_objective="objective",
+        language="ar",
+        visual_concept="concept",
+        selected_template="create-circle",
+        render_settings=PlanRenderPreferences(quality=quality),
+        provider_fingerprint="fake-provider-hash",
+    )
+
+    RenderJobRunner(executor=executor).run_job(plan, output_dir=tmp_path)
+
+    assert len(rendered) == 2
+    video_command, preview_command = rendered
+    assert flag in video_command
+    # The preview stays a fast low-quality single frame.
+    assert "-ql" in preview_command
+
+
+def test_failed_render_still_prunes_old_run_directories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Repeated failing renders must not accumulate run directories."""
+    executor = _make_worker(tmp_path)
+    monkeypatch.setattr(executor, "inspect_image", lambda image: ImageMetadata(reference=image))
+
+    def failing_run_container(*args: object, **kwargs: object) -> CommandResult:
+        del args, kwargs
+        return CommandResult(command=("docker",), returncode=1, error="SyntaxError: boom")
+
+    monkeypatch.setattr(executor, "run_container", failing_run_container)
+
+    run_root = tmp_path / "render-runs"
+    run_root.mkdir()
+    for index in range(MAX_RETAINED_RUN_DIRECTORIES + 3):
+        (run_root / f"run-{index:03d}").mkdir()
+
+    with pytest.raises(RenderError):
+        RenderJobRunner(executor=executor).run_job(_plan_for("create-circle"), output_dir=tmp_path)
+
+    remaining = [path for path in run_root.iterdir() if path.is_dir()]
+    # Pruning before allocation bounds failures at the retained window plus
+    # the one fresh directory the failed render used.
+    assert len(remaining) == MAX_RETAINED_RUN_DIRECTORIES + 1

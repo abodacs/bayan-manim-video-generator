@@ -89,7 +89,7 @@ class DockerExecutor:
             str(dockerfile),
             str(context),
         )
-        return self.run_streaming(
+        return self._run_streaming(
             command, "build image", log_path, self.settings.build_timeout_seconds
         )
 
@@ -164,7 +164,7 @@ class DockerExecutor:
             error="Docker worker did not return a result.",
         )
         try:
-            result = self.run_streaming(start_command, phase, log_path, timeout_seconds)
+            result = self._run_streaming(start_command, phase, log_path, timeout_seconds)
         finally:
             cleanup_error = self._cleanup_container(container_name, phase, log_path)
             if cleanup_error:
@@ -215,7 +215,7 @@ class DockerExecutor:
         """Delegate a short Docker control-plane command to the bounded runner."""
         return self.process.capture(command, timeout_seconds)
 
-    def run_streaming(
+    def _run_streaming(
         self,
         command: Sequence[str],
         phase: str,

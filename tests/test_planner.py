@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import cast
 
 import pytest
 from typer.testing import CliRunner
@@ -119,3 +120,15 @@ def test_run_planning_pipeline_rejects_missing_request(tmp_path: Path):
 
     with pytest.raises(ValueError, match="non-empty 'request'"):
         run_planning_pipeline(input_path=input_file, output_dir=tmp_path / "run")
+
+
+def test_plan_render_preferences_quality_is_bounded():
+    from pydantic import ValidationError
+
+    from bayan.planner.models import PlanRenderPreferences, RenderQuality
+
+    assert PlanRenderPreferences().quality == "medium_quality"
+
+    # The invalid value is cast so the runtime Literal check is exercised.
+    with pytest.raises(ValidationError):
+        PlanRenderPreferences(quality=cast(RenderQuality, "ultra_quality"))

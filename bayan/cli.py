@@ -8,7 +8,7 @@ import typer
 from dotenv import load_dotenv
 
 from bayan.generator.llm_client import LLMClient
-from bayan.orchestrator import ManifestError, WorkflowOrchestrator
+from bayan.orchestrator import ManifestError, StageStatus, WorkflowOrchestrator
 from bayan.planner.service import run_planning_pipeline
 from bayan.renderer.executor import RenderError, render_scene_code
 from bayan.templates.catalogue import fixture_filename, get_template_catalogue
@@ -43,9 +43,22 @@ class TyperStageReporter:
         else:
             typer.secho(f"Stage '{name}' FAILED: {error}", fg=typer.colors.RED)
 
-    def workflow_finished(self, success: bool) -> None:
-        if success:
+    def workflow_finished(self, status: StageStatus) -> None:
+        if status == "completed":
             typer.secho("\nWorkflow completed successfully!", fg=typer.colors.GREEN, bold=True)
+        elif status == "stub":
+            typer.secho(
+                "\nWorkflow incomplete: some stages are not implemented yet (stubs). "
+                "See manifest.json and lesson_review_packet.md for details.",
+                fg=typer.colors.YELLOW,
+                bold=True,
+            )
+        else:
+            typer.secho(
+                "\nWorkflow failed. See manifest.json for the failing stage.",
+                fg=typer.colors.RED,
+                bold=True,
+            )
 
 
 @app.callback()
@@ -220,7 +233,12 @@ def run(
         ),
     ] = "fake",
 ) -> None:
-    """Executes the complete Bayan educator workflow."""
+    """Executes the complete Bayan educator workflow.
+
+    Exit codes: 0 when every implemented stage completed (not-yet-implemented
+    stub stages are reported as incomplete, not fatal); 1 when any stage
+    failed.
+    """
     try:
         orchestrator = WorkflowOrchestrator(
             input_path=input_path, output_dir=output, provider=provider

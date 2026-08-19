@@ -204,8 +204,8 @@ def test_cleanup_runs_after_a_timed_out_worker(
 
     monkeypatch.setattr(executor, "_capture", fake_capture)
     monkeypatch.setattr(
-        executor,
-        "run_streaming",
+        executor.process,
+        "stream",
         lambda command, phase, log, timeout: CommandResult(
             tuple(command), returncode=124, timed_out=True
         ),
@@ -228,7 +228,7 @@ def test_streaming_output_is_bounded(tmp_path: Path) -> None:
     log_path = tmp_path / "render.log"
     log_path.touch()
 
-    result = executor.run_streaming(
+    result = executor.process.stream(
         (sys.executable, "-c", "print('x' * 10000)"),
         "large output",
         log_path,
@@ -250,7 +250,7 @@ def test_windows_stream_branch_terminates_a_silent_child(
     monkeypatch.setattr(sys, "platform", "win32")
     started = time.monotonic()
 
-    result = executor.run_streaming(
+    result = executor.process.stream(
         (sys.executable, "-c", "import time; time.sleep(30)"),
         "silent child",
         log_path,
@@ -270,7 +270,7 @@ def test_windows_stream_branch_collects_output_until_eof(
     log_path.touch()
     monkeypatch.setattr(sys, "platform", "win32")
 
-    result = executor.run_streaming(
+    result = executor.process.stream(
         (sys.executable, "-c", "print('win32-probe')"),
         "windows output",
         log_path,
@@ -289,7 +289,7 @@ def test_windows_stream_branch_bounds_output(
     log_path.touch()
     monkeypatch.setattr(sys, "platform", "win32")
 
-    result = executor.run_streaming(
+    result = executor.process.stream(
         (sys.executable, "-c", "print('win32-probe'); print('x' * 10000)"),
         "windows output",
         log_path,

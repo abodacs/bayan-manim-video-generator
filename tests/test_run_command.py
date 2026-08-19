@@ -54,8 +54,9 @@ def test_bayan_run_complete_workflow_offline(tmp_path: Path, monkeypatch) -> Non
         ],
     )
 
-    # Workflow records the 'validate' stub and still exits non-zero
-    assert result.exit_code == 1
+    # Workflow records the 'validate' stub; incomplete is not failure (exit 0)
+    assert result.exit_code == 0
+    assert "Workflow incomplete" in result.output
 
     # 3. Verify valid stage artifacts exist while stub stages produced no fake outputs
     assert (output_dir / "scene_plan.json").exists()
@@ -87,7 +88,7 @@ def test_bayan_run_complete_workflow_offline(tmp_path: Path, monkeypatch) -> Non
             "fake",
         ],
     )
-    assert second_run.exit_code == 1
+    assert second_run.exit_code == 0
     assert "Skipping completed stage: plan" in second_run.output
     assert "Skipping completed stage: render" in second_run.output
 
@@ -105,7 +106,7 @@ def test_bayan_run_selects_the_template_from_the_scene_plan(tmp_path: Path, monk
         ["run", "--input", str(lesson_file), "--output", str(output_dir), "--provider", "fake"],
     )
 
-    assert result.exit_code == 1  # still reports the validate stub
+    assert result.exit_code == 0  # validate stub is incomplete, not a failure
 
     scene_plan = json.loads((output_dir / "scene_plan.json").read_text(encoding="utf-8"))
     selected = scene_plan["selected_template"]
