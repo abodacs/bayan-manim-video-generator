@@ -27,7 +27,9 @@ from bayan.renderer.smoke import (
     first_artifact,
     prepare_writable_directory,
     prune_run_directories,
+    render_scene_in_worker,
     require_success,
+    sha256_file,
     validate_png,
 )
 from bayan.templates.catalogue import fixture_filename, get_template_catalogue
@@ -108,11 +110,17 @@ class RenderJobRunner:
         failure_stage = "setup"
         try:
             executor = _resolve_executor(self._executor, output_dir)
-            executor.inspect_image(self._image)
+            # Record what the artifacts were produced with, not just that they
+            # exist: the exact image and the security settings in force.
+            job.image = executor.inspect_image(self._image)
+            job.settings = executor.settings
 
             catalogue = get_template_catalogue()
             class_name = str(catalogue[plan.selected_template]["class_name"])
-            scene_path = str(FIXTURES_ROOT / fixture_filename(plan.selected_template))
+            fixture_name = fixture_filename(plan.selected_template)
+            scene_path = str(FIXTURES_ROOT / fixture_name)
+            fixture_host_path = PROJECT_ROOT / "bayan" / "templates" / "fixtures" / fixture_name
+            job.fixture_hash = sha256_file(fixture_host_path)
             quality_flag = _quality_flag(plan.render_settings.quality)
 
             # The fresh run directory is the container's only writable mount, so
@@ -269,21 +277,17 @@ def _run_manim(
     quality_flag: str,
 ) -> None:
     """Render one scene to a video or PNG preview inside the worker."""
-    media_dir = CONTAINER_OUTPUT_ROOT / "media" / kind
     timeout_seconds = executor.settings.render_timeout_seconds
-    if kind == "preview":
-        # A preview is a single final frame; it stays fast at low quality.
-        command: list[str] = ["manim", "-ql", "-s", "--format=png"]
-    else:
-        command = ["manim", quality_flag]
-    command.extend((scene_path, class_name, "--media_dir", str(media_dir)))
-    result = executor.run_container(
+    result = render_scene_in_worker(
+        executor,
         image,
-        command,
-        log_path,
-        timeout_seconds,
-        include_source_mount=True,
+        scene_path,
+        class_name,
+        media_dir=CONTAINER_OUTPUT_ROOT / "media" / kind,
         output_directory=render_run,
+        log_path=log_path,
         phase=f"render {kind}",
+        quality_flag=quality_flag,
+        preview=kind == "preview",
     )
     require_success(f"Rendering the {kind}", result, timeout_seconds)

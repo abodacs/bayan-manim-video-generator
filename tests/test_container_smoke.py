@@ -359,6 +359,13 @@ def test_catalogue_templates_are_rendered_and_recorded(
         slug_commands = [cmd for cmd in rendered if scene_path in cmd]
         assert len(slug_commands) == 2
         assert catalogue[slug]["class_name"] in slug_commands[0]
+        # One video pass and one single-frame preview pass per template, so
+        # the shared worker helper cannot drift between the two kinds.
+        video_commands = [cmd for cmd in slug_commands if "--format=png" not in cmd]
+        preview_commands = [cmd for cmd in slug_commands if "--format=png" in cmd]
+        assert len(video_commands) == 1
+        assert len(preview_commands) == 1
+        assert "-s" in preview_commands[0]
         assert f"template_{slug}_video" in outputs
         assert f"template_{slug}_preview" in outputs
         assert any(cmd[0] == "ffprobe" and f"templates/{slug}/" in cmd[-1] for cmd in rendered)

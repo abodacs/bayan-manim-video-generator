@@ -140,6 +140,12 @@ class RenderJob:
     status: JobStatus
     scene_plan_id: str
     template_id: str
+    # Reproducibility evidence, mirroring SmokeManifest: the image actually
+    # used, the security/resource settings applied, and a hash of the fixture
+    # source that was rendered.
+    image: ImageMetadata | None = None
+    settings: RenderSettings | None = None
+    fixture_hash: str | None = None
     failure_stage: str | None = None
     exit_reason: str | None = None
     artifacts: dict[str, str] = field(default_factory=dict)
@@ -151,6 +157,9 @@ class RenderJob:
             "status": self.status,
             "scene_plan_id": self.scene_plan_id,
             "template_id": self.template_id,
+            "image": self.image.to_dict() if self.image is not None else None,
+            "settings": self.settings.to_dict() if self.settings is not None else None,
+            "fixture_hash": self.fixture_hash,
             "failure_stage": self.failure_stage,
             "exit_reason": self.exit_reason,
             "artifacts": dict(self.artifacts),

@@ -13,8 +13,11 @@ from bayan.renderer.models import ImageMetadata, RenderJob, RenderSettings
 from bayan.renderer.process import CommandResult
 from bayan.renderer.smoke import (
     CONTAINER_OUTPUT_ROOT,
+    DEFAULT_IMAGE,
     FIXTURES_ROOT,
     MAX_RETAINED_RUN_DIRECTORIES,
+    PROJECT_ROOT,
+    sha256_file,
 )
 from bayan.templates.catalogue import fixture_filename, get_template_catalogue
 
@@ -32,6 +35,10 @@ def test_render_job_dataclass_lifecycle() -> None:
     assert data["job_id"] == "job-123"
     assert data["status"] == "succeeded"
     assert data["artifacts"] == {}
+    # Evidence fields are absent until setup captures them.
+    assert data["image"] is None
+    assert data["settings"] is None
+    assert data["fixture_hash"] is None
 
 
 def _plan_for(template: str) -> ScenePlan:
@@ -110,6 +117,13 @@ def test_every_catalogue_template_renders_in_the_worker(
     record = json.loads((tmp_path / "render_job.json").read_text(encoding="utf-8"))
     assert record["status"] == "succeeded"
     assert record["template_id"] == slug
+    # Reproducibility evidence: the image used, the settings in force, and a
+    # hash of the exact fixture source that was rendered.
+    assert record["image"]["reference"] == DEFAULT_IMAGE
+    assert record["settings"]["network"] == "none"
+    assert record["fixture_hash"] == sha256_file(
+        PROJECT_ROOT / "bayan" / "templates" / "fixtures" / fixture_filename(slug)
+    )
 
 
 def test_render_job_uses_the_catalogue_fixture_scene(

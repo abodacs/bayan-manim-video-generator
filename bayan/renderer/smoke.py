@@ -134,42 +134,29 @@ class SmokeRunner:
                     "The container has no usable Noto Sans Arabic font. Rebuild the image."
                 )
 
-            video_result = executor.run_container(
+            video_result = render_scene_in_worker(
+                executor,
                 self.config.image,
-                (
-                    "manim",
-                    "-ql",
-                    SCENE_PATH,
-                    SCENE_NAME,
-                    "--media_dir",
-                    "/workspace/output/video",
-                ),
-                log_path,
-                self.config.render_timeout,
-                include_source_mount=True,
+                SCENE_PATH,
+                SCENE_NAME,
+                media_dir=CONTAINER_OUTPUT_ROOT / "video",
                 output_directory=media_directory,
+                log_path=log_path,
                 phase="render video",
             )
             self._record_phase("render video", video_result, log_path)
             require_success("Rendering the Arabic video", video_result, self.config.render_timeout)
 
-            preview_result = executor.run_container(
+            preview_result = render_scene_in_worker(
+                executor,
                 self.config.image,
-                (
-                    "manim",
-                    "-ql",
-                    "-s",
-                    "--format=png",
-                    SCENE_PATH,
-                    SCENE_NAME,
-                    "--media_dir",
-                    "/workspace/output/preview",
-                ),
-                log_path,
-                self.config.render_timeout,
-                include_source_mount=True,
+                SCENE_PATH,
+                SCENE_NAME,
+                media_dir=CONTAINER_OUTPUT_ROOT / "preview",
                 output_directory=media_directory,
+                log_path=log_path,
                 phase="render preview",
+                preview=True,
             )
             self._record_phase("render preview", preview_result, log_path)
             require_success(
@@ -273,20 +260,14 @@ class SmokeRunner:
             scene_path = str(FIXTURES_ROOT / fixture_filename(slug))
 
             video_dir = media_directory / "templates" / slug / "video"
-            video_result = executor.run_container(
+            video_result = render_scene_in_worker(
+                executor,
                 self.config.image,
-                (
-                    "manim",
-                    "-ql",
-                    scene_path,
-                    class_name,
-                    "--media_dir",
-                    str(CONTAINER_OUTPUT_ROOT / "templates" / slug / "video"),
-                ),
-                log_path,
-                self.config.render_timeout,
-                include_source_mount=True,
+                scene_path,
+                class_name,
+                media_dir=CONTAINER_OUTPUT_ROOT / "templates" / slug / "video",
                 output_directory=media_directory,
+                log_path=log_path,
                 phase=f"render template {slug} video",
             )
             self._record_phase(f"render template {slug} (video)", video_result, log_path)
@@ -295,23 +276,16 @@ class SmokeRunner:
             )
 
             preview_dir = media_directory / "templates" / slug / "preview"
-            preview_result = executor.run_container(
+            preview_result = render_scene_in_worker(
+                executor,
                 self.config.image,
-                (
-                    "manim",
-                    "-ql",
-                    "-s",
-                    "--format=png",
-                    scene_path,
-                    class_name,
-                    "--media_dir",
-                    str(CONTAINER_OUTPUT_ROOT / "templates" / slug / "preview"),
-                ),
-                log_path,
-                self.config.render_timeout,
-                include_source_mount=True,
+                scene_path,
+                class_name,
+                media_dir=CONTAINER_OUTPUT_ROOT / "templates" / slug / "preview",
                 output_directory=media_directory,
+                log_path=log_path,
                 phase=f"render template {slug} preview",
+                preview=True,
             )
             self._record_phase(f"render template {slug} (preview)", preview_result, log_path)
             require_success(
@@ -343,6 +317,43 @@ class SmokeRunner:
 
 
 MAX_RETAINED_RUN_DIRECTORIES = 5
+
+
+def render_scene_in_worker(
+    executor: DockerExecutor,
+    image: str,
+    scene_path: str,
+    class_name: str,
+    media_dir: Path,
+    output_directory: Path,
+    log_path: Path,
+    phase: str,
+    quality_flag: str = "-ql",
+    preview: bool = False,
+) -> CommandResult:
+    """Render one scene to a video or PNG preview inside the worker.
+
+    Single source of truth for the manim invocation shared by the smoke run
+    and the render jobs, so the two cannot drift: a preview is always a fast
+    low-quality single frame, a video honors the caller's quality flag, and
+    every render mounts the source read-only with the given output directory
+    as the only writable surface.
+    """
+    if preview:
+        # A preview is a single final frame; it stays fast at low quality.
+        command: list[str] = ["manim", "-ql", "-s", "--format=png"]
+    else:
+        command = ["manim", quality_flag]
+    command.extend((scene_path, class_name, "--media_dir", str(media_dir)))
+    return executor.run_container(
+        image,
+        command,
+        log_path,
+        executor.settings.render_timeout_seconds,
+        include_source_mount=True,
+        output_directory=output_directory,
+        phase=phase,
+    )
 
 
 def allocate_run_directory(output_root: Path) -> Path:
