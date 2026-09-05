@@ -28,6 +28,7 @@ class RenderSettings:
     render_timeout_seconds: int = 180
     max_log_bytes_per_phase: int = 1_048_576
     build_skipped: bool = False
+    build_cache_from: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-compatible representation."""
@@ -42,6 +43,7 @@ class RenderSettings:
             "render_timeout_seconds": self.render_timeout_seconds,
             "max_log_bytes_per_phase": self.max_log_bytes_per_phase,
             "build_skipped": self.build_skipped,
+            "build_cache_from": list(self.build_cache_from),
         }
 
 

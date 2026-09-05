@@ -24,6 +24,7 @@ from bayan.renderer.smoke import (
     validate_png,
 )
 from bayan.templates.catalogue import fixture_filename, get_template_catalogue
+from scripts.container_smoke import parser as smoke_parser
 
 
 def make_executor(tmp_path: Path, *, max_log_bytes: int = 1_048_576) -> DockerExecutor:
@@ -371,3 +372,161 @@ def test_catalogue_templates_are_rendered_and_recorded(
         assert any(cmd[0] == "ffprobe" and f"templates/{slug}/" in cmd[-1] for cmd in rendered)
     assert len(smoke_runner.manifest.phases) == 3 * len(catalogue)
     assert all(phase.status == "passed" for phase in smoke_runner.manifest.phases)
+
+
+def test_build_image_without_cache_sources_has_no_cache_flags(tmp_path: Path) -> None:
+    executor = make_executor(tmp_path)
+    captured: list[tuple[str, ...]] = []
+
+    def fake_stream(
+        command: tuple[str, ...],
+        phase: str,
+        log_path: Path,
+        timeout_seconds: int,
+    ) -> CommandResult:
+        del phase, log_path, timeout_seconds
+        captured.append(command)
+        return CommandResult(command=command, returncode=0)
+
+    executor._run_streaming = fake_stream  # type: ignore[method-assign]
+
+    result = executor.build_image(
+        "bayan/manim-smoke:0.20.1",
+        tmp_path / "Dockerfile",
+        tmp_path,
+        tmp_path / "render.log",
+    )
+
+    assert result.returncode == 0
+    assert captured[0] == (
+        "docker",
+        "build",
+        "--tag",
+        "bayan/manim-smoke:0.20.1",
+        "--file",
+        str(tmp_path / "Dockerfile"),
+        str(tmp_path),
+    )
+
+
+def test_build_image_seeds_the_layer_cache_from_references(tmp_path: Path) -> None:
+    """Each cache reference becomes --cache-from plus inline cache metadata."""
+    executor = make_executor(tmp_path)
+    captured: list[tuple[str, ...]] = []
+
+    def fake_stream(
+        command: tuple[str, ...],
+        phase: str,
+        log_path: Path,
+        timeout_seconds: int,
+    ) -> CommandResult:
+        del phase, log_path, timeout_seconds
+        captured.append(command)
+        return CommandResult(command=command, returncode=0)
+
+    executor._run_streaming = fake_stream  # type: ignore[method-assign]
+
+    result = executor.build_image(
+        "bayan/manim-smoke:0.20.1",
+        tmp_path / "Dockerfile",
+        tmp_path,
+        tmp_path / "render.log",
+        cache_from=("ghcr.io/example/seed-one:cache", "ghcr.io/example/seed-two:cache"),
+    )
+
+    assert result.returncode == 0
+    command = captured[0]
+    assert command[:2] == ("docker", "build")
+    assert ("--build-arg", "BUILDKIT_INLINE_CACHE=1") in zip(command, command[1:], strict=False)
+    cache_references = [
+        command[index + 1] for index, part in enumerate(command) if part == "--cache-from"
+    ]
+    assert cache_references == [
+        "ghcr.io/example/seed-one:cache",
+        "ghcr.io/example/seed-two:cache",
+    ]
+    assert command[-5:] == (
+        "--tag",
+        "bayan/manim-smoke:0.20.1",
+        "--file",
+        str(tmp_path / "Dockerfile"),
+        str(tmp_path),
+    )
+
+
+def test_runner_passes_cache_sources_to_the_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Configured cache references reach both the build and the manifest evidence."""
+    cache_reference = "ghcr.io/example/bayan-manim-smoke-cache:cache"
+    build_cache_from: list[tuple[str, ...]] = []
+
+    monkeypatch.setattr("bayan.renderer.smoke.check_docker", lambda: ("docker", "27.0"))
+
+    def fake_build_image(
+        self: DockerExecutor,
+        image: str,
+        dockerfile: Path,
+        context: Path,
+        log_path: Path,
+        cache_from: tuple[str, ...] = (),
+    ) -> CommandResult:
+        del self, image, dockerfile, context, log_path
+        build_cache_from.append(tuple(cache_from))
+        return CommandResult(command=("docker", "build"), returncode=0)
+
+    monkeypatch.setattr(DockerExecutor, "build_image", fake_build_image)
+    monkeypatch.setattr(
+        DockerExecutor,
+        "inspect_image",
+        lambda self, image: ImageMetadata(reference=image),
+    )
+
+    def fake_run_container(
+        self: DockerExecutor,
+        image: str,
+        command: tuple[str, ...],
+        log_path: Path,
+        timeout_seconds: int,
+        **kwargs: object,
+    ) -> CommandResult:
+        del image, log_path, timeout_seconds, kwargs
+        normalized = tuple(str(part) for part in command)
+        if normalized[0] == "fc-match":
+            return CommandResult(
+                command=("docker", *normalized), returncode=0, output_tail="Noto Sans Arabic\n"
+            )
+        if normalized[0] == "ffprobe":
+            return CommandResult(command=("docker", *normalized), returncode=0, output_tail="6.2\n")
+        media_directory = self.run_directory / "manim-output"
+        media_root_arg = Path(normalized[normalized.index("--media_dir") + 1])
+        host_dir = media_directory / media_root_arg.relative_to(CONTAINER_OUTPUT_ROOT)
+        host_dir.mkdir(parents=True, exist_ok=True)
+        class_name = normalized[normalized.index("--media_dir") - 1]
+        if "--format=png" in normalized:
+            (host_dir / f"{class_name}_00000.png").write_bytes(b"\x89PNG\r\n\x1a\nfake")
+        else:
+            (host_dir / f"{class_name}.mp4").write_bytes(b"fake video bytes")
+        return CommandResult(command=("docker", *normalized), returncode=0, output_tail="done\n")
+
+    monkeypatch.setattr(DockerExecutor, "run_container", fake_run_container)
+
+    result = SmokeRunner(SmokeConfig(output_root=tmp_path, cache_from=(cache_reference,))).run()
+
+    assert build_cache_from == [(cache_reference,)]
+    assert result.manifest.settings.build_cache_from == (cache_reference,)
+    build_phase = next(phase for phase in result.manifest.phases if phase.name == "build image")
+    assert build_phase.status == "passed"
+    assert result.manifest.status == "succeeded"
+
+
+def test_container_smoke_cli_accepts_repeatable_cache_from() -> None:
+    parsed = smoke_parser().parse_args(
+        ["--cache-from", "ghcr.io/example/seed-one:cache", "--cache-from", "registry-two/img:c"]
+    )
+
+    assert parsed.cache_from == [
+        "ghcr.io/example/seed-one:cache",
+        "registry-two/img:c",
+    ]
+    assert smoke_parser().parse_args([]).cache_from == []

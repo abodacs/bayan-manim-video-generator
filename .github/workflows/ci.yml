@@ -53,11 +53,34 @@ jobs:
   container-smoke:
     name: Containerized Arabic smoke render
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      # The runner is ephemeral, so its Docker layer cache is always empty.
+      # The previously pushed image is the externalized cache every build
+      # shares: pull it, build with --cache-from, then push it back updated.
+      CACHE_IMAGE: ghcr.io/${{ github.repository }}/manim-smoke-cache:cache
     steps:
       - uses: actions/checkout@v7
 
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Pull the previous image as the layer-cache seed
+        # The very first build has no cache image yet; missing it is fine.
+        run: docker pull "$CACHE_IMAGE" || echo "No cached image yet; building from scratch."
+
       - name: Build and run the isolated Arabic smoke render
-        run: python3 scripts/container_smoke.py --output artifacts/container-smoke
+        run: python3 scripts/container_smoke.py --cache-from "$CACHE_IMAGE" --output artifacts/container-smoke
+
+      - name: Publish the built image as the next cache seed
+        # Fork pull requests hold a read-only token, so they skip the push
+        # and the next build on main simply warms the cache again.
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          docker tag bayan/manim-smoke:0.20.1 "$CACHE_IMAGE"
+          docker push "$CACHE_IMAGE"
 
       - name: Upload smoke artifacts
         if: always()

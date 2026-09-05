@@ -38,6 +38,9 @@ class SmokeConfig:
     build_timeout: int = 900
     render_timeout: int = 180
     max_log_bytes: int = 1_048_576
+    # Existing image references whose layers seed the build cache, so an
+    # ephemeral builder does not start every build from scratch.
+    cache_from: tuple[str, ...] = ()
     project_root: Path = PROJECT_ROOT
 
 
@@ -82,6 +85,7 @@ class SmokeRunner:
             render_timeout_seconds=self.config.render_timeout,
             max_log_bytes_per_phase=self.config.max_log_bytes,
             build_skipped=self.config.skip_build,
+            build_cache_from=self.config.cache_from,
         )
         log_path = run_directory / "render.log"
         log_path.touch()
@@ -111,6 +115,7 @@ class SmokeRunner:
                     project_root / "Dockerfile",
                     project_root,
                     log_path,
+                    cache_from=self.config.cache_from,
                 )
                 self._record_phase("build image", build_result, log_path)
                 require_success(
