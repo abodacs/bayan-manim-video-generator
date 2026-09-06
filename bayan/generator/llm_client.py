@@ -11,8 +11,8 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass
-from typing import TypeVar
+from dataclasses import dataclass, replace
+from typing import Generic, TypeVar
 
 from openai import OpenAI
 from openai._types import Omit, omit
@@ -90,6 +90,31 @@ class LLMUsage:
 
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
+
+
+@dataclass(frozen=True)
+class LLMResult:
+    """One provider call's full evidence, returned instead of side channels.
+
+    Callers receive a frozen snapshot of everything the call produced -- the
+    payload they asked for, the verbatim reply for run records, token usage,
+    and the call identity -- so a second call can never misattribute the
+    first call's evidence: there is no ``last_*`` client state to scrape.
+    """
+
+    content: str
+    raw_content: str
+    usage: LLMUsage | None
+    model: str
+    base_url: str
+
+
+@dataclass(frozen=True)
+class LLMStructuredResult(LLMResult, Generic[ModelT]):
+    """A structured call's evidence plus the validated ``response_model``."""
+
+    data: ModelT
+
 
 _CODE_FENCE = re.compile(r"```python(.*?)```", re.DOTALL)
 _JSON_FENCE = re.compile(r"^```(?:json)?\s*\n?(.*?)\n?\s*```$", re.DOTALL)
@@ -169,8 +194,6 @@ class LLMClient:
         self.api_key: str = resolved_key
         self.base_url = base_url or os.environ.get("BAYAN_BASE_URL", DEFAULT_BASE_URL)
         self.model: str = model or os.environ.get("BAYAN_LLM_MODEL", DEFAULT_MODEL)
-        self.last_usage: LLMUsage | None = None
-        self.last_raw_content: str | None = None
 
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
@@ -179,21 +202,23 @@ class LLMClient:
         return self.generate_code(
             system_prompt=SYSTEM_PROMPT,
             user_prompt=f"Create a Manim scene for: {user_prompt}",
-        )
+        ).content
 
     def generate_code(
         self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
-    ) -> str:
+    ) -> LLMResult:
         """Free-form code generation with caller-supplied prompts.
 
-        Returns the fence-stripped Python text; the raw reply stays available
-        as ``last_raw_content`` for run records.
+        Returns one frozen :class:`LLMResult`: ``content`` is the
+        fence-stripped Python text and ``raw_content`` keeps the verbatim
+        reply for run records.
         """
         messages: list[ChatCompletionMessageParam] = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
-        return clean_code_block(self._complete(messages, temperature=temperature))
+        result = self._complete(messages, temperature=temperature)
+        return replace(result, content=clean_code_block(result.raw_content))
 
     def generate_structured(
         self,
@@ -202,8 +227,8 @@ class LLMClient:
         user_prompt: str,
         response_model: type[ModelT],
         temperature: float = 0.2,
-    ) -> ModelT:
-        """Request JSON shaped like ``response_model`` and return a validated instance.
+    ) -> LLMStructuredResult[ModelT]:
+        """Request JSON shaped like ``response_model`` and return evidence plus the instance.
 
         The pydantic-derived JSON schema travels in ``response_format``; providers
         that ignore it still work because the reply is validated before returning.
@@ -214,25 +239,33 @@ class LLMClient:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
-        raw_content = self._complete(
+        result = self._complete(
             messages,
             response_format=_json_schema_response_format(response_model),
             temperature=temperature,
         )
-        return self._parse_structured(raw_content, response_model)
+        return LLMStructuredResult(
+            content=_strip_json_fence(result.raw_content),
+            raw_content=result.raw_content,
+            usage=result.usage,
+            model=result.model,
+            base_url=result.base_url,
+            data=self._parse_structured(result.raw_content, response_model),
+        )
 
     def _complete(
         self,
         messages: list[ChatCompletionMessageParam],
         response_format: ResponseFormatJSONSchema | Omit = omit,
         temperature: float = 0.2,
-    ) -> str:
-        """Run one chat completion and return its text content.
+    ) -> LLMResult:
+        """Run one chat completion and return its full evidence.
 
         Centralizes the provider-failure policy: the key is scrubbed from the
         message and the cause is suppressed (tracebacks print chained
         exceptions verbatim, and the original text can carry the key). Usage
-        is captured from every successful response.
+        is captured from every successful response. ``content`` equals
+        ``raw_content`` here; the public methods refine it to their payload.
         """
         try:
             response = self.client.chat.completions.create(
@@ -245,9 +278,13 @@ class LLMClient:
         except Exception as error:
             detail = _bound(_redact(str(error), self.api_key), MAX_ERROR_CHARS)
             raise LLMProviderError(f"Failed to communicate with LLM provider: {detail}") from None
-        self.last_usage = _extract_usage(response)
-        self.last_raw_content = raw_content
-        return raw_content
+        return LLMResult(
+            content=raw_content,
+            raw_content=raw_content,
+            usage=_extract_usage(response),
+            model=self.model,
+            base_url=self.base_url,
+        )
 
     def _parse_structured(self, raw_content: str, response_model: type[ModelT]) -> ModelT:
         """Parse and validate a provider reply against its pydantic model."""

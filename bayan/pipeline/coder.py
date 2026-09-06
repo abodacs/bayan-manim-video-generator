@@ -240,15 +240,13 @@ class LLMCoderProvider:
     def generate_scene_code(
         self, *, plan: LessonPlan, system_prompt: str, user_prompt: str
     ) -> CodeAttemptEvidence:
-        code = self.client.generate_code(system_prompt=system_prompt, user_prompt=user_prompt)
+        result = self.client.generate_code(system_prompt=system_prompt, user_prompt=user_prompt)
         return CodeAttemptEvidence(
-            code=code,
-            raw_response=self.client.last_raw_content or "",
-            fingerprint=evidence_fingerprint(
-                self.client.model, self.client.base_url, plan.model_dump_json()
-            ),
-            model=self.client.model,
-            usage=as_token_usage(self.client.last_usage),
+            code=result.content,
+            raw_response=result.raw_content,
+            fingerprint=evidence_fingerprint(result.model, result.base_url, plan.model_dump_json()),
+            model=result.model,
+            usage=as_token_usage(result.usage),
         )
 
     def repair_scene_code(
@@ -278,7 +276,7 @@ def repair_scene_code_with_client(
 ) -> CodeAttemptEvidence:
     """Adapter body shared by the client-backed repair provider."""
     plan_context = plan.model_dump_json(indent=2, ensure_ascii=False) if plan is not None else "n/a"
-    fixed = client.generate_code(
+    result = client.generate_code(
         system_prompt=(
             "You repair Arabic Manim lesson scenes with minimal edits. "
             "Reply with the complete fixed Python file only."
@@ -292,11 +290,11 @@ def repair_scene_code_with_client(
         + f"\n\nLesson plan (context):\n{plan_context}",
     )
     return CodeAttemptEvidence(
-        code=fixed,
-        raw_response=client.last_raw_content or "",
+        code=result.content,
+        raw_response=result.raw_content,
         fingerprint=evidence_fingerprint(
-            client.model, client.base_url, f"repair:{classification.category}:{code}"
+            result.model, result.base_url, f"repair:{classification.category}:{code}"
         ),
-        model=client.model,
-        usage=as_token_usage(client.last_usage),
+        model=result.model,
+        usage=as_token_usage(result.usage),
     )
