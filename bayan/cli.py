@@ -11,7 +11,7 @@ from bayan.generator.llm_client import LLMClient, LLMConfigError
 from bayan.orchestrator import ManifestError, StageStatus, WorkflowOrchestrator
 from bayan.pipeline.coder import LLMCoderProvider
 from bayan.pipeline.provider import LLMPlanProvider
-from bayan.pipeline.spine import LanguageProfile, run_generate
+from bayan.pipeline.spine import LanguageProfile, RerunError, run_generate, run_rerun
 from bayan.planner.service import run_planning_pipeline
 from bayan.renderer.executor import RenderError, render_scene_code
 from bayan.templates.catalogue import fixture_filename, get_template_catalogue
@@ -318,6 +318,38 @@ def generate(
     typer.secho(
         f"Success! Run directory: {result.run_dir} "
         f"(cost estimate: ${result.total_cost_estimate_usd:.4f})",
+        fg=typer.colors.GREEN,
+    )
+
+
+@app.command(name="rerun")
+def rerun(
+    run_id: Annotated[
+        str,
+        typer.Argument(help="Run id produced by bayan generate."),
+    ],
+    runs_root: Annotated[
+        Path,
+        typer.Option("--runs-root", help="Directory that holds generated runs."),
+    ] = Path("./runs"),
+) -> None:
+    """Re-render a past run from its cached plan and code.
+
+    No API key is required: rerun makes zero LLM calls.
+    """
+    try:
+        result = run_rerun(run_id=run_id, runs_root=runs_root)
+    except RerunError as error:
+        typer.secho(f"Rerun Error: {error}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
+
+    if result.status != "completed":
+        typer.secho(f"Rerun failed: {result.failure}", fg=typer.colors.RED)
+        typer.secho(f"Run directory: {result.run_dir}", fg=typer.colors.YELLOW)
+        raise typer.Exit(code=1)
+
+    typer.secho(
+        f"Success! Rerun directory: {result.run_dir}",
         fg=typer.colors.GREEN,
     )
 

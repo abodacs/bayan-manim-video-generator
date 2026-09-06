@@ -19,7 +19,9 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from bayan.pipeline.coder import CoderService, CodingError, SceneCodeProvider
+from pydantic import ValidationError
+
+from bayan.pipeline.coder import SCENE_FILENAME, CoderService, CodingError, SceneCodeProvider
 from bayan.pipeline.critic import critic_blocked, run_critic
 from bayan.pipeline.models import CheckResult, LessonPlan
 from bayan.pipeline.planner import PLAN_FILENAME, PlannerService, PlanningError
@@ -91,10 +93,11 @@ class RunContext:
     prompt: str
     profile: str
     quality: str
-    planner: LessonPlanProvider
-    coder: SceneCodeProvider
-    repairer: CodeRepairProvider
+    planner: LessonPlanProvider | None = None
+    coder: SceneCodeProvider | None = None
+    repairer: CodeRepairProvider | None = None
     vlm: bool = False
+    rerun_of: str | None = None
     plan: LessonPlan | None = None
     scene_code: str | None = None
     gate_results: list[GateResult] = field(default_factory=list)
@@ -134,6 +137,7 @@ class RunResult:
 def _stage_record(
     stage: str,
     status: str,
+    rerun_of: str | None,
     failure: str | None = None,
     **evidence: Any,
 ) -> dict[str, Any]:
@@ -141,6 +145,7 @@ def _stage_record(
         "stage": stage,
         "status": status,
         "created_at": datetime.now(UTC).isoformat(),
+        "rerun_of": rerun_of,
         "failure": failure,
         **evidence,
     }
@@ -149,7 +154,7 @@ def _stage_record(
 def _failed(context: RunContext, stage: Stage, failure: str, **evidence: Any) -> StageOutcome:
     write_stage_record(
         context.run_dir,
-        _stage_record(stage.name, "failed", failure, **evidence),
+        _stage_record(stage.name, "failed", context.rerun_of, failure, **evidence),
         stage.record_filename,
     )
     return StageOutcome(stage=stage.name, status="failed", failure=failure)
@@ -157,6 +162,8 @@ def _failed(context: RunContext, stage: Stage, failure: str, **evidence: Any) ->
 
 def run_plan_stage(context: RunContext, stage: Stage) -> StageOutcome:
     """Turn the prompt into a validated LessonPlan via the planning service."""
+    # The spine stops at the first failure; the plan stage only runs in generate.
+    assert context.planner is not None
     service = PlannerService(
         provider=context.planner,
         run_dir=context.run_dir,
@@ -187,6 +194,7 @@ def run_profile_stage(context: RunContext, stage: Stage) -> StageOutcome:
         _stage_record(
             stage.name,
             "completed",
+            context.rerun_of,
             profile=profile.name,
             digit_style=profile.digit_style.value,
             font=profile.font,
@@ -200,6 +208,8 @@ def run_code_stage(context: RunContext, stage: Stage) -> StageOutcome:
     """Turn the validated plan into scene code via the coding service."""
     # The spine stops at the first failure, so the plan stage always ran.
     assert context.plan is not None
+    # The spine stops at the first failure; the code stage only runs in generate.
+    assert context.coder is not None
     service = CoderService(
         provider=context.coder,
         run_dir=context.run_dir,
@@ -227,13 +237,13 @@ def run_gates_stage(context: RunContext, stage: Stage) -> StageOutcome:
         )
         write_stage_record(
             context.run_dir,
-            _stage_record(stage.name, "failed", failure, gates=gate_evidence),
+            _stage_record(stage.name, "failed", context.rerun_of, failure, gates=gate_evidence),
             stage.record_filename,
         )
         return StageOutcome(stage=stage.name, status="failed", failure=failure)
     write_stage_record(
         context.run_dir,
-        _stage_record(stage.name, "completed", gates=gate_evidence),
+        _stage_record(stage.name, "completed", context.rerun_of, gates=gate_evidence),
         stage.record_filename,
     )
     return StageOutcome(stage=stage.name, status="completed")
@@ -265,13 +275,13 @@ def run_critic_stage(context: RunContext, stage: Stage) -> StageOutcome:
         )
         write_stage_record(
             context.run_dir,
-            _stage_record(stage.name, "failed", failure, checks=checks),
+            _stage_record(stage.name, "failed", context.rerun_of, failure, checks=checks),
             stage.record_filename,
         )
         return StageOutcome(stage=stage.name, status="failed", failure=failure)
     write_stage_record(
         context.run_dir,
-        _stage_record(stage.name, "completed", checks=checks),
+        _stage_record(stage.name, "completed", context.rerun_of, checks=checks),
         stage.record_filename,
     )
     return StageOutcome(stage=stage.name, status="completed")
@@ -296,6 +306,7 @@ def run_render_stage(context: RunContext, stage: Stage) -> StageOutcome:
         _stage_record(
             stage.name,
             "completed",
+            context.rerun_of,
             quality=context.quality,
             draft=DRAFT_FILENAME,
             preview=PREVIEW_FILENAME,
@@ -337,10 +348,16 @@ class GeneratePipeline:
 
         stage_statuses: dict[str, str] = {}
         failure: str | None = None
-        repair_service = RepairService(
-            provider=context.repairer,
-            run_dir=context.run_dir,
-            record_filename=REPAIR_RECORD_FILENAME,
+        # Reruns omit the repairer: their failures surface without repair
+        # (no LLM is allowed on the rerun path).
+        repair_service = (
+            RepairService(
+                provider=context.repairer,
+                run_dir=context.run_dir,
+                record_filename=REPAIR_RECORD_FILENAME,
+            )
+            if context.repairer is not None
+            else None
         )
 
         index = 0
@@ -355,7 +372,7 @@ class GeneratePipeline:
                 continue
 
             failure = outcome.failure
-            if stage.name not in repairable:
+            if stage.name not in repairable or repair_service is None:
                 break
 
             round_outcome = repair_service.repair_round(
@@ -388,10 +405,11 @@ class GeneratePipeline:
             "prompt": context.prompt,
             "profile": context.profile,
             "quality": context.quality,
+            "rerun_of": context.rerun_of,
             "model": _first_model(context.run_dir),
             "total_cost_estimate_usd": total_cost,
             "stages": stage_statuses,
-            "repairs_used": repair_service.provider_calls,
+            "repairs_used": repair_service.provider_calls if repair_service else 0,
             "failure": failure,
         }
         atomic_write_text(
@@ -404,7 +422,7 @@ class GeneratePipeline:
             status=status,
             failure=failure,
             total_cost_estimate_usd=total_cost,
-            repairs_used=repair_service.provider_calls,
+            repairs_used=repair_service.provider_calls if repair_service else 0,
         )
 
     def _classify(self, stage_name: str, context: RunContext, outcome: StageOutcome) -> Any:
@@ -474,3 +492,77 @@ def run_generate(
         repairer=repairer,
     )
     return GeneratePipeline().run(context)
+
+
+class RerunError(RuntimeError):
+    """The requested run cannot be replayed from its cached artifacts."""
+
+
+RERUN_STAGE_NAMES = ("profile", "gates", "render", "critic")
+
+
+def _load_cached_run(source_dir: Path) -> tuple[LessonPlan, str, str]:
+    """Read the cached plan, scene code, and prompt from a completed run."""
+    plan_path = source_dir / PLAN_FILENAME
+    scene_path = source_dir / SCENE_FILENAME
+    missing = [path.name for path in (plan_path, scene_path) if not path.exists()]
+    if missing:
+        raise RerunError(
+            f"Run '{source_dir.name}' has no cached {', '.join(missing)}; "
+            "only runs produced by `bayan generate` can be rerun."
+        )
+    try:
+        plan = LessonPlan.model_validate_json(plan_path.read_text(encoding="utf-8"))
+    except ValidationError as error:
+        raise RerunError(
+            f"The cached plan in '{source_dir.name}' is invalid ({error}); "
+            "generate the lesson again with `bayan generate`."
+        ) from None
+
+    prompt = "rerun"
+    summary_path = source_dir / RUN_SUMMARY_FILENAME
+    if summary_path.exists():
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            prompt = str(summary.get("prompt") or prompt)
+        except (OSError, json.JSONDecodeError):
+            prompt = "rerun"
+    return plan, scene_path.read_text(encoding="utf-8"), prompt
+
+
+def run_rerun(
+    *,
+    run_id: str,
+    runs_root: Path,
+    quality: str = "draft",
+    vlm: bool = False,
+) -> RunResult:
+    """Replay the deterministic stages of a past run into a fresh run dir.
+
+    Zero LLM calls: the cached plan and scene code are reused verbatim and
+    only the profile pass, gates, render, and critic re-run. The new run's
+    records and summary carry ``rerun_of`` pointing at the source.
+    """
+    source_dir = runs_root / run_id
+    if not source_dir.is_dir():
+        raise RerunError(
+            f"Run '{run_id}' not found under {runs_root}. "
+            "Generate a lesson first with `bayan generate`."
+        )
+
+    plan, scene_code, prompt = _load_cached_run(source_dir)
+    run_dir = allocate_run_dir(runs_root, prompt)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(run_dir / SCENE_FILENAME, scene_code)
+    context = RunContext(
+        run_dir=run_dir,
+        prompt=prompt,
+        profile=plan.profile,
+        quality=quality,
+        vlm=vlm,
+        rerun_of=run_id,
+        plan=plan,
+        scene_code=scene_code,
+    )
+    rerun_stages = tuple(stage for stage in STAGES if stage.name in RERUN_STAGE_NAMES)
+    return GeneratePipeline(stages=rerun_stages).run(context)
