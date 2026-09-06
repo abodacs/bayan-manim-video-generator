@@ -5,6 +5,8 @@ import pytest
 from pydantic import BaseModel
 
 from bayan.generator.llm_client import (
+    DEFAULT_BASE_URL,
+    DEFAULT_MODEL,
     LLMClient,
     LLMConfigError,
     LLMProviderError,
@@ -44,8 +46,7 @@ def test_generate_manim_code_success(mock_openai_class):
     """Verify that correct API parameters are sent,
     and the response is received and cleaned successfully."""
     # Initialize Mock instance for OpenAI Client
-    mock_client = MagicMock()
-    mock_openai_class.return_value = mock_client
+    mock_client = _mocked_client(mock_openai_class)
 
     # Mock response structure returned from OpenAI (choices[0].message.content)
     mock_response = MagicMock()
@@ -70,20 +71,20 @@ def test_generate_manim_code_success(mock_openai_class):
 
 
 @patch("bayan.generator.llm_client.OpenAI")
-def test_generate_manim_code_api_error_raises_runtime_error(mock_openai_class):
+def test_generate_manim_code_api_error_raises_provider_error(mock_openai_class):
     """Verify that API communication/authentication errors
-    are wrapped and raised as descriptive RuntimeErrors."""
-    mock_client = MagicMock()
-    mock_openai_class.return_value = mock_client
+    are wrapped and raised as typed provider errors (still RuntimeError)."""
+    mock_client = _mocked_client(mock_openai_class)
 
     # Simulate an exception during API request
     mock_client.chat.completions.create.side_effect = Exception("Connection timeout")
 
     client = LLMClient(api_key="fake-api-key")
 
-    with pytest.raises(RuntimeError) as exc_info:
+    with pytest.raises(LLMProviderError) as exc_info:
         client.generate_manim_code("Draw a square")
 
+    assert isinstance(exc_info.value, RuntimeError)
     assert "Failed to communicate with LLM provider" in str(exc_info.value)
 
 
@@ -97,6 +98,13 @@ class _Quote(BaseModel):
 
     item: str
     price: int
+
+
+def _mocked_client(mock_openai_class: MagicMock) -> MagicMock:
+    """Wire one mocked OpenAI class to a mocked client and hand the client back."""
+    mock_client = MagicMock()
+    mock_openai_class.return_value = mock_client
+    return mock_client
 
 
 def _mock_response(content: str, usage: tuple[int, int, int] | None = None) -> MagicMock:
@@ -132,8 +140,7 @@ def test_missing_key_error_names_the_env_vars(mock_openai_class, monkeypatch):
 def test_provider_error_never_contains_the_api_key(mock_openai_class):
     """Provider failures are typed and the key is scrubbed from the message."""
     secret = "sk-proj-super-secret-key-value"
-    mock_client = MagicMock()
-    mock_openai_class.return_value = mock_client
+    mock_client = _mocked_client(mock_openai_class)
     mock_client.chat.completions.create.side_effect = Exception(
         f"auth failed for key {secret} (HTTP 401)"
     )
@@ -152,8 +159,7 @@ def test_provider_error_never_contains_the_api_key(mock_openai_class):
 @patch("bayan.generator.llm_client.OpenAI")
 def test_generate_manim_code_sets_last_usage(mock_openai_class):
     """Token usage from the last response is exposed as a typed value."""
-    mock_client = MagicMock()
-    mock_openai_class.return_value = mock_client
+    mock_client = _mocked_client(mock_openai_class)
     mock_client.chat.completions.create.return_value = _mock_response(
         "```python\nx = 1\n```", usage=(9, 4, 13)
     )
@@ -169,8 +175,7 @@ def test_generate_manim_code_sets_last_usage(mock_openai_class):
 
 @patch("bayan.generator.llm_client.OpenAI")
 def test_last_usage_is_none_when_provider_omits_usage(mock_openai_class):
-    mock_client = MagicMock()
-    mock_openai_class.return_value = mock_client
+    mock_client = _mocked_client(mock_openai_class)
     mock_client.chat.completions.create.return_value = _mock_response("print(1)")
 
     client = LLMClient(api_key="fake-api-key")
@@ -187,8 +192,7 @@ def test_last_usage_is_none_when_provider_omits_usage(mock_openai_class):
 @patch("bayan.generator.llm_client.OpenAI")
 def test_structured_mode_returns_parsed_json_and_usage(mock_openai_class):
     """Structured mode sends the JSON schema and returns a validated model."""
-    mock_client = MagicMock()
-    mock_openai_class.return_value = mock_client
+    mock_client = _mocked_client(mock_openai_class)
     mock_client.chat.completions.create.return_value = _mock_response(
         '{"item": "dates", "price": 7}', usage=(11, 5, 16)
     )
@@ -214,8 +218,7 @@ def test_structured_mode_returns_parsed_json_and_usage(mock_openai_class):
 @patch("bayan.generator.llm_client.OpenAI")
 def test_structured_mode_accepts_markdown_fenced_json(mock_openai_class):
     """Providers that ignore response_format may wrap JSON in fences; still parsed."""
-    mock_client = MagicMock()
-    mock_openai_class.return_value = mock_client
+    mock_client = _mocked_client(mock_openai_class)
     mock_client.chat.completions.create.return_value = _mock_response(
         '```json\n{"item": "milk", "price": 3}\n```'
     )
@@ -235,8 +238,7 @@ def test_structured_mode_malformed_json_raises_typed_error_with_bounded_excerpt(
     mock_openai_class,
 ):
     """Non-JSON replies raise a typed error carrying a bounded raw excerpt."""
-    mock_client = MagicMock()
-    mock_openai_class.return_value = mock_client
+    mock_client = _mocked_client(mock_openai_class)
     reply_tail = "x" * 2_000
     mock_client.chat.completions.create.return_value = _mock_response(
         f"Sorry, I cannot help with that. {reply_tail}"
@@ -259,8 +261,7 @@ def test_structured_mode_malformed_json_raises_typed_error_with_bounded_excerpt(
 @patch("bayan.generator.llm_client.OpenAI")
 def test_structured_mode_schema_mismatch_raises_typed_error(mock_openai_class):
     """Replies that parse as JSON but violate the schema raise the same typed error."""
-    mock_client = MagicMock()
-    mock_openai_class.return_value = mock_client
+    mock_client = _mocked_client(mock_openai_class)
     mock_client.chat.completions.create.return_value = _mock_response(
         '{"item": 3, "price": "not a number"}'
     )
@@ -275,6 +276,47 @@ def test_structured_mode_schema_mismatch_raises_typed_error(mock_openai_class):
         )
 
     assert "_Quote" in str(exc_info.value)
+
+
+@patch("bayan.generator.llm_client.OpenAI")
+def test_structured_mode_provider_error_redacts_key_and_suppresses_cause(mock_openai_class):
+    secret = "sk-proj-super-secret-key-value"
+    mock_client = _mocked_client(mock_openai_class)
+    mock_client.chat.completions.create.side_effect = Exception(f"quota exhausted for key {secret}")
+
+    client = LLMClient(api_key=secret)
+
+    with pytest.raises(LLMProviderError) as exc_info:
+        client.generate_structured(
+            system_prompt="Return JSON only.",
+            user_prompt="What is the price of dates?",
+            response_model=_Quote,
+        )
+
+    assert secret not in str(exc_info.value)
+    # Suppression is load-bearing: chained exceptions print verbatim.
+    assert exc_info.value.__cause__ is None
+
+
+@patch("bayan.generator.llm_client.OpenAI")
+def test_structured_mode_reply_containing_the_key_is_redacted(mock_openai_class):
+    """The redaction guarantee covers reply excerpts, not just call failures."""
+    secret = "sk-proj-super-secret-key-value"
+    mock_client = _mocked_client(mock_openai_class)
+    mock_client.chat.completions.create.return_value = _mock_response(
+        f"echo back {secret} and stop"
+    )
+
+    client = LLMClient(api_key=secret)
+
+    with pytest.raises(LLMResponseFormatError) as exc_info:
+        client.generate_structured(
+            system_prompt="Return JSON only.",
+            user_prompt="What is the price of dates?",
+            response_model=_Quote,
+        )
+
+    assert secret not in str(exc_info.value)
 
 
 # =========================================================================
@@ -292,8 +334,8 @@ def has_active_bayan_quota():
     try:
         from openai import OpenAI
 
-        base_url = os.getenv("BAYAN_BASE_URL", "https://api.z.ai/api/paas/v4/")
-        model = os.getenv("BAYAN_LLM_MODEL", "glm-5.2")
+        base_url = os.getenv("BAYAN_BASE_URL", DEFAULT_BASE_URL)
+        model = os.getenv("BAYAN_LLM_MODEL", DEFAULT_MODEL)
 
         client = OpenAI(api_key=api_key, base_url=base_url)
         # Fast lightweight request to verify active balance/quota on target provider

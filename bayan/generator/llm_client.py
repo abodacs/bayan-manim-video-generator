@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import TypeVar
 
 from openai import OpenAI
+from openai._types import Omit, omit
 from openai.types.chat import ChatCompletionMessageParam
 from openai.types.shared_params import ResponseFormatJSONSchema
 from pydantic import BaseModel, ValidationError
@@ -82,13 +83,12 @@ class LLMUsage:
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
+_CODE_FENCE = re.compile(r"```python(.*?)```", re.DOTALL)
 _JSON_FENCE = re.compile(r"^```(?:json)?\s*\n?(.*?)\n?\s*```$", re.DOTALL)
 
 
-def redact_secret(text: str, secret: str | None) -> str:
+def _redact(text: str, secret: str) -> str:
     """Scrub API key material out of provider text before it reaches an error."""
-    if not secret:
-        return text
     return text.replace(secret, "***redacted***")
 
 
@@ -99,7 +99,11 @@ def _bound(text: str, limit: int) -> str:
 
 
 def _extract_usage(response: object) -> LLMUsage | None:
-    """Read token counts off a provider response, tolerating their absence."""
+    """Read token counts off a provider response, tolerating their absence.
+
+    OpenAI-compatible providers vary in what they return here, so the counts
+    are taken only when all three arrive as plain integers.
+    """
     usage = getattr(response, "usage", None)
     if usage is None:
         return None
@@ -115,26 +119,6 @@ def _strip_json_fence(text: str) -> str:
     """Undo the markdown fences providers add when they ignore response_format."""
     match = _JSON_FENCE.match(text.strip())
     return match.group(1).strip() if match else text.strip()
-
-
-def _parse_structured(raw_content: str, response_model: type[ModelT]) -> ModelT:
-    """Parse and validate a provider reply against its pydantic model."""
-    reply = _strip_json_fence(raw_content)
-    try:
-        data = json.loads(reply)
-    except json.JSONDecodeError as error:
-        raise LLMResponseFormatError(
-            f"Provider reply was not valid JSON for {response_model.__name__}: {error}. "
-            f"Reply excerpt: {_bound(reply, MAX_EXCERPT_CHARS)!r}"
-        ) from None
-    try:
-        return response_model.model_validate(data)
-    except ValidationError as error:
-        raise LLMResponseFormatError(
-            f"Provider reply did not match the {response_model.__name__} schema: "
-            f"{_bound(str(error), MAX_ERROR_CHARS)}. "
-            f"Reply excerpt: {_bound(reply, MAX_EXCERPT_CHARS)!r}"
-        ) from None
 
 
 def _json_schema_response_format(response_model: type[BaseModel]) -> ResponseFormatJSONSchema:
@@ -155,10 +139,10 @@ class LLMClient:
         base_url: str | None = None,
         model: str | None = None,
     ) -> None:
-        self.api_key = (
+        resolved_key = (
             api_key or os.environ.get("BAYAN_API_KEY") or os.environ.get("OPENAI_API_KEY")
         )
-        if not self.api_key:
+        if not resolved_key:
             raise LLMConfigError(
                 "Missing LLM API key: set BAYAN_API_KEY (or OPENAI_API_KEY) in the "
                 "environment or a local .env file. Optional settings: BAYAN_BASE_URL "
@@ -166,6 +150,7 @@ class LLMClient:
                 f"{DEFAULT_MODEL}). See the 'Environment variables' section in README.md."
             )
 
+        self.api_key: str = resolved_key
         self.base_url = base_url or os.environ.get("BAYAN_BASE_URL", DEFAULT_BASE_URL)
         self.model: str = model or os.environ.get("BAYAN_LLM_MODEL", DEFAULT_MODEL)
         self.last_usage: LLMUsage | None = None
@@ -181,17 +166,7 @@ class LLMClient:
                 "content": f"Create a Manim scene for: {user_prompt}",
             },
         ]
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=0.2,
-            )
-            raw_content = response.choices[0].message.content or ""
-        except Exception as error:
-            raise self._provider_error(error) from None
-        self.last_usage = _extract_usage(response)
-        return self._clean_code(raw_content)
+        return self._clean_code(self._complete(messages))
 
     def generate_structured(
         self,
@@ -212,32 +187,65 @@ class LLMClient:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
+        raw_content = self._complete(
+            messages,
+            response_format=_json_schema_response_format(response_model),
+            temperature=temperature,
+        )
+        return self._parse_structured(raw_content, response_model)
+
+    def _complete(
+        self,
+        messages: list[ChatCompletionMessageParam],
+        response_format: ResponseFormatJSONSchema | Omit = omit,
+        temperature: float = 0.2,
+    ) -> str:
+        """Run one chat completion and return its text content.
+
+        Centralizes the provider-failure policy: the key is scrubbed from the
+        message and the cause is suppressed (tracebacks print chained
+        exceptions verbatim, and the original text can carry the key). Usage
+        is captured from every successful response.
+        """
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 temperature=temperature,
-                response_format=_json_schema_response_format(response_model),
+                response_format=response_format,
             )
             raw_content = response.choices[0].message.content or ""
         except Exception as error:
-            raise self._provider_error(error) from None
+            detail = _bound(_redact(str(error), self.api_key), MAX_ERROR_CHARS)
+            raise LLMProviderError(f"Failed to communicate with LLM provider: {detail}") from None
         self.last_usage = _extract_usage(response)
-        return _parse_structured(raw_content, response_model)
+        return raw_content
 
-    def _provider_error(self, error: Exception) -> LLMProviderError:
-        """Wrap a provider failure with the API key scrubbed from the message.
+    def _parse_structured(self, raw_content: str, response_model: type[ModelT]) -> ModelT:
+        """Parse and validate a provider reply against its pydantic model."""
+        reply = _strip_json_fence(raw_content)
+        try:
+            data = json.loads(reply)
+        except json.JSONDecodeError as error:
+            summary = f"Provider reply was not valid JSON for {response_model.__name__}: {error}"
+            raise LLMResponseFormatError(self._reply_error(summary, reply)) from None
+        try:
+            return response_model.model_validate(data)
+        except ValidationError as error:
+            summary = (
+                f"Provider reply did not match the {response_model.__name__} schema: "
+                f"{_redact(str(error), self.api_key)}"
+            )
+            raise LLMResponseFormatError(self._reply_error(summary, reply)) from None
 
-        The cause is suppressed rather than chained: Python prints chained
-        exceptions verbatim, and the original text can carry the key.
-        """
-        detail = redact_secret(_bound(str(error), MAX_ERROR_CHARS), self.api_key)
-        return LLMProviderError(f"Failed to communicate with LLM provider: {detail}")
+    def _reply_error(self, summary: str, reply: str) -> str:
+        """Assemble a bounded, key-free failure message for a bad provider reply."""
+        excerpt = _bound(_redact(reply, self.api_key), MAX_EXCERPT_CHARS)
+        return _bound(f"{summary}. Reply excerpt: {excerpt!r}", MAX_ERROR_CHARS)
 
     def _clean_code(self, raw_code: str) -> str:
         """Extract raw Python code out of LLM markdown wrappers if present."""
-        pattern = r"```python(.*?)```"
-        match = re.search(pattern, raw_code, re.DOTALL)
+        match = _CODE_FENCE.search(raw_code)
         if match:
             return match.group(1).strip()
         return raw_code.strip()
