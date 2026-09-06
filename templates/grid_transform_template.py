@@ -12,11 +12,8 @@ if str(PROJECT_ROOT) not in sys.path:
 # ==========================================
 # CONFIGURATION & CONSTANTS
 # ==========================================
-# Configure 16:9 widescreen format
-config.pixel_width = 1920
-config.pixel_height = 1080
-config.frame_width = 16.0
-config.frame_height = 9.0
+# The default Manim canvas is already 16:9 at 1920x1080 pixels; no global
+# config override is needed here.
 
 GRID_LINE_COLOR = BLUE
 X_AXIS_COLOR = "#00D9FF"

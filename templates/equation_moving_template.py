@@ -8,7 +8,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from bayan.utils.arabic_helper import reshape_arabic_text
+from bayan.utils.arabic_helper import ArabicText
 
 HIGHLIGHT_PADDING = 0.15
 
@@ -17,21 +17,18 @@ class EquationMovingArabic(Scene):
     def construct(self):
         FONT_NAME = "Arial"
 
-        # 1. Prepare Arabic text elements
-        txt_energy = reshape_arabic_text("ط")
-        txt_mass = reshape_arabic_text("ك")
-        txt_speed = reshape_arabic_text("س")
-
-        energy = MarkupText(f"<span font='{FONT_NAME}'>{txt_energy}</span>")
-        equal = MarkupText(f"<span font='{FONT_NAME}'>=</span>")
-        mass = MarkupText(f"<span font='{FONT_NAME}'>{txt_mass}</span>")
+        # 1. Prepare Arabic text elements (Pango applies shaping and bidi once)
+        energy = ArabicText("ط", font=FONT_NAME)
+        equal = Text("=", font=FONT_NAME)
+        mass = ArabicText("ك", font=FONT_NAME)
 
         # 2. Construct the superscripted speed element
-        speed_base = MarkupText(f"<span font='{FONT_NAME}'>{txt_speed}</span>")
-        speed_exponent = MarkupText(f"<span font='{FONT_NAME}'>2</span>").scale(0.55)
+        speed_base = ArabicText("س", font=FONT_NAME)
+        speed_exponent = Text("2", font=FONT_NAME).scale(0.55)
 
-        # Position exponent '2' at the upper-right corner of the speed base
-        speed_exponent.move_to(speed_base.get_corner(UR)).shift(RIGHT * 0.08 + UP * 0.05)
+        # Position exponent '2' at the upper-left corner of the speed base,
+        # as expected in right-to-left math layout
+        speed_exponent.move_to(speed_base.get_corner(UL)).shift(LEFT * 0.08 + UP * 0.05)
 
         speed = VGroup(speed_base, speed_exponent)
 

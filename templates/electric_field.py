@@ -8,7 +8,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from bayan.utils.arabic_helper import ArabicText
+from bayan.utils.arabic_helper import ArabicText, rtl_glyphs
 
 
 class ElectricFieldArabic(Scene):
@@ -21,9 +21,8 @@ class ElectricFieldArabic(Scene):
             color=BLUE,
         ).scale(0.8)
         title.to_edge(UP, buff=0.5)
-        title.submobjects.reverse()
 
-        self.play(Write(title), run_time=1.2)
+        self.play(Write(rtl_glyphs(title)), run_time=1.2)
         self.wait(0.3)
 
         positive_charge = Charge(2, ORIGIN)
@@ -50,7 +49,7 @@ class ElectricFieldArabic(Scene):
             run_time=0.8,
         )
 
-        negative_charge = Charge(-1.5, RIGHT * 3)
+        negative_charge = Charge(-2, RIGHT * 1.5)
         self.play(
             positive_charge.animate.shift(LEFT * 1.5),
             FadeIn(negative_charge, scale=0.5),
@@ -104,9 +103,8 @@ class ElectricFieldArabic(Scene):
             color=PURPLE,
         ).scale(0.55)
         explanation3.to_edge(DOWN, buff=0.6)
-        explanation3.submobjects.reverse()
 
-        self.play(Write(explanation3), run_time=1.2)
+        self.play(Write(rtl_glyphs(explanation3)), run_time=1.2)
         self.wait(2)
 
         self.play(

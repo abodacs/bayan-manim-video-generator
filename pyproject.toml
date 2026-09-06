@@ -12,6 +12,7 @@ dependencies = [
     "openai>=3.2.0",
     "python-dotenv>=1.2.2",
     "pydantic>=2",
+    "manim-physics>=0.2.4",
 ]
 
 [dependency-groups]

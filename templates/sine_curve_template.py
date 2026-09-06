@@ -47,12 +47,13 @@ def create_arabic_taa(color=DEFAULT_COLOR, scale_factor=LETTER_SCALE) -> VMobjec
         _point(0.4, -0.15),
     )
 
-    # Base horizontal line and vertical stroke
+    # Base horizontal line and vertical stroke (stroke on the right of the
+    # loop, as in a real Taa letter)
     baseline = Line(
         _point(-0.5, -0.15), _point(0.6, -0.15), color=color, stroke_width=LETTER_STROKE_WIDTH
     )
     vertical_stroke = Line(
-        _point(-0.22, -0.1), _point(-0.25, 0.8), color=color, stroke_width=LETTER_STROKE_WIDTH
+        _point(0.22, -0.1), _point(0.25, 0.8), color=color, stroke_width=LETTER_STROKE_WIDTH
     )
 
     arabic_taa.add(letter_loop, baseline, vertical_stroke)
