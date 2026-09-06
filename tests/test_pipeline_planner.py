@@ -2,15 +2,23 @@
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from bayan.generator.llm_client import LLMClient, LLMResponseFormatError, LLMUsage
+from bayan.generator.llm_client import (
+    LLMClient,
+    LLMProviderError,
+    LLMResponseFormatError,
+    LLMUsage,
+)
 from bayan.pipeline.models import PlanAttemptEvidence
 from bayan.pipeline.planner import PlannerService, PlanningError
 from bayan.pipeline.pricing import PRICE_TABLE_USD_PER_1M, estimate_cost_usd
-from bayan.planner.provider import FakeProvider, LLMPlanProvider
+from bayan.pipeline.provider import LLMPlanProvider
+from bayan.planner.provider import FakeProvider
+from tests.helpers import mock_chat_response as _mock_response
+from tests.helpers import mocked_client as _mocked_client
 
 ARABIC_PROMPT = "شرح القسمة على الأعداد ذات المنزلة الواحدة"
 DEFAULT_PROFILE = "msa-western"
@@ -18,22 +26,6 @@ DEFAULT_PROFILE = "msa-western"
 
 def _has_arabic_script(text: str) -> bool:
     return any("\u0600" <= character <= "\u06ff" for character in text)
-
-
-def _mocked_client(mock_openai_class: MagicMock) -> MagicMock:
-    mock_client = MagicMock()
-    mock_openai_class.return_value = mock_client
-    return mock_client
-
-
-def _mock_response(content: str, usage: tuple[int, int, int] | None = None) -> MagicMock:
-    response = MagicMock()
-    response.choices = [MagicMock(message=MagicMock(content=content))]
-    if usage is not None:
-        response.usage.prompt_tokens = usage[0]
-        response.usage.completion_tokens = usage[1]
-        response.usage.total_tokens = usage[2]
-    return response
 
 
 def _read_record(run_dir: Path) -> dict[str, object]:
@@ -73,7 +65,7 @@ def test_fake_provider_yields_valid_typed_plan(tmp_path):
     for beat in plan.beats:
         assert beat.on_screen_text
         assert _has_arabic_script(beat.on_screen_text)
-        assert beat.insight_move
+        assert beat.insight_move in ("reveal", "animate_count", "compare", "summarize")
         assert beat.numbers
 
     # Identical prompts must produce identical plans (golden-set dependency).
@@ -92,8 +84,17 @@ def test_fake_provider_yields_valid_typed_plan(tmp_path):
     attempt = record["attempts"][0]
     assert attempt["model"] == "fake-model-v1"
     assert attempt["total_tokens"] > 0
-    assert "cost_estimate_usd" in attempt
+    assert attempt["cost_estimate_usd"] == 0.0
     assert attempt["raw_response"]
+
+
+def test_profile_override_reaches_plan_and_record(tmp_path):
+    service = PlannerService(provider=FakeProvider(), run_dir=tmp_path)
+
+    plan = service.plan(ARABIC_PROMPT, profile="egyptian")
+
+    assert plan.profile == "egyptian"
+    assert _read_record(tmp_path)["profile"] == "egyptian"
 
 
 # -------------------------------------------------------------------------
@@ -124,6 +125,32 @@ def test_invalid_plans_are_retried_within_three_total_calls(tmp_path):
     assert record["attempts"][2]["raw_response"]
 
 
+def test_invalid_attempts_record_the_raw_reply(tmp_path):
+    raw = "The model apologized instead of returning JSON."
+    provider = _ScriptedProvider(
+        [LLMResponseFormatError("reply was not valid JSON", raw_content=raw)]
+    )
+    service = PlannerService(provider=provider, run_dir=tmp_path, max_attempts=1)
+
+    with pytest.raises(PlanningError):
+        service.plan(ARABIC_PROMPT)
+
+    assert _read_record(tmp_path)["attempts"][0]["raw_response"] == raw
+
+
+def test_network_failures_consume_an_attempt_and_stay_bounded(tmp_path):
+    good = FakeProvider().generate_lesson_plan(ARABIC_PROMPT, DEFAULT_PROFILE)
+    provider = _ScriptedProvider([LLMProviderError("connection reset"), good])
+    service = PlannerService(provider=provider, run_dir=tmp_path)
+
+    service.plan(ARABIC_PROMPT)
+
+    assert provider.calls == 2
+    record = _read_record(tmp_path)
+    assert record["status"] == "completed"
+    assert "connection reset" in str(record["attempts"][0]["error"])
+
+
 def test_never_valid_provider_writes_failure_record_and_raises(tmp_path):
     provider = _ScriptedProvider([LLMResponseFormatError("not json")] * 5)
     service = PlannerService(provider=provider, run_dir=tmp_path)
@@ -139,6 +166,21 @@ def test_never_valid_provider_writes_failure_record_and_raises(tmp_path):
     assert len(record["attempts"]) == 3
     assert "failed after 3 attempts" in str(record["failure"])
     assert not (tmp_path / "plan.json").exists()
+
+
+def test_max_attempts_override_is_respected(tmp_path):
+    provider = _ScriptedProvider([LLMResponseFormatError("not json")] * 5)
+    service = PlannerService(provider=provider, run_dir=tmp_path, max_attempts=5)
+
+    with pytest.raises(PlanningError):
+        service.plan(ARABIC_PROMPT)
+
+    assert provider.calls == 5
+
+
+def test_max_attempts_must_be_positive(tmp_path):
+    with pytest.raises(ValueError):
+        PlannerService(provider=FakeProvider(), run_dir=tmp_path, max_attempts=0)
 
 
 def test_empty_prompt_fails_without_provider_call(tmp_path):
@@ -207,17 +249,6 @@ def test_llm_plan_provider_surfaces_invalid_output_as_provider_error(mock_openai
 
     with pytest.raises(LLMResponseFormatError):
         provider.generate_lesson_plan(ARABIC_PROMPT, DEFAULT_PROFILE)
-
-
-def test_client_captures_last_raw_content(tmp_path):
-    """The raw reply is available for run records without changing return types."""
-    provider = FakeProvider()
-    service = PlannerService(provider=provider, run_dir=tmp_path)
-    service.plan(ARABIC_PROMPT)
-
-    # The service records the raw response for every accepted attempt.
-    record = _read_record(tmp_path)
-    assert record["attempts"][0]["raw_response"].startswith("{")
 
 
 # -------------------------------------------------------------------------

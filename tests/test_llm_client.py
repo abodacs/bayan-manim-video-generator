@@ -13,6 +13,8 @@ from bayan.generator.llm_client import (
     LLMResponseFormatError,
     LLMUsage,
 )
+from tests.helpers import mock_chat_response as _mock_response
+from tests.helpers import mocked_client as _mocked_client
 
 # -------------------------------------------------------------------------
 # 1. Tests for Code Cleaner Function (_clean_code)
@@ -98,23 +100,6 @@ class _Quote(BaseModel):
 
     item: str
     price: int
-
-
-def _mocked_client(mock_openai_class: MagicMock) -> MagicMock:
-    """Wire one mocked OpenAI class to a mocked client and hand the client back."""
-    mock_client = MagicMock()
-    mock_openai_class.return_value = mock_client
-    return mock_client
-
-
-def _mock_response(content: str, usage: tuple[int, int, int] | None = None) -> MagicMock:
-    response = MagicMock()
-    response.choices = [MagicMock(message=MagicMock(content=content))]
-    if usage is not None:
-        response.usage.prompt_tokens = usage[0]
-        response.usage.completion_tokens = usage[1]
-        response.usage.total_tokens = usage[2]
-    return response
 
 
 @patch("bayan.generator.llm_client.OpenAI")

@@ -4,36 +4,26 @@ import hashlib
 import json
 from typing import Protocol
 
-from bayan.generator.llm_client import LLMClient, LLMUsage
-from bayan.pipeline.models import LessonBeat, LessonPlan, PlanAttemptEvidence
+from bayan.generator.llm_client import LLMUsage
+from bayan.pipeline.models import (
+    INSIGHT_MOVES,
+    LessonBeat,
+    LessonPlan,
+    PlanAttemptEvidence,
+)
 from bayan.planner.models import LessonSegment, PlanRenderPreferences, ScenePlan
 from bayan.templates.catalogue import get_template_catalogue
 
-INSIGHT_MOVES = ("reveal", "animate_count", "compare", "summarize")
-
-LESSON_PLAN_SYSTEM_PROMPT = (
-    "You plan Arabic math lessons for Egyptian grade-6 students as strict JSON. "
-    "Reply with JSON only; it must match the requested schema. Rules:\n"
-    "1. topic names the lesson concept concisely.\n"
-    "2. Order 2 to 5 beats from concrete to abstract; each beat is one visual step.\n"
-    "3. Every beat's on_screen_text is short Arabic that fits on one screen line.\n"
-    "4. insight_move is one of: reveal, animate_count, compare, summarize.\n"
-    "5. numbers lists the numeric values the beat works with.\n"
-    "6. Never include commentary, markdown, or code outside the JSON."
-)
-
 
 class ModelProvider(Protocol):
-    """Protocol defining the LLM provider seam.
+    """Protocol defining the LLM provider seam for the orchestrator path.
 
-    ``generate_plan`` serves the template-oriented orchestrator path;
-    ``generate_lesson_plan`` serves the generate pipeline. Both are the only
-    ways services reach a model.
+    The generate pipeline reaches models through the narrower
+    ``bayan.pipeline.provider.LessonPlanProvider`` protocol instead;
+    ``FakeProvider`` below satisfies both.
     """
 
     def generate_plan(self, segment: LessonSegment) -> ScenePlan: ...
-
-    def generate_lesson_plan(self, prompt: str, profile: str) -> PlanAttemptEvidence: ...
 
 
 class FakeProvider:
@@ -107,28 +97,4 @@ class FakeProvider:
             fingerprint=fingerprint,
             model=self.model_name,
             usage=usage,
-        )
-
-
-class LLMPlanProvider:
-    """Real provider adapter over the hardened client's structured-output mode."""
-
-    def __init__(self, client: LLMClient) -> None:
-        self.client = client
-
-    def generate_lesson_plan(self, prompt: str, profile: str) -> PlanAttemptEvidence:
-        plan = self.client.generate_structured(
-            system_prompt=LESSON_PLAN_SYSTEM_PROMPT,
-            user_prompt=f"Lesson request: {prompt.strip()}\nLanguage profile: {profile}",
-            response_model=LessonPlan,
-        )
-        fingerprint = hashlib.sha256(
-            f"{self.client.model}:{self.client.base_url}:{profile}:{prompt.strip()}".encode()
-        ).hexdigest()
-        return PlanAttemptEvidence(
-            plan=plan,
-            raw_response=self.client.last_raw_content or "",
-            fingerprint=fingerprint,
-            model=self.client.model,
-            usage=self.client.last_usage,
         )

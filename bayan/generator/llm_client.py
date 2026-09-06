@@ -69,7 +69,15 @@ class LLMProviderError(LLMError):
 
 
 class LLMResponseFormatError(LLMProviderError):
-    """The provider reply was not the JSON the requested schema promised."""
+    """The provider reply was not the JSON the requested schema promised.
+
+    ``raw_content`` keeps the full (key-redacted) reply so run records stay
+    auditable without reaching back into the client.
+    """
+
+    def __init__(self, message: str, raw_content: str = "") -> None:
+        super().__init__(message)
+        self.raw_content = raw_content
 
 
 @dataclass(frozen=True)
@@ -226,11 +234,14 @@ class LLMClient:
     def _parse_structured(self, raw_content: str, response_model: type[ModelT]) -> ModelT:
         """Parse and validate a provider reply against its pydantic model."""
         reply = _strip_json_fence(raw_content)
+        redacted_reply = _redact(reply, self.api_key)
         try:
             data = json.loads(reply)
         except json.JSONDecodeError as error:
             summary = f"Provider reply was not valid JSON for {response_model.__name__}: {error}"
-            raise LLMResponseFormatError(self._reply_error(summary, reply)) from None
+            raise LLMResponseFormatError(
+                self._reply_error(summary, redacted_reply), redacted_reply
+            ) from None
         try:
             return response_model.model_validate(data)
         except ValidationError as error:
@@ -238,7 +249,9 @@ class LLMClient:
                 f"Provider reply did not match the {response_model.__name__} schema: "
                 f"{_redact(str(error), self.api_key)}"
             )
-            raise LLMResponseFormatError(self._reply_error(summary, reply)) from None
+            raise LLMResponseFormatError(
+                self._reply_error(summary, redacted_reply), redacted_reply
+            ) from None
 
     def _reply_error(self, summary: str, reply: str) -> str:
         """Assemble a bounded, key-free failure message for a bad provider reply."""

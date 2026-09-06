@@ -12,10 +12,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from bayan.generator.llm_client import LLMError
-from bayan.pipeline.models import DEFAULT_PROFILE, LessonPlan
+from bayan.generator.llm_client import LLMError, LLMResponseFormatError
+from bayan.pipeline.models import (
+    DEFAULT_PROFILE,
+    AttemptRecord,
+    LessonPlan,
+)
 from bayan.pipeline.pricing import estimate_cost_usd
-from bayan.planner.provider import ModelProvider
+from bayan.pipeline.provider import LessonPlanProvider
 from bayan.utils.atomic_io import atomic_write_text
 
 MAX_PLANNING_ATTEMPTS = 3
@@ -43,11 +47,13 @@ class PlannerService:
 
     def __init__(
         self,
-        provider: ModelProvider,
+        provider: LessonPlanProvider,
         run_dir: Path,
         *,
         max_attempts: int = MAX_PLANNING_ATTEMPTS,
     ) -> None:
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be at least 1.")
         self.provider = provider
         self.run_dir = run_dir
         self.max_attempts = max_attempts
@@ -71,41 +77,25 @@ class PlannerService:
             )
             raise PlanningError(failure, record_path)
 
-        attempts: list[dict[str, Any]] = []
+        attempts: list[AttemptRecord] = []
         for attempt_number in range(1, self.max_attempts + 1):
             try:
                 evidence = self.provider.generate_lesson_plan(prompt_text, profile)
-            except LLMError as error:
+            except LLMResponseFormatError as error:
                 attempts.append(
-                    {
-                        "attempt": attempt_number,
-                        "status": "invalid_output",
-                        "model": None,
-                        "prompt_tokens": None,
-                        "completion_tokens": None,
-                        "total_tokens": None,
-                        "cost_estimate_usd": None,
-                        "raw_response": None,
-                        "error": str(error),
-                    }
+                    AttemptRecord.rejected(attempt_number, str(error), error.raw_content)
                 )
                 continue
+            except LLMError as error:
+                attempts.append(AttemptRecord.rejected(attempt_number, str(error)))
+                continue
 
-            cost = estimate_cost_usd(evidence.model, evidence.usage)
             attempts.append(
-                {
-                    "attempt": attempt_number,
-                    "status": "ok",
-                    "model": evidence.model,
-                    "prompt_tokens": evidence.usage.prompt_tokens if evidence.usage else None,
-                    "completion_tokens": (
-                        evidence.usage.completion_tokens if evidence.usage else None
-                    ),
-                    "total_tokens": evidence.usage.total_tokens if evidence.usage else None,
-                    "cost_estimate_usd": round(cost, 6),
-                    "raw_response": evidence.raw_response,
-                    "error": None,
-                }
+                AttemptRecord.accepted(
+                    attempt_number,
+                    evidence,
+                    estimate_cost_usd(evidence.model, evidence.usage),
+                )
             )
             self._write_plan(evidence.plan)
             self._write_record(
@@ -119,7 +109,7 @@ class PlannerService:
             )
             return evidence.plan
 
-        last_error = str(attempts[-1].get("error", "unknown"))
+        last_error = str(attempts[-1].error)
         failure = (
             f"Planning failed after {self.max_attempts} attempts: the provider never "
             f"returned a schema-valid lesson plan. Last error: {last_error}. "
@@ -148,7 +138,7 @@ class PlannerService:
         status: str,
         prompt: str,
         profile: str,
-        attempts: list[dict[str, Any]],
+        attempts: list[AttemptRecord],
         failure: str | None,
         provider_fingerprint: str | None = None,
     ) -> None:
@@ -160,7 +150,7 @@ class PlannerService:
             "profile": profile,
             "max_attempts": self.max_attempts,
             "provider_fingerprint": provider_fingerprint,
-            "attempts": attempts,
+            "attempts": [attempt.model_dump() for attempt in attempts],
             "failure": failure,
             "plan": PLAN_FILENAME if status == "completed" else None,
         }
