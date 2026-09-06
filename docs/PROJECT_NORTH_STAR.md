@@ -1,6 +1,9 @@
 # Project North Star
 
-**Status:** Proposed — assumption-led strategy
+**Status:** Proposed — assumption-led strategy (POC phase)
+
+> This strategy scoped the **proof of concept**, which is now complete. The
+> post-POC product direction lives in [`PRODUCT_DIRECTION.md`](PRODUCT_DIRECTION.md).
 
 ## North-star statement
 

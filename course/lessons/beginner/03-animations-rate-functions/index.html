@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>play/wait, Create/FadeIn/Transform, and rate functions — Manim CE Course</title>
+<link rel="stylesheet" href="../../../assets/app.css">
+</head>
+<body>
+<header class="site"><div class="shell">
+  <a class="brand" href="../../../index.html">Manim&nbsp;CE <span class="dot">▮</span> Beginner&nbsp;→&nbsp;Master</a>
+  <nav><a href="../../../index.html" class="active">Course</a><a href="../../../index.html#assessment-hub">Assessment hub</a><a href="../../../index.html#run-a-scene">How to run a scene</a></nav>
+</div></header>
+<main class="shell">
+<section class="hero" style="padding:32px 0 18px">
+  <div class="accent-bar" style="background:#1d8ac0;"></div>
+  <p class="muted" style="margin:0">Tier 1 · Beginner · <span class="status-pill reviewed">reviewed</span></p>
+  <h1>play/wait, Create/FadeIn/Transform, and rate functions</h1>
+  <p class="promise">Choose creation, visibility, and transform animations deliberately, and pick rate functions that express intent.</p>
+  <div class="lesson-head" style="margin-top:10px">
+    <p class="meta-line"><strong>Misconception it kills:</strong> <span class="misconception">That animation choice is cosmetic. It carries meaning: Create builds, FadeIn reveals, Transform relates; rate functions express intent (linear = machine, smooth = natural, there_and_back = emphasis).</span></p>
+    <p class="meta-line"><strong>Prerequisites:</strong> <a href="../02-mobjects-positioning/index.html">Mobjects, positioning, and grouping</a></p>
+    <p class="meta-line"><strong>Source reference:</strong> <code>animations.md</code></p>
+    <p class="meta-line"><a href="README.md">raw README.md</a> · <a href="plan.md">plan.md</a> · <a href="exercises.md">exercises.md</a></p>
+  </div>
+</section>
+
+<section class="block" style="padding-top:18px"><article class="lesson-doc"><h1>03 — play/wait, Create/FadeIn/Transform, and rate functions</h1>
+<blockquote><strong>Objective.</strong> Choose creation, visibility, and transform animations deliberately, and pick rate functions that express intent.  <strong>Misconception it kills.</strong> <em>“Animation choice is cosmetic.”</em> It carries meaning: <code>Create</code> <strong>builds</strong>, <code>FadeIn</code> <strong>reveals</strong>, <code>Transform</code> <strong>relates</strong>. Rate functions express intent — <code>linear</code> = machine/constant, <code>smooth</code> = natural ease, <code>there_and_back</code> = a passing emphasis.  <strong>Prerequisites.</strong> <a href="../02-mobjects-positioning/index.html">02 — Mobjects &amp; positioning</a>.  <strong>Source reference.</strong> <code>animations.md</code>.</blockquote>
+<h2>The three families</h2>
+<pre class="code"><code class="language-python">self.play(Create(circle), run_time=1.0)  # build the stroke
+self.play(FadeIn(square, shift=DOWN * 0.3))  # reveal without drawing
+self.play(Transform(circle, square))  # morph: show a relationship</code></pre>
+<ul>
+<li><strong>Creation:</strong> <code>Create</code>, <code>Write</code>, <code>DrawBorderThenFill</code>, <code>GrowFromCenter</code>.</li>
+<li><strong>Visibility:</strong> <code>FadeIn</code>, <code>FadeOut</code>, <code>Uncreate</code>, <code>ShrinkToCenter</code>.</li>
+<li><strong>Transform:</strong> <code>Transform</code>, <code>ReplacementTransform</code>, <code>TransformMatchingTex</code>,</li>
+</ul>
+<p><code>FadeTransform</code>. <code>TransformMatchingTex</code> is ideal when the viewer should see which terms persist across an equation.</p>
+<ul>
+<li><strong>Attention (no model change):</strong> <code>Indicate</code>, <code>Circumscribe</code>, <code>Flash</code>,</li>
+</ul>
+<p><code>ShowPassingFlash</code>.</p>
+<blockquote>Do <strong>not</strong> separately animate the same property in competing animations within one <code>play</code> call. Chain related changes with <code>.animate</code> instead.</blockquote>
+<h2>Rate functions express intent</h2>
+<pre class="code"><code class="language-python">self.play(dot.animate.shift(RIGHT * 2), rate_func=linear, run_time=2.0)
+self.play(dot.animate.shift(RIGHT * 2), rate_func=smooth, run_time=2.0)
+self.play(dot.animate.shift(RIGHT * 0.5), rate_func=there_and_back, run_time=1.0)</code></pre>
+<p>Use <code>MoveAlongPath</code> for meaningful trajectories and <code>Rotate</code> for a one-time rotation (an updater for continuous rotation — see Lesson 10).</p>
+<h2>Composition</h2>
+<ul>
+<li><code>AnimationGroup(...)</code> — simultaneous, with optional lag.</li>
+<li><code>LaggedStart(...)</code> — staggered repeated appearances (a sequence).</li>
+<li><code>Succession(...)</code> — sequential within one <code>play</code> call.</li>
+</ul>
+<p>Keep the active focus to one or two moving elements.</p>
+<h2>Timing rule (recap)</h2>
+<p>Every reveal needs a pause; the <strong>key reveal</strong> gets the longest pause. A fast reveal + long hold beats a slow reveal with no reading time.</p>
+<table class="kvtable"><thead><tr><th>Beat</th><th>run_time</th><th>Wait after</th></tr></thead><tbody><tr><td>Simple create</td><td>0.5–0.8 s</td><td>0.5 s</td></tr><tr><td>Formula / key reveal</td><td>1.5–2.5 s</td><td>1.5–2.5 s</td></tr><tr><td>Aha moment</td><td>1.5–2.5 s</td><td>2.0–3.0 s</td></tr></tbody></table>
+<h2>One practical + one production example</h2>
+<ul>
+<li><strong><code>example-practical.py</code> — <code>RateCompare</code>.</strong> Two dots cross the screen, one</li>
+</ul>
+<p><code>linear</code>, one <code>smooth</code>. Seeing them together is the fastest way to feel the difference.</p>
+<ul>
+<li><strong><code>example-production.py</code> — <code>BuildUp</code>.</strong> A <code>LaggedStart</code> of boxes, then a</li>
+</ul>
+<p>single highlighted &quot;result&quot; — composition + the key-pause discipline.</p>
+<h2>Pitfalls and detection</h2>
+<table class="kvtable"><thead><tr><th>Pitfall</th><th>Symptom</th><th>Detection</th></tr></thead><tbody><tr><td>Competing animations on one property</td><td>Jitter / override</td><td>Chain via <code>.animate</code>; one state change per <code>play</code>.</td></tr><tr><td>No <code>run_time</code> on key beats</td><td>Feels arbitrary</td><td>Set <code>run_time</code> explicitly.</td></tr><tr><td>Wrong rate function</td><td>Motion feels &quot;off&quot; for the idea</td><td><code>linear</code> for mechanical; <code>smooth</code>/<code>there_and_back</code> for emphasis.</td></tr><tr><td><code>Transform</code> between very different point counts</td><td>Ugly morph</td><td>Use <code>FadeTransform</code>, or morph via an intermediate.</td></tr></tbody></table>
+<h2>Verification step</h2>
+<ol>
+<li>Render <code>scene.py</code>. Confirm the circle <em>draws</em>, the square <em>fades</em>, the circle</li>
+</ol>
+<p><em>morphs</em> into a blue square, and the <code>there_and_back</code> nudge returns.</p>
+<ol>
+<li>Render <code>example-practical.py</code>. The yellow dot moves at constant speed; the</li>
+</ol>
+<p>blue dot eases in and out over the same distance.</p></article></section>
+
+<section class="block"><h2>Runnable files</h2>
+<p class="lede">Copy any block, save it locally, and render with the command in <a href="../../../index.html#run-a-scene">How to run a scene</a>.</p>
+<h3>scene.py</h3><pre class="code"><span class="filename">scene.py</span><code class="language-python">&quot;&quot;&quot;Lesson 03 — creation, visibility, transform, rate functions.
+
+Run it:
+
+    manim -ql scene.py AnimationChoices
+&quot;&quot;&quot;
+
+from manim import *
+
+BG = &quot;#1C1C1C&quot;
+
+
+class AnimationChoices(Scene):
+    &quot;&quot;&quot;Create, FadeIn, Transform — each chosen for what it means.&quot;&quot;&quot;
+
+    def construct(self):
+        self.camera.background_color = BG
+
+        circle = Circle(radius=1.0, color=BLUE).shift(LEFT * 2)
+        square = Square(side_length=1.8, color=YELLOW).shift(RIGHT * 2)
+
+        # Create builds the stroke; FadeIn reveals without drawing.
+        self.play(Create(circle), run_time=1.0)
+        self.wait(0.5)
+        self.play(FadeIn(square, shift=DOWN * 0.3), run_time=0.8)
+        self.wait(0.8)
+
+        # Transform morphs one mobject into another — it shows a relationship.
+        self.play(Transform(circle, Square(color=BLUE)), run_time=1.5)
+        self.wait(1.0)
+
+        # A rate function expresses intent: there_and_back = a passing emphasis.
+        self.play(
+            circle.animate.shift(RIGHT * 0.5),
+            rate_func=there_and_back,
+            run_time=1.0,
+        )
+        self.wait(1.0)
+
+        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
+</code></pre><h3>example-practical.py</h3><pre class="code"><span class="filename">example-practical.py</span><code class="language-python">&quot;&quot;&quot;Lesson 03 — practical: compare rate functions side by side.
+
+Two dots cross the screen; one linear (constant speed), one smooth (ease in/out).
+Seeing them together is the fastest way to internalise rate functions.
+
+    manim -ql example-practical.py RateCompare
+&quot;&quot;&quot;
+
+from manim import *
+
+BG = &quot;#1C1C1C&quot;
+
+
+class RateCompare(Scene):
+    &quot;&quot;&quot;Linear vs smooth: same distance, different feel.&quot;&quot;&quot;
+
+    def construct(self):
+        self.camera.background_color = BG
+
+        linear_dot = Dot(color=YELLOW).to_edge(LEFT)
+        smooth_dot = Dot(color=BLUE).to_edge(LEFT)
+        VGroup(linear_dot, smooth_dot).arrange(UP, buff=1.0)
+
+        labels = VGroup(
+            Text(&quot;linear&quot;, font_size=22, color=YELLOW),
+            Text(&quot;smooth&quot;, font_size=22, color=BLUE),
+        )
+        labels[0].next_to(linear_dot, LEFT, buff=0.3)
+        labels[1].next_to(smooth_dot, LEFT, buff=0.3)
+
+        target = RIGHT * 6
+        self.play(linear_dot.animate.shift(target), rate_func=linear, run_time=2.0)
+        self.wait(0.5)
+        linear_dot.to_edge(LEFT)
+        self.play(smooth_dot.animate.shift(target), rate_func=smooth, run_time=2.0)
+        self.wait(1.0)
+
+        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
+</code></pre><h3>example-production.py</h3><pre class="code"><span class="filename">example-production.py</span><code class="language-python">&quot;&quot;&quot;Lesson 03 — production: a build-up with composition + timing.
+
+Demonstrates LaggedStart (staggered reveals), AnimationGroup (simultaneous),
+explicit run_time on every beat, subcaptions, and a deliberate key pause.
+
+    manim -qh example-production.py BuildUp
+&quot;&quot;&quot;
+
+from manim import *
+
+BG = &quot;#1C1C1C&quot;
+PRIMARY = &quot;#58C4DD&quot;
+ACCENT = &quot;#FFFF00&quot;
+INK = &quot;#FFFFFF&quot;
+
+
+class BuildUp(Scene):
+    &quot;&quot;&quot;Grow a row of boxes, then highlight the last as the &#39;result&#39;.&quot;&quot;&quot;
+
+    def construct(self):
+        self.camera.background_color = BG
+
+        boxes = VGroup(*[Square(side_length=0.9, color=PRIMARY) for _ in range(4)])
+        boxes.arrange(RIGHT, buff=0.4)
+
+        # LaggedStart staggers repeated appearances — clarifies &quot;a sequence&quot;.
+        self.play(LaggedStart(*[GrowFromCenter(b) for b in boxes], lag_ratio=0.2))
+        self.add_subcaption(&quot;build the sequence&quot;, duration=1.2)
+        self.wait(0.6)
+
+        # The last box becomes the result; one strong focal highlight.
+        self.play(
+            boxes[3].animate.set_color(ACCENT).scale(1.15),
+            run_time=0.8,
+        )
+        self.add_subcaption(&quot;and the result emerges&quot;, duration=1.0)
+        self.wait(2.0)  # key pause
+
+        caption = Text(&quot;the fourth term is special&quot;, font_size=24, color=INK)
+        caption.next_to(boxes, DOWN, buff=0.6)
+        self.play(Write(caption), run_time=0.8)
+        self.wait(1.5)
+
+        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
+</code></pre></section>
+
+<section class="block" id="take-quiz"><h2>Assessment</h2>
+<p class="lede">Bloom-laddered (Remember → Create). Explanations appear only after you answer. Create items are self-assessed against a model answer.</p>
+<div id="assessment"></div>
+<script type="application/json" id="quiz-data">{"kind": "quiz", "id": "03-animations-rate-functions", "tier": 1, "title": "Lesson 03 \u2014 Animations & rate functions", "items": [{"id": "q1", "type": "single-choice", "bloom": "Remember", "prompt": "Which animation builds an object by drawing its stroke?", "options": ["Create(circle)", "FadeIn(circle)", "Indicate(circle)", "Transform(circle, square)"], "answer": 0, "explanation": "Create draws the stroke onto the screen. FadeIn reveals without drawing; Indicate only draws attention; Transform morphs one object into another.", "ref": "animations.md"}, {"id": "q2", "type": "single-choice", "bloom": "Understand", "prompt": "Why prefer TransformMatchingTex when changing one equation into another?", "options": ["It shows which terms persist across the change.", "It renders faster than any other animation.", "It avoids using self.wait afterwards.", "It disables rate functions automatically."], "answer": 0, "explanation": "TransformMatchingTex matches shared TeX fragments so the viewer sees continuity between the two equations \u2014 the relationship is the lesson.", "ref": "animations.md, equations.md"}, {"id": "q3", "type": "fill-blank", "bloom": "Apply", "prompt": "Which rate function makes a motion emphasise a point and then return to the start?", "answer": "there_and_back", "explanation": "there_and_back moves to the target and back, ideal for a passing emphasis. linear is constant speed; smooth eases in and out but does not return.", "ref": "animations.md"}, {"id": "q4", "type": "predict-output", "bloom": "Analyze", "prompt": "After this runs, what colour is sq?", "code": "sq = Square(color=BLUE)\nself.add(sq)\nself.play(sq.animate.set_color(RED), run_time=0.5)", "answer": "RED", "explanation": "sq is added first, then .animate.set_color(RED) animates the change. After play, sq is RED. Without self.add it would not be visible.", "ref": "animations.md"}, {"id": "q5", "type": "bug-spot", "bloom": "Analyze", "prompt": "Find the broken line and choose the fix.", "code": "sq = Square(color=BLUE)\nself.play(sq.animate.shift(RIGHT), sq.animate.set_color(RED), run_time=1.0)", "brokenLine": 2, "options": ["Chain the changes: sq.animate.shift(RIGHT).set_color(RED).", "Remove the run_time argument.", "Use Create(sq) instead of animate.", "Add a second square."], "answer": 0, "explanation": "Line 2 drives two competing .animate calls on the same mobject in one play. Chain them into a single coherent state change: sq.animate.shift(RIGHT).set_color(RED).", "ref": "animations.md, troubleshooting.md"}, {"id": "q6", "type": "multi-select", "bloom": "Evaluate", "prompt": "Which are correct uses of composition / attention animations? (Select all.)", "options": ["LaggedStart to stagger a sequence of appearances.", "Indicate to draw attention without changing the model.", "AnimationGroup for simultaneous animations.", "Competing .animate calls on one property in one play call."], "answer": [0, 1, 2], "explanation": "The first three are correct composition/attention uses. Competing .animate calls on one property are a bug \u2014 chain them instead.", "ref": "animations.md"}, {"id": "q7", "type": "create", "bloom": "Create", "prompt": "Write a scene that creates a shape, transforms it into a different shape, and emphasises the result with there_and_back. Pause after each beat.", "modelAnswer": "from manim import *\n\nclass TransformEmphasis(Scene):\n    def construct(self):\n        self.camera.background_color = \"#1C1C1C\"\n        sq = Square(side_length=1.5, color=BLUE)\n        self.play(Create(sq), run_time=1.0)\n        self.wait(0.8)\n        self.play(Transform(sq, Circle(radius=0.9, color=BLUE)), run_time=1.5)\n        self.wait(1.0)\n        self.play(sq.animate.scale(1.1), rate_func=there_and_back, run_time=1.0)\n        self.wait(1.0)\n        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)", "rubric": [{"criterion": "Creates a shape, then transforms it into another.", "weight": 30}, {"criterion": "Uses there_and_back for the emphasis beat.", "weight": 25}, {"criterion": "Pauses (self.wait) after each reveal.", "weight": 25}, {"criterion": "Mobject created before any property animation.", "weight": 10}, {"criterion": "Cleans up with Group(*self.mobjects).", "weight": 10}], "explanation": "The model chains create -> transform -> emphasise, with a pause after each beat and a Group cleanup.", "ref": "animations.md"}]}</script>
+</section>
+
+</main>
+<footer class="site"><div class="shell">
+  Generated offline by <code>generator.py</code> from <code>course/</code> folders.
+  Grounded in <code>.agents/skills/manim-video/</code>. Manim Community Edition &ge; 0.20.1.
+</div></footer>
+<script src="../../../assets/hl.js"></script>
+<script src="../../../assets/quiz.js"></script>
+</body>
+</html>

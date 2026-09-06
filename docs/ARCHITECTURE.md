@@ -1,6 +1,9 @@
 # Architecture
 
-**Status:** Target architecture for the early product phase
+**Status:** Target architecture for the early product phase (POC)
+
+> Describes the POC architecture. The product direction that builds on it lives
+> in [`PRODUCT_DIRECTION.md`](PRODUCT_DIRECTION.md).
 
 The repository is currently a small Python package with Arabic text utilities,
 one Manim sanity scene, and development tooling. This document describes the
@@ -94,6 +97,9 @@ is an implementation decision. The boundary itself is not optional.
 - `bayan/utils/arabic_helper.py` contains the current Arabic text and glyph
   helpers.
 - `bayan/utils/sanity_check.py` is the current render-level integration scene.
+- `course/` is a self-contained Manim CE course module: static lessons plus a
+  stdlib-only site generator, validated by the CI course gate (see
+  `docs/agdr/AgDR-0003-course-module-boundaries.md`).
 - `tests/` contains focused helper tests and package smoke tests.
 - `main.py` is still an application entry-point placeholder.
 - `docs/agdr/` records decisions that explain development and architecture

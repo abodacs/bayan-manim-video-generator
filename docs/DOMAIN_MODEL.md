@@ -1,5 +1,8 @@
 # Domain model
 
+> **POC-scoped.** This model served the proof of concept. The product direction
+> that builds on it lives in [`PRODUCT_DIRECTION.md`](PRODUCT_DIRECTION.md).
+
 This document describes the conceptual model behind Bayan’s video workflow.
 The canonical vocabulary is maintained in the root
 [`CONTEXT.md`](../CONTEXT.md); use those terms in code and documentation.

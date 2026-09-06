@@ -1,0 +1,95 @@
+{
+  "kind": "quiz",
+  "id": "01-first-scene",
+  "tier": 1,
+  "title": "Lesson 01 — Install & first Scene",
+  "items": [
+    {
+      "id": "q1",
+      "type": "single-choice",
+      "bloom": "Remember",
+      "prompt": "What does self.play(Create(circle), run_time=1.0) do?",
+      "options": [
+        "Animates the circle's creation over run_time.",
+        "Adds the circle instantly, with no motion.",
+        "Exports a single PNG frame to disk.",
+        "Pauses the scene for run_time seconds."
+      ],
+      "answer": 0,
+      "explanation": "Create() is a creation animation: it draws the mobject onto the screen over run_time seconds. It is what puts the object on screen, unlike a raw property animation.",
+      "ref": "animations.md, mobjects.md"
+    },
+    {
+      "id": "q2",
+      "type": "single-choice",
+      "bloom": "Understand",
+      "prompt": "You call self.play(circle.animate.set_color(RED)) but circle was never created or added. What is the result?",
+      "options": [
+        "No visible change, because the object is not on screen yet.",
+        "The circle appears and turns red automatically.",
+        "The on-screen circle turns red.",
+        "The scene pauses for one second."
+      ],
+      "answer": 0,
+      "explanation": "A property animation like .animate only changes a mobject that is already on screen. You must Create/add it first; otherwise nothing is visible.",
+      "ref": "animations.md (lifecycle), troubleshooting.md"
+    },
+    {
+      "id": "q3",
+      "type": "fill-blank",
+      "bloom": "Apply",
+      "prompt": "Write the command to render scene.py's HelloManim scene at low quality. (Type the full command.)",
+      "answer": { "regex": "manim\\s+-ql\\s+scene\\.py\\s+HelloManim" },
+      "explanation": "manim -ql scene.py HelloManim renders the named scene at low quality (-ql). Always pass the explicit scene name; avoid the interactive chooser in scripts.",
+      "ref": "rendering.md"
+    },
+    {
+      "id": "q4",
+      "type": "bug-spot",
+      "bloom": "Analyze",
+      "prompt": "Find the broken line and choose the fix.",
+      "code": "circle = Circle()\nself.play(circle.animate.set_color(RED), run_time=0.5)\nself.play(Create(circle), run_time=0.8)\nself.wait(1.0)",
+      "brokenLine": 2,
+      "options": [
+        "Create the circle first, then animate its colour.",
+        "Remove the circle entirely.",
+        "Replace set_color with FadeOut.",
+        "Add another self.wait(2.0) call."
+      ],
+      "answer": 0,
+      "explanation": "Line 2 animates a property of circle before line 3 ever puts circle on screen. The fix is to Create(circle) first, then animate its colour. Reordering fixes both the bug and the unreadable timing.",
+      "ref": "animations.md, troubleshooting.md"
+    },
+    {
+      "id": "q5",
+      "type": "multi-select",
+      "bloom": "Evaluate",
+      "prompt": "Which are required conventions from this lesson? (Select all that apply.)",
+      "options": [
+        "Pause (self.wait) after every reveal.",
+        "Set run_time explicitly on important beats.",
+        "Use Group(*self.mobjects) for mixed-mobject cleanup.",
+        "Animate every property, even at the cost of reading time."
+      ],
+      "answer": [0, 1, 2],
+      "explanation": "The first three are enforced rules. The last is the opposite of the rule: pauses after reveals are mandatory precisely so the viewer has reading time.",
+      "ref": "scene-planning.md, animations.md"
+    },
+    {
+      "id": "q6",
+      "type": "create",
+      "bloom": "Create",
+      "prompt": "Write a scene that shows a title and a square, with a deliberate pause after each reveal and a clean exit. Paste it below, then compare to the model answer and self-score.",
+      "modelAnswer": "from manim import *\n\nclass TitleAndSquare(Scene):\n    def construct(self):\n        self.camera.background_color = \"#1C1C1C\"\n        title = Text(\"A title\", font_size=48)\n        square = Square(side_length=2.0, color=BLUE)\n        self.play(Write(title), run_time=1.5)\n        self.wait(1.0)\n        self.play(Create(square), run_time=1.0)\n        self.wait(1.5)\n        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)",
+      "rubric": [
+        { "criterion": "Shows both a title and a square.", "weight": 25 },
+        { "criterion": "Every reveal is followed by a self.wait().", "weight": 30 },
+        { "criterion": "Mobjects are created before any property animation.", "weight": 20 },
+        { "criterion": "Cleans up with Group(*self.mobjects).", "weight": 15 },
+        { "criterion": "Uses a named background constant, not an inline magic hex.", "weight": 10 }
+      ],
+      "explanation": "The model obeys the lifecycle rule (create before animate), the pause-after-reveal rule, and the Group cleanup rule. Self-score honestly against the rubric.",
+      "ref": "scene-planning.md, mobjects.md"
+    }
+  ]
+}
