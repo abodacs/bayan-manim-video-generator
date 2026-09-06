@@ -80,9 +80,9 @@ the whole video:
 
 ```python
 BG = "#1C1C1C"
-PRIMARY = "#58C4DD"   # the thing being explained
-SECONDARY = "#83C167" # supporting structure
-ACCENT = "#FFFF00"    # the key result / focus
+PRIMARY = "#58C4DD"  # the thing being explained
+SECONDARY = "#83C167"  # supporting structure
+ACCENT = "#FFFF00"  # the key result / focus
 ```
 
 Give colors **meanings** and keep them. Establish hierarchy with opacity:
