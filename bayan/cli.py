@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from dotenv import load_dotenv
@@ -11,7 +12,15 @@ from bayan.generator.llm_client import LLMClient, LLMConfigError
 from bayan.orchestrator import ManifestError, StageStatus, WorkflowOrchestrator
 from bayan.pipeline.coder import LLMCoderProvider
 from bayan.pipeline.provider import LLMPlanProvider
-from bayan.pipeline.spine import LanguageProfile, RerunError, run_generate, run_rerun
+from bayan.pipeline.records import RECORDS_DIRNAME
+from bayan.pipeline.spine import (
+    RUN_SUMMARY_FILENAME,
+    LanguageProfile,
+    RerunError,
+    iter_stage_records,
+    run_generate,
+    run_rerun,
+)
 from bayan.planner.service import run_planning_pipeline
 from bayan.renderer.executor import RenderError, render_scene_code
 from bayan.templates.catalogue import fixture_filename, get_template_catalogue
@@ -27,6 +36,163 @@ template_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(template_app, name="template")
+
+runs_app = typer.Typer(
+    help="Inspect past generate runs (read-only).",
+    no_args_is_help=True,
+)
+app.add_typer(runs_app, name="runs")
+
+
+def _load_run_summary(run_dir: Path) -> dict[str, Any] | None:
+    """Read a run's summary, or None when missing or unreadable."""
+    summary_path = run_dir / RUN_SUMMARY_FILENAME
+    if not summary_path.is_file():
+        return None
+    try:
+        data = json.loads(summary_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _records_cost(run_dir: Path) -> float | None:
+    """Sum per-attempt costs from stage records; None when unreadable."""
+    records_dir = run_dir / RECORDS_DIRNAME
+    if not records_dir.is_dir():
+        return None
+    total = 0.0
+    readable = False
+    for record in iter_stage_records(run_dir):
+        for attempt in record.get("attempts") or []:
+            cost = attempt.get("cost_estimate_usd")
+            if isinstance(cost, int | float):
+                readable = True
+                total += float(cost)
+    return round(total, 4) if readable else None
+
+
+def _dash(value: object) -> str:
+    return "-" if value in (None, "") else str(value)
+
+
+@runs_app.command(name="list")
+def list_runs(
+    runs_root: Annotated[
+        Path,
+        typer.Option("--runs-root", help="Directory that holds generated runs."),
+    ] = Path("./runs"),
+) -> None:
+    """List past generate runs, ids sorted oldest to newest."""
+    if not runs_root.is_dir():
+        typer.echo("No runs yet: generate a lesson with `bayan generate`.")
+        return
+    run_dirs = sorted(path for path in runs_root.iterdir() if path.is_dir())
+    if not run_dirs:
+        typer.echo("No runs yet: generate a lesson with `bayan generate`.")
+        return
+
+    typer.echo(
+        f"{'RUN ID':<26} {'STATUS':<10} {'PROFILE':<18} {'MODEL':<16} "
+        f"{'REPAIRS':>7} {'COST (USD)':>12} {'MEDIA':>6}"
+    )
+    skipped: list[str] = []
+    for run_dir in run_dirs:
+        summary = _load_run_summary(run_dir)
+        if summary is None:
+            skipped.append(run_dir.name)
+            continue
+        media = "yes" if (run_dir / "draft.mp4").is_file() else "-"
+        cost = summary.get("total_cost_estimate_usd")
+        cost_text = f"{float(cost):.4f}" if isinstance(cost, int | float) else "-"
+        typer.echo(
+            f"{run_dir.name:<26} {_dash(summary.get('status')):<10} "
+            f"{_dash(summary.get('profile')):<18} {_dash(summary.get('model')):<16} "
+            f"{_dash(summary.get('repairs_used')):>7} {cost_text:>12} {media:>6}"
+        )
+    for name in skipped:
+        typer.secho(
+            f"Skipped {name}: no readable run.json (incomplete or foreign directory).",
+            fg=typer.colors.YELLOW,
+        )
+
+
+@runs_app.command(name="show")
+def show_run(
+    run_id: Annotated[
+        str,
+        typer.Argument(help="Run id produced by bayan generate."),
+    ],
+    runs_root: Annotated[
+        Path,
+        typer.Option("--runs-root", help="Directory that holds generated runs."),
+    ] = Path("./runs"),
+) -> None:
+    """Show one run's stage timeline, artifacts, costs, and lineage."""
+    run_dir = runs_root / run_id
+    if not run_dir.is_dir():
+        typer.secho(
+            f"Run '{run_id}' not found under {runs_root}. "
+            "Use `bayan runs list` to see available runs.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+    summary = _load_run_summary(run_dir)
+    if summary is None:
+        typer.secho(
+            f"Run '{run_id}' has no readable run.json summary; the run is incomplete.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+
+    typer.echo(f"Run: {summary.get('run_id', run_id)}")
+    typer.echo(f"Status: {_dash(summary.get('status'))}")
+    typer.echo(f"Profile: {_dash(summary.get('profile'))}")
+    typer.echo(f"Quality: {_dash(summary.get('quality'))}")
+    typer.echo(f"Model: {_dash(summary.get('model'))}")
+    if summary.get("rerun_of"):
+        typer.echo(f"Rerun of: {summary['rerun_of']}")
+    typer.echo(f"Repairs used: {_dash(summary.get('repairs_used'))}")
+
+    stages: dict[str, str] = summary.get("stages") or {}
+    if stages:
+        typer.echo("")
+        typer.echo("Stage timeline:")
+        for record in iter_stage_records(run_dir):
+            stage_name = _dash(record.get("stage"))
+            typer.echo(
+                f"  {stage_name:<10} {_dash(record.get('status')):<10} "
+                f"{_dash(record.get('created_at'))}"
+            )
+            if record.get("failure"):
+                typer.echo(f"    failure: {record['failure']}")
+
+    failed_stages = [name for name, status in stages.items() if status == "failed"]
+    if failed_stages:
+        typer.echo(f"Failing stage(s): {', '.join(failed_stages)}")
+    if summary.get("failure"):
+        typer.echo(f"Failure: {summary['failure']}")
+
+    typer.echo("")
+    typer.echo("Artifacts:")
+    for artifact in ("plan.json", "scene.py", "draft.mp4", "preview.png"):
+        marker = "yes" if (run_dir / artifact).is_file() else "no"
+        typer.echo(f"  {artifact:<12} {marker}")
+
+    records_total = _records_cost(run_dir)
+    summary_total = summary.get("total_cost_estimate_usd")
+    typer.echo("")
+    if records_total is not None:
+        typer.echo(f"Total cost estimate (from records): {records_total:.4f} USD")
+        if isinstance(summary_total, int | float):
+            summary_cost = float(summary_total)
+            if abs(records_total - summary_cost) > 1e-6:
+                typer.echo(
+                    f"Note: run.json reports {summary_cost:.4f} USD; "
+                    "the stage records disagree and were preferred."
+                )
+    else:
+        typer.echo(f"Total cost estimate: {_dash(summary_total)} USD")
 
 
 class TyperStageReporter:

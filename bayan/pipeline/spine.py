@@ -436,7 +436,7 @@ class GeneratePipeline:
         return classify_provider_error(ValueError(outcome.failure or "unknown"))
 
 
-def _iter_stage_records(run_dir: Path) -> Iterator[dict[str, Any]]:
+def iter_stage_records(run_dir: Path) -> Iterator[dict[str, Any]]:
     """Yield parsed stage records in pipeline order, skipping unreadable ones."""
     records_dir = run_dir / RECORDS_DIRNAME
     if not records_dir.is_dir():
@@ -451,7 +451,7 @@ def _iter_stage_records(run_dir: Path) -> Iterator[dict[str, Any]]:
 def _total_cost_estimate(run_dir: Path) -> float:
     """Sum every recorded attempt cost across the run's stage records."""
     total = 0.0
-    for record in _iter_stage_records(run_dir):
+    for record in iter_stage_records(run_dir):
         for attempt in record.get("attempts") or []:
             cost = attempt.get("cost_estimate_usd")
             if isinstance(cost, int | float):
@@ -461,7 +461,7 @@ def _total_cost_estimate(run_dir: Path) -> float:
 
 def _first_model(run_dir: Path) -> str | None:
     """Return the model name recorded by the first stage that used one."""
-    for record in _iter_stage_records(run_dir):
+    for record in iter_stage_records(run_dir):
         for attempt in record.get("attempts") or []:
             if attempt.get("model"):
                 return str(attempt["model"])
