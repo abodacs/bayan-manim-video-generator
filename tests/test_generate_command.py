@@ -306,6 +306,63 @@ def test_repair_loop_fixes_arabic_scene_within_two_attempts(
     assert summary["repairs_used"] == 1
 
 
+def test_repair_re_gates_once_through_the_gates_stage(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_render: None
+):
+    """BDD #71: the gates re-run between attempts, exactly once per fix.
+
+    The repair service must not gate the candidate itself -- the gates
+    stage is the single place a repaired scene is re-gated, so one repair
+    means one initial gate run plus one re-gate, never a third pass.
+    """
+    bad_scene = (
+        "from manim import *\n"
+        "\n"
+        "class GeneratedScene(Scene):\n"
+        "    def construct(self):\n"
+        '        Text("\u0645\u0631\u062d\u0628\u0627")\n'
+    )
+    from bayan.pipeline.models import CodeAttemptEvidence as Evidence
+
+    class _BadCoder(FakeProvider):
+        def generate_scene_code(self, *, plan, system_prompt, user_prompt):
+            return Evidence(
+                code=bad_scene,
+                raw_response=bad_scene,
+                fingerprint="bad",
+                model="fake",
+                usage=None,
+            )
+
+    class _FullSceneRepairer(FakeProvider):
+        def repair_scene_code(self, *, code, classification, plan):
+            return self.generate_scene_code(plan=plan, system_prompt="", user_prompt="")
+
+    monkeypatch.setattr(
+        "bayan.cli._build_providers",
+        lambda: (FakeProvider(), _BadCoder(), _FullSceneRepairer()),
+    )
+
+    import bayan.pipeline.spine as spine_module
+
+    gated_codes: list[str] = []
+    original_run_gates = spine_module.run_gates
+
+    def _counting_run_gates(code, *, profile):
+        gated_codes.append(code)
+        return original_run_gates(code, profile=profile)
+
+    monkeypatch.setattr(spine_module, "run_gates", _counting_run_gates)
+    runs_root = tmp_path / "runs"
+
+    result = runner.invoke(app, ["generate", ARABIC_PROMPT, "--runs-root", str(runs_root)])
+
+    assert result.exit_code == 0, result.output
+    assert len(gated_codes) == 2  # the failing original + one re-gate of the fix
+    assert gated_codes[0] == bad_scene.strip()
+    assert gated_codes[1] != bad_scene.strip()
+
+
 def test_repair_exhaustion_writes_record_and_exits_non_zero(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_render: list[tuple[str, ...]]
 ):

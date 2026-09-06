@@ -303,9 +303,11 @@ class GeneratePipeline:
 
     Plan and profile failures stop the run immediately (plan repair is out
     of scope in phase 1). Failures of the code-driven stages (code, gates,
-    render, critic) enter the repair loop: classify, minimal fix, re-gate,
-    then replay the stages from the gates onward. At most
-    ``max_repairs`` repair attempts; exhaustion fails the run.
+    render, critic) enter the repair loop owned by :class:`RepairService`:
+    classify, minimal fix, then replay from the gates onward -- the gates
+    stage is the single place a repaired scene is re-gated, before any
+    container starts. The spine owns only sequencing; exhaustion fails the
+    run.
     """
 
     def __init__(self, stages: tuple[Stage, ...] = STAGES) -> None:
@@ -358,19 +360,14 @@ class GeneratePipeline:
                 code=context.scene_code or "",
                 classification=self._classify(stage.name, context, outcome),
                 plan=context.plan,
-                profile=context.profile,
             )
-            if round_outcome.status == "completed":
+            if round_outcome.status == "fixed":
+                # A candidate fix re-enters at the gates: the gates stage
+                # re-runs every gate once, before any container starts.
                 context.scene_code = round_outcome.code
                 failure = None
                 stage_statuses[stage.name] = "repaired"
-                index = gates_index  # a fix re-enters at the gates, never the container
-                continue
-            if round_outcome.status == "still_failing":
-                # The fix was applied but rejected; re-run the stage so the
-                # next classification sees the new gate results.
-                context.scene_code = round_outcome.code or context.scene_code
-                failure = None
+                index = gates_index
                 continue
             failure = round_outcome.failure or failure
             break
