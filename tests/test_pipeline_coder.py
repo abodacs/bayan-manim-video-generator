@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from bayan.generator.llm_client import LLMClient, LLMProviderError, LLMUsage
+from bayan.generator.llm_client import LLMClient, LLMProviderError
 from bayan.pipeline.coder import (
     CoderService,
     CodingError,
@@ -16,7 +16,7 @@ from bayan.pipeline.coder import (
     build_coder_prompt,
     select_few_shot_fixtures,
 )
-from bayan.pipeline.models import CodeAttemptEvidence, LessonPlan
+from bayan.pipeline.models import CodeAttemptEvidence, LessonPlan, TokenUsage
 from bayan.planner.provider import FakeProvider
 from bayan.templates.catalogue import read_fixture_code
 from tests.helpers import mock_chat_response as _mock_response
@@ -61,7 +61,7 @@ class _ScriptedCoder:
             raw_response=outcome,
             fingerprint="scripted-fingerprint",
             model="scripted-model",
-            usage=LLMUsage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+            usage=TokenUsage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
         )
 
 
@@ -210,7 +210,7 @@ def test_llm_coder_provider_builds_evidence_from_client(mock_openai_class):
 
     assert evidence.code == scene.strip()
     assert evidence.raw_response
-    assert evidence.usage == LLMUsage(prompt_tokens=15, completion_tokens=25, total_tokens=40)
+    assert evidence.usage == TokenUsage(prompt_tokens=15, completion_tokens=25, total_tokens=40)
     assert evidence.model == client.model
     assert evidence.fingerprint
 

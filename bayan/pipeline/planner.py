@@ -7,9 +7,7 @@ layout: ``plan.json`` at the run root, the stage record under ``records/``.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from bayan.generator.llm_client import LLMError, LLMResponseFormatError
 from bayan.pipeline.models import (
@@ -19,7 +17,7 @@ from bayan.pipeline.models import (
 )
 from bayan.pipeline.pricing import estimate_cost_usd
 from bayan.pipeline.provider import LessonPlanProvider
-from bayan.pipeline.records import write_stage_record
+from bayan.pipeline.records import RECORDS_DIRNAME, stage_record, write_stage_record
 from bayan.utils.atomic_io import atomic_write_text
 
 MAX_PLANNING_ATTEMPTS = 3
@@ -62,7 +60,7 @@ class PlannerService:
 
     def plan(self, prompt: str, *, profile: str = DEFAULT_PROFILE) -> LessonPlan:
         self.run_dir.mkdir(parents=True, exist_ok=True)
-        record_path = self.run_dir / "records" / PLANNING_RECORD_FILENAME
+        record_path = self.run_dir / RECORDS_DIRNAME / PLANNING_RECORD_FILENAME
 
         prompt_text = prompt.strip()
         if not prompt_text:
@@ -138,16 +136,15 @@ class PlannerService:
         failure: str | None,
         provider_fingerprint: str | None = None,
     ) -> Path:
-        record: dict[str, Any] = {
-            "stage": "planning",
-            "status": status,
-            "created_at": datetime.now(UTC).isoformat(),
-            "prompt": prompt,
-            "profile": profile,
-            "max_attempts": self.max_attempts,
-            "provider_fingerprint": provider_fingerprint,
-            "attempts": [attempt.model_dump() for attempt in attempts],
-            "failure": failure,
-            "plan": PLAN_FILENAME if status == "completed" else None,
-        }
+        record = stage_record(
+            "planning",
+            status,
+            failure,
+            prompt=prompt,
+            profile=profile,
+            max_attempts=self.max_attempts,
+            provider_fingerprint=provider_fingerprint,
+            attempts=[attempt.model_dump() for attempt in attempts],
+            plan=PLAN_FILENAME if status == "completed" else None,
+        )
         return write_stage_record(self.run_dir, record, self.record_filename)

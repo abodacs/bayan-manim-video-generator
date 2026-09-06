@@ -1,0 +1,11 @@
+{
+  "id": "0018",
+  "unit": "measurement",
+  "slug": "metric-conversion",
+  "prompt": "شرح تحويل ٣ متر إلى سنتيمتر",
+  "profile": "msa-arabic-indic",
+  "expected": {
+    "gates": "pass",
+    "beats": 3
+  }
+}

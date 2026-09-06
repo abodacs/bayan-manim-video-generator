@@ -1,0 +1,11 @@
+{
+  "id": "0004",
+  "unit": "numbers",
+  "slug": "prime-factorization",
+  "prompt": "شرح تحليل العدد ٢٤ إلى عوامل أولية",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 2
+  }
+}

@@ -13,6 +13,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "pydantic>=2.6",
     "manim-physics>=0.2.4",
+    "pillow>=10",
 ]
 
 [project.scripts]
@@ -38,6 +39,12 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Recorded golden scene fixtures are captured artifacts of the coder's
+# contract output (star imports, generated look), not maintained code.
+extend-exclude = ["tests/golden/prompts"]
+# Pre-commit passes filenames explicitly; without this, excluded files
+# (the recorded golden fixtures) would still be linted.
+force-exclude = true
 
 [tool.ruff.lint]
 # E/F = pyflakes + pycodestyle, I = import sorting, UP = pyupgrade,
@@ -48,6 +55,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
 # Manim scenes idiomatically use `from manim import *` -- F401/F403/F405 are
 # the star-import noise that produces.
 "bayan/utils/sanity_check.py" = ["F401", "F403", "F405"]
+
 # Standalone runnable templates under templates/ share the same star-import
 # pattern, and a few manipulate sys.path (so they can import the bayan package)
 # before importing from it -- E402 is the resulting "import not at top" noise.

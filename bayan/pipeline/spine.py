@@ -12,18 +12,30 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
-from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from bayan.pipeline.coder import CoderService, CodingError, SceneCodeProvider
-from bayan.pipeline.models import LessonPlan
-from bayan.pipeline.planner import PlannerService, PlanningError
+from pydantic import ValidationError
+
+from bayan.pipeline.coder import SCENE_FILENAME, CoderService, CodingError, SceneCodeProvider
+from bayan.pipeline.critic import critic_blocked, run_critic
+from bayan.pipeline.models import CheckResult, LessonPlan
+from bayan.pipeline.planner import PLAN_FILENAME, PlannerService, PlanningError
+from bayan.pipeline.preflight import GateResult, gates_blocked, run_gates
+from bayan.pipeline.profiles import UnknownProfileError, get_profile, normalize_plan
 from bayan.pipeline.provider import LessonPlanProvider
-from bayan.pipeline.records import RECORDS_DIRNAME, write_stage_record
+from bayan.pipeline.records import first_model, stage_record, total_cost_usd, write_stage_record
+from bayan.pipeline.repair import CodeRepairProvider, RepairService
+from bayan.pipeline.taxonomy import (
+    FailureClassification,
+    classify_critic_results,
+    classify_gate_results,
+    classify_provider_error,
+    classify_render_failure,
+)
 from bayan.renderer.executor import RenderError, render_scene_code
 from bayan.utils.atomic_io import atomic_write_text
 
@@ -34,18 +46,10 @@ RUN_SUMMARY_FILENAME = "run.json"
 PLAN_RECORD_FILENAME = "01-plan.json"
 PROFILE_RECORD_FILENAME = "02-profile.json"
 CODE_RECORD_FILENAME = "03-code.json"
-RENDER_RECORD_FILENAME = "04-render.json"
-
-
-class LanguageProfile(StrEnum):
-    """Language profiles a generate run can target."""
-
-    msa_western = "msa-western"
-    msa_arabic_indic = "msa-arabic-indic"
-    egyptian = "egyptian"
-
-
-KNOWN_PROFILES: tuple[str, ...] = tuple(profile.value for profile in LanguageProfile)
+GATES_RECORD_FILENAME = "04-gates.json"
+RENDER_RECORD_FILENAME = "05-render.json"
+CRITIC_RECORD_FILENAME = "06-critic.json"
+REPAIR_RECORD_FILENAME = "07-repair.json"
 
 
 def make_run_id(prompt: str, *, now: datetime | None = None) -> str:
@@ -77,10 +81,17 @@ class RunContext:
     run_dir: Path
     prompt: str
     profile: str
-    planner: LessonPlanProvider
-    coder: SceneCodeProvider
+    quality: str
+    planner: LessonPlanProvider | None = None
+    coder: SceneCodeProvider | None = None
+    repairer: CodeRepairProvider | None = None
+    vlm: bool = False
+    rerun_of: str | None = None
     plan: LessonPlan | None = None
     scene_code: str | None = None
+    gate_results: list[GateResult] = field(default_factory=list)
+    check_results: list[CheckResult] = field(default_factory=list)
+    render_status: str | None = None
 
 
 @dataclass(frozen=True)
@@ -110,27 +121,13 @@ class RunResult:
     status: str
     failure: str | None
     total_cost_estimate_usd: float
-
-
-def _stage_record(
-    stage: str,
-    status: str,
-    failure: str | None = None,
-    **evidence: Any,
-) -> dict[str, Any]:
-    return {
-        "stage": stage,
-        "status": status,
-        "created_at": datetime.now(UTC).isoformat(),
-        "failure": failure,
-        **evidence,
-    }
+    repairs_used: int
 
 
 def _failed(context: RunContext, stage: Stage, failure: str, **evidence: Any) -> StageOutcome:
     write_stage_record(
         context.run_dir,
-        _stage_record(stage.name, "failed", failure, **evidence),
+        stage_record(stage.name, "failed", failure, rerun_of=context.rerun_of, **evidence),
         stage.record_filename,
     )
     return StageOutcome(stage=stage.name, status="failed", failure=failure)
@@ -138,6 +135,8 @@ def _failed(context: RunContext, stage: Stage, failure: str, **evidence: Any) ->
 
 def run_plan_stage(context: RunContext, stage: Stage) -> StageOutcome:
     """Turn the prompt into a validated LessonPlan via the planning service."""
+    # The spine stops at the first failure; the plan stage only runs in generate.
+    assert context.planner is not None
     service = PlannerService(
         provider=context.planner,
         run_dir=context.run_dir,
@@ -151,22 +150,29 @@ def run_plan_stage(context: RunContext, stage: Stage) -> StageOutcome:
 
 
 def run_profile_stage(context: RunContext, stage: Stage) -> StageOutcome:
-    """Apply the language-profile normalization hook.
+    """Normalize the validated plan's digits and dialect for the profile."""
+    try:
+        profile = get_profile(context.profile)
+    except UnknownProfileError as error:
+        return _failed(context, stage, str(error))
 
-    The profile name is validated and applied as-is today; the
-    language-profiles sub-issue replaces this stage's internals without
-    changing the seam.
-    """
-    if context.profile not in KNOWN_PROFILES:
-        return _failed(
-            context,
-            stage,
-            f"Unknown language profile {context.profile!r}. "
-            f"Known profiles: {', '.join(KNOWN_PROFILES)}.",
+    if context.plan is not None:
+        context.plan = normalize_plan(context.plan, context.profile)
+        atomic_write_text(
+            context.run_dir / PLAN_FILENAME,
+            context.plan.model_dump_json(indent=2, ensure_ascii=False) + "\n",
         )
     write_stage_record(
         context.run_dir,
-        _stage_record(stage.name, "completed", profile=context.profile),
+        stage_record(
+            stage.name,
+            "completed",
+            None,
+            rerun_of=context.rerun_of,
+            profile=profile.name,
+            digit_style=profile.digit_style.value,
+            font=profile.font,
+        ),
         stage.record_filename,
     )
     return StageOutcome(stage=stage.name, status="completed")
@@ -176,6 +182,8 @@ def run_code_stage(context: RunContext, stage: Stage) -> StageOutcome:
     """Turn the validated plan into scene code via the coding service."""
     # The spine stops at the first failure, so the plan stage always ran.
     assert context.plan is not None
+    # The spine stops at the first failure; the code stage only runs in generate.
+    assert context.coder is not None
     service = CoderService(
         provider=context.coder,
         run_dir=context.run_dir,
@@ -185,6 +193,67 @@ def run_code_stage(context: RunContext, stage: Stage) -> StageOutcome:
         context.scene_code = service.code(context.plan, profile=context.profile)
     except CodingError as error:
         return StageOutcome(stage=stage.name, status="failed", failure=str(error))
+    return StageOutcome(stage=stage.name, status="completed")
+
+
+def run_gates_stage(context: RunContext, stage: Stage) -> StageOutcome:
+    """Statically gate the scene code; any failed gate blocks the render."""
+    # The spine stops at the first failure, so the code stage always ran.
+    assert context.scene_code is not None
+    results = run_gates(context.scene_code, profile=context.profile)
+    context.gate_results = results
+    gate_evidence = [asdict(result) for result in results]
+    if gates_blocked(results):
+        failure = "; ".join(
+            f"{result.gate} (line {result.line}): {result.suggestion}"
+            for result in results
+            if result.status != "passed"
+        )
+        write_stage_record(
+            context.run_dir,
+            stage_record(
+                stage.name, "failed", failure, rerun_of=context.rerun_of, gates=gate_evidence
+            ),
+            stage.record_filename,
+        )
+        return StageOutcome(stage=stage.name, status="failed", failure=failure)
+    write_stage_record(
+        context.run_dir,
+        stage_record(stage.name, "completed", None, rerun_of=context.rerun_of, gates=gate_evidence),
+        stage.record_filename,
+    )
+    return StageOutcome(stage=stage.name, status="completed")
+
+
+def run_critic_stage(context: RunContext, stage: Stage) -> StageOutcome:
+    """Run the deterministic critic over the produced artifacts."""
+    # The spine stops at the first failure, so the predecessors always ran.
+    assert context.plan is not None and context.scene_code is not None
+    results = run_critic(
+        plan=context.plan,
+        code=context.scene_code,
+        draft_path=context.run_dir / DRAFT_FILENAME,
+        preview_path=context.run_dir / PREVIEW_FILENAME,
+        render_status=context.render_status,
+        vlm=context.vlm,
+    )
+    context.check_results = results
+    checks = [result.model_dump() for result in results]
+    if critic_blocked(results):
+        failure = "; ".join(
+            f"{result.check}: {result.evidence}" for result in results if result.status == "failed"
+        )
+        write_stage_record(
+            context.run_dir,
+            stage_record(stage.name, "failed", failure, rerun_of=context.rerun_of, checks=checks),
+            stage.record_filename,
+        )
+        return StageOutcome(stage=stage.name, status="failed", failure=failure)
+    write_stage_record(
+        context.run_dir,
+        stage_record(stage.name, "completed", None, rerun_of=context.rerun_of, checks=checks),
+        stage.record_filename,
+    )
     return StageOutcome(stage=stage.name, status="completed")
 
 
@@ -198,12 +267,22 @@ def run_render_stage(context: RunContext, stage: Stage) -> StageOutcome:
             output_path=context.run_dir / DRAFT_FILENAME,
             scene_class_name="GeneratedScene",
             preview_path=context.run_dir / PREVIEW_FILENAME,
+            quality=context.quality,
         )
     except RenderError as error:
         return _failed(context, stage, str(error))
+    context.render_status = "completed"
     write_stage_record(
         context.run_dir,
-        _stage_record(stage.name, "completed", draft=DRAFT_FILENAME, preview=PREVIEW_FILENAME),
+        stage_record(
+            stage.name,
+            "completed",
+            None,
+            rerun_of=context.rerun_of,
+            quality=context.quality,
+            draft=DRAFT_FILENAME,
+            preview=PREVIEW_FILENAME,
+        ),
         stage.record_filename,
     )
     return StageOutcome(stage=stage.name, status="completed")
@@ -213,39 +292,104 @@ STAGES: tuple[Stage, ...] = (
     Stage("plan", PLAN_RECORD_FILENAME, run_plan_stage),
     Stage("profile", PROFILE_RECORD_FILENAME, run_profile_stage),
     Stage("code", CODE_RECORD_FILENAME, run_code_stage),
+    Stage("gates", GATES_RECORD_FILENAME, run_gates_stage),
     Stage("render", RENDER_RECORD_FILENAME, run_render_stage),
+    Stage("critic", CRITIC_RECORD_FILENAME, run_critic_stage),
 )
 
 
 class GeneratePipeline:
-    """Sequence stages into a run directory; the first failure stops the run."""
+    """Sequence stages into a run directory; a failure triggers bounded repair.
+
+    Plan and profile failures stop the run immediately (plan repair is out
+    of scope in phase 1). Failures of the code-driven stages (code, gates,
+    render, critic) enter the repair loop: classify, minimal fix, re-gate,
+    then replay the stages from the gates onward. At most
+    ``max_repairs`` repair attempts; exhaustion fails the run.
+    """
 
     def __init__(self, stages: tuple[Stage, ...] = STAGES) -> None:
         self.stages = stages
 
-    def run(self, context: RunContext) -> RunResult:
+    def run(self, context: RunContext, *, stop_after: str | None = None) -> RunResult:
+        """Run the stages; ``stop_after`` halts after that stage completes.
+
+        Used by the golden tests to exercise the pipeline deterministically
+        up to and including the preflight gates, never rendering.
+        """
         context.run_dir.mkdir(parents=True, exist_ok=True)
+
+        stage_names = [stage.name for stage in self.stages]
+        gates_index = stage_names.index("gates")
+        repairable = {"code", "gates", "render", "critic"}
 
         stage_statuses: dict[str, str] = {}
         failure: str | None = None
-        for stage in self.stages:
+        # Reruns omit the repairer: their failures surface without repair
+        # (no LLM is allowed on the rerun path).
+        repair_service = (
+            RepairService(
+                provider=context.repairer,
+                run_dir=context.run_dir,
+                record_filename=REPAIR_RECORD_FILENAME,
+            )
+            if context.repairer is not None
+            else None
+        )
+
+        index = 0
+        while index < len(self.stages):
+            stage = self.stages[index]
             outcome = stage.run(context, stage)
             stage_statuses[outcome.stage] = outcome.status
-            if outcome.status != "completed":
-                failure = outcome.failure
+            if outcome.status == "completed":
+                # A repaired replay clears the earlier failure.
+                failure = None
+                if stop_after is not None and stage.name == stop_after:
+                    break
+                index += 1
+                continue
+
+            failure = outcome.failure
+            if stage.name not in repairable or repair_service is None:
                 break
 
+            round_outcome = repair_service.repair_round(
+                code=context.scene_code or "",
+                classification=self._classify(stage.name, context, outcome),
+                plan=context.plan,
+                profile=context.profile,
+            )
+            if round_outcome.status == "completed":
+                context.scene_code = round_outcome.code
+                failure = None
+                stage_statuses[stage.name] = "repaired"
+                index = gates_index  # a fix re-enters at the gates, never the container
+                continue
+            if round_outcome.status == "still_failing":
+                # The fix was applied but rejected; re-run the stage so the
+                # next classification sees the new gate results.
+                context.scene_code = round_outcome.code or context.scene_code
+                failure = None
+                continue
+            failure = round_outcome.failure or failure
+            break
+
         status = "completed" if failure is None else "failed"
-        total_cost = _total_cost_estimate(context.run_dir)
+        recorded_cost = total_cost_usd(context.run_dir)
+        total_cost = recorded_cost if recorded_cost is not None else 0.0
         summary: dict[str, Any] = {
             "run_id": context.run_dir.name,
             "status": status,
             "created_at": datetime.now(UTC).isoformat(),
             "prompt": context.prompt,
             "profile": context.profile,
-            "model": _first_model(context.run_dir),
+            "quality": context.quality,
+            "rerun_of": context.rerun_of,
+            "model": first_model(context.run_dir),
             "total_cost_estimate_usd": total_cost,
             "stages": stage_statuses,
+            "repairs_used": repair_service.provider_calls if repair_service else 0,
             "failure": failure,
         }
         atomic_write_text(
@@ -258,48 +402,32 @@ class GeneratePipeline:
             status=status,
             failure=failure,
             total_cost_estimate_usd=total_cost,
+            repairs_used=repair_service.provider_calls if repair_service else 0,
         )
 
-
-def _iter_stage_records(run_dir: Path) -> Iterator[dict[str, Any]]:
-    """Yield parsed stage records in pipeline order, skipping unreadable ones."""
-    records_dir = run_dir / RECORDS_DIRNAME
-    if not records_dir.is_dir():
-        return
-    for record_path in sorted(records_dir.glob("*.json")):
-        try:
-            yield json.loads(record_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-
-
-def _total_cost_estimate(run_dir: Path) -> float:
-    """Sum every recorded attempt cost across the run's stage records."""
-    total = 0.0
-    for record in _iter_stage_records(run_dir):
-        for attempt in record.get("attempts") or []:
-            cost = attempt.get("cost_estimate_usd")
-            if isinstance(cost, int | float):
-                total += float(cost)
-    return round(total, 6)
-
-
-def _first_model(run_dir: Path) -> str | None:
-    """Return the model name recorded by the first stage that used one."""
-    for record in _iter_stage_records(run_dir):
-        for attempt in record.get("attempts") or []:
-            if attempt.get("model"):
-                return str(attempt["model"])
-    return None
+    def _classify(
+        self, stage_name: str, context: RunContext, outcome: StageOutcome
+    ) -> FailureClassification | None:
+        """Map the failed stage's typed results onto the failure taxonomy."""
+        if stage_name == "gates":
+            return classify_gate_results(context.gate_results)
+        if stage_name == "critic":
+            return classify_critic_results(context.check_results)
+        if stage_name == "render":
+            return classify_render_failure(outcome.failure or "")
+        return classify_provider_error(outcome.failure or "unknown")
 
 
 def run_generate(
     prompt: str,
     *,
     profile: str,
+    quality: str = "draft",
+    vlm: bool = False,
     runs_root: Path,
     planner: LessonPlanProvider,
     coder: SceneCodeProvider,
+    repairer: CodeRepairProvider,
 ) -> RunResult:
     """Allocate a fresh run directory and execute the pipeline over it."""
     run_dir = allocate_run_dir(runs_root, prompt)
@@ -307,7 +435,84 @@ def run_generate(
         run_dir=run_dir,
         prompt=prompt,
         profile=profile,
+        quality=quality,
+        vlm=vlm,
         planner=planner,
         coder=coder,
+        repairer=repairer,
     )
     return GeneratePipeline().run(context)
+
+
+class RerunError(RuntimeError):
+    """The requested run cannot be replayed from its cached artifacts."""
+
+
+RERUN_STAGE_NAMES = ("profile", "gates", "render", "critic")
+
+
+def _load_cached_run(source_dir: Path) -> tuple[LessonPlan, str, str]:
+    """Read the cached plan, scene code, and prompt from a completed run."""
+    plan_path = source_dir / PLAN_FILENAME
+    scene_path = source_dir / SCENE_FILENAME
+    missing = [path.name for path in (plan_path, scene_path) if not path.exists()]
+    if missing:
+        raise RerunError(
+            f"Run '{source_dir.name}' has no cached {', '.join(missing)}; "
+            "only runs produced by `bayan generate` can be rerun."
+        )
+    try:
+        plan = LessonPlan.model_validate_json(plan_path.read_text(encoding="utf-8"))
+    except ValidationError as error:
+        raise RerunError(
+            f"The cached plan in '{source_dir.name}' is invalid ({error}); "
+            "generate the lesson again with `bayan generate`."
+        ) from None
+
+    prompt = "rerun"
+    summary_path = source_dir / RUN_SUMMARY_FILENAME
+    if summary_path.exists():
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            prompt = str(summary.get("prompt") or prompt)
+        except (OSError, json.JSONDecodeError):
+            prompt = "rerun"
+    return plan, scene_path.read_text(encoding="utf-8"), prompt
+
+
+def run_rerun(
+    *,
+    run_id: str,
+    runs_root: Path,
+    quality: str = "draft",
+    vlm: bool = False,
+) -> RunResult:
+    """Replay the deterministic stages of a past run into a fresh run dir.
+
+    Zero LLM calls: the cached plan and scene code are reused verbatim and
+    only the profile pass, gates, render, and critic re-run. The new run's
+    records and summary carry ``rerun_of`` pointing at the source.
+    """
+    source_dir = runs_root / run_id
+    if not source_dir.is_dir():
+        raise RerunError(
+            f"Run '{run_id}' not found under {runs_root}. "
+            "Generate a lesson first with `bayan generate`."
+        )
+
+    plan, scene_code, prompt = _load_cached_run(source_dir)
+    run_dir = allocate_run_dir(runs_root, prompt)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(run_dir / SCENE_FILENAME, scene_code)
+    context = RunContext(
+        run_dir=run_dir,
+        prompt=prompt,
+        profile=plan.profile,
+        quality=quality,
+        vlm=vlm,
+        rerun_of=run_id,
+        plan=plan,
+        scene_code=scene_code,
+    )
+    rerun_stages = tuple(stage for stage in STAGES if stage.name in RERUN_STAGE_NAMES)
+    return GeneratePipeline(stages=rerun_stages).run(context)

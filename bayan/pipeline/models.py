@@ -13,8 +13,6 @@ from typing import Literal, get_args
 
 from pydantic import BaseModel, Field
 
-from bayan.generator.llm_client import LLMUsage
-
 DEFAULT_PROFILE = "msa-western"
 
 InsightMove = Literal["reveal", "animate_count", "compare", "summarize"]
@@ -49,13 +47,27 @@ class LessonPlan(BaseModel):
 
 
 @dataclass(frozen=True)
+class TokenUsage:
+    """Token counts for one provider call, in the pipeline's own vocabulary.
+
+    Deliberately neutral: the LLM client's usage type stays in the generator
+    layer, and provider adapters map onto this at the seam, so the pipeline
+    contracts do not depend on a model SDK (docs/ARCHITECTURE.md).
+    """
+
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+
+@dataclass(frozen=True)
 class AttemptEvidence:
     """What one provider call produced, recorded verbatim by a stage service."""
 
     raw_response: str
     fingerprint: str
     model: str
-    usage: LLMUsage | None
+    usage: TokenUsage | None
 
 
 @dataclass(frozen=True)
@@ -107,3 +119,12 @@ class AttemptRecord(BaseModel):
             raw_response=raw_response,
             error=error,
         )
+
+
+class CheckResult(BaseModel):
+    """One critic check's machine-readable verdict."""
+
+    check: str
+    status: Literal["passed", "failed", "not_applicable", "not_implemented"]
+    evidence: str
+    suggestion: str | None = None

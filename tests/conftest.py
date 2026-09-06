@@ -19,8 +19,11 @@ MP4_BYTES = b"\x00\x00\x00\x18ftypmp42fake-manim-video-payload"
 
 
 @pytest.fixture()
-def fake_render(monkeypatch: pytest.MonkeyPatch) -> None:
+def fake_render(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
     """Fabricate container render artifacts without Docker.
+
+    Returns the list of commands the fake container run received so tests
+    can assert that no container ever started.
 
     Patches the executor seam so ``render_scene_code`` runs fully offline:
     ``check_docker`` and ``inspect_image`` succeed without a daemon, and
@@ -62,7 +65,16 @@ def fake_render(monkeypatch: pytest.MonkeyPatch) -> None:
         "bayan.renderer.docker.DockerExecutor.inspect_image",
         lambda self, image: ImageMetadata(reference=image),
     )
+    container_commands: list[tuple[str, ...]] = []
+
+    def logging_run_container(
+        self: object, image: str, command: list[str], *args: object, **kwargs: object
+    ) -> CommandResult:
+        container_commands.append(tuple(str(part) for part in command))
+        return fake_run_container(self, image, command, *args, **kwargs)
+
     monkeypatch.setattr(
         "bayan.renderer.docker.DockerExecutor.run_container",
-        fake_run_container,
+        logging_run_container,
     )
+    return container_commands

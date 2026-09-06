@@ -1,0 +1,11 @@
+{
+  "id": "0017",
+  "unit": "geometry",
+  "slug": "area-grid",
+  "prompt": "شرح إيجاد مساحة مستطيل طوله ٦ وعرضه ٤",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 4
+  }
+}

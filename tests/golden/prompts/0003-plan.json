@@ -1,0 +1,34 @@
+{
+  "topic": "شرح المضاعف المشترك الأصغر للعددين ٤ و ٦",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 55 على 9، الخطوة 1",
+      "insight_move": "reveal",
+      "numbers": [
+        55.0,
+        9.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "نقسم 55 على 9، الخطوة 2",
+      "insight_move": "reveal",
+      "numbers": [
+        55.0,
+        9.0
+      ]
+    },
+    {
+      "title": "الخطوة 3",
+      "on_screen_text": "الناتج 6 والباقي 1",
+      "insight_move": "summarize",
+      "numbers": [
+        6.0,
+        1.0
+      ]
+    }
+  ]
+}

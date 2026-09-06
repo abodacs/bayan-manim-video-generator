@@ -148,6 +148,7 @@ class RenderJob:
     image: ImageMetadata | None = None
     settings: RenderSettings | None = None
     fixture_hash: str | None = None
+    quality: str | None = None
     failure_stage: str | None = None
     exit_reason: str | None = None
     artifacts: dict[str, str] = field(default_factory=dict)
@@ -162,6 +163,7 @@ class RenderJob:
             "image": self.image.to_dict() if self.image is not None else None,
             "settings": self.settings.to_dict() if self.settings is not None else None,
             "fixture_hash": self.fixture_hash,
+            "quality": self.quality,
             "failure_stage": self.failure_stage,
             "exit_reason": self.exit_reason,
             "artifacts": dict(self.artifacts),

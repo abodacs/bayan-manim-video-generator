@@ -1,0 +1,11 @@
+{
+  "id": "0008",
+  "unit": "algebra",
+  "slug": "collect-like-terms",
+  "prompt": "شرح تبسيط العبارة ٢س + ٣ + س",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 2
+  }
+}

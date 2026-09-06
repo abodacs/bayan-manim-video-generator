@@ -6,13 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from bayan.generator.llm_client import (
-    LLMClient,
-    LLMProviderError,
-    LLMResponseFormatError,
-    LLMUsage,
-)
-from bayan.pipeline.models import PlanAttemptEvidence
+from bayan.generator.llm_client import LLMClient, LLMProviderError, LLMResponseFormatError
+from bayan.pipeline.models import PlanAttemptEvidence, TokenUsage
 from bayan.pipeline.planner import PlannerService, PlanningError
 from bayan.pipeline.pricing import PRICE_TABLE_USD_PER_1M, estimate_cost_usd
 from bayan.pipeline.provider import LLMPlanProvider
@@ -228,7 +223,7 @@ def test_llm_plan_provider_builds_evidence_from_structured_mode(mock_openai_clas
 
     assert evidence.plan.topic == "قسمة الأعداد"
     assert evidence.plan.beats[0].numbers == [24.0, 2.0]
-    assert evidence.usage == LLMUsage(prompt_tokens=20, completion_tokens=30, total_tokens=50)
+    assert evidence.usage == TokenUsage(prompt_tokens=20, completion_tokens=30, total_tokens=50)
     assert evidence.model == client.model
     assert evidence.fingerprint
     assert evidence.raw_response
@@ -257,7 +252,7 @@ def test_llm_plan_provider_surfaces_invalid_output_as_provider_error(mock_openai
 
 
 def test_cost_estimate_uses_price_table():
-    usage = LLMUsage(prompt_tokens=1_000_000, completion_tokens=1_000_000, total_tokens=2_000_000)
+    usage = TokenUsage(prompt_tokens=1_000_000, completion_tokens=1_000_000, total_tokens=2_000_000)
     input_price, output_price = PRICE_TABLE_USD_PER_1M["gpt-4o-mini"]
 
     assert estimate_cost_usd("gpt-4o-mini", usage) == pytest.approx(input_price + output_price)
@@ -274,7 +269,7 @@ def test_recorded_cost_comes_from_provider_usage(tmp_path):
     service.plan(ARABIC_PROMPT)
 
     attempt = _read_record(tmp_path)["attempts"][0]
-    usage = LLMUsage(
+    usage = TokenUsage(
         prompt_tokens=int(attempt["prompt_tokens"]),
         completion_tokens=int(attempt["completion_tokens"]),
         total_tokens=int(attempt["total_tokens"]),

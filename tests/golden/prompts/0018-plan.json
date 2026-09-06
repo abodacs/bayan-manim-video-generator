@@ -1,0 +1,34 @@
+{
+  "topic": "شرح تحويل ٣ متر إلى سنتيمتر",
+  "language": "ar",
+  "profile": "msa-arabic-indic",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم ٧٨ على ٦، الخطوة ١",
+      "insight_move": "reveal",
+      "numbers": [
+        78.0,
+        6.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "نقسم ٧٨ على ٦، الخطوة ٢",
+      "insight_move": "summarize",
+      "numbers": [
+        78.0,
+        6.0
+      ]
+    },
+    {
+      "title": "الخطوة 3",
+      "on_screen_text": "الناتج ١٣ والباقي ٠",
+      "insight_move": "summarize",
+      "numbers": [
+        13.0,
+        0.0
+      ]
+    }
+  ]
+}

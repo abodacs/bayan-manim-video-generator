@@ -57,9 +57,11 @@ class RenderError(Exception):
     """Custom exception raised when Manim fails to render the scene."""
 
 
-# Manim quality flags for the scene plan's render quality names.
+# Manim quality flags for the scene plan's render quality names. "draft" is
+# the generate pipeline's alias of low_quality: cheap iteration by default.
 QUALITY_FLAGS = {
     "low_quality": "-ql",
+    "draft": "-ql",
     "medium_quality": "-qm",
     "high_quality": "-qh",
     "highest_quality": "-qk",
@@ -121,6 +123,7 @@ class RenderJobRunner:
             scene_path = str(FIXTURES_ROOT / fixture_name)
             fixture_host_path = PROJECT_ROOT / "bayan" / "templates" / "fixtures" / fixture_name
             job.fixture_hash = sha256_file(fixture_host_path)
+            job.quality = plan.render_settings.quality
             quality_flag = _quality_flag(plan.render_settings.quality)
 
             # The fresh run directory is the container's only writable mount, so
@@ -199,14 +202,17 @@ def render_scene_code(
     executor: DockerExecutor | None = None,
     image: str = DEFAULT_IMAGE,
     preview_path: Path | None = None,
+    quality: str = "draft",
 ) -> Path:
     """Render generated scene code in the isolated worker.
 
     The untrusted code is written into a fresh per-render run directory that
     is mounted as the worker's only writable surface, and the produced video
     is copied to ``output_path``. When ``preview_path`` is given, a single
-    low-quality preview frame is also rendered and copied there.
+    low-quality preview frame is also rendered and copied there. Unknown
+    quality names fail before a container starts.
     """
+    quality_flag = _quality_flag(quality)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if preview_path is not None:
         preview_path.parent.mkdir(parents=True, exist_ok=True)
@@ -226,7 +232,6 @@ def render_scene_code(
         log_path = output_path.with_suffix(".render.log")
         log_path.touch()
         scene_path = str(CONTAINER_OUTPUT_ROOT / "generated_scene.py")
-        # Generated-code renders have no scene plan; default to low quality.
         _run_manim(
             resolved_executor,
             image,
@@ -235,7 +240,7 @@ def render_scene_code(
             render_run,
             log_path,
             "video",
-            "-ql",
+            quality_flag,
         )
         video_path = first_artifact(
             render_run / "media" / "video",

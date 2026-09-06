@@ -1,16 +1,18 @@
 """Coding stage: validated LessonPlan in, Manim scene code out.
 
 The service owns prompt grounding (plan beats verbatim plus deterministic
-few-shot catalogue examples), fence stripping, a parse-only sanity check, and
-record keeping. It never executes, imports, or compiles-and-runs the code it
-produces; ``ast.parse`` and writing ``scene.py`` are the maximum.
+few-shot catalogue examples), a parse-only sanity check, and record keeping.
+Fence normalization is the provider seam's contract -- the LLM client
+delivers fence-free code -- and the service re-checks it defensively because
+providers are pluggable and their output is untrusted. The service never
+executes, imports, or compiles-and-runs the code it produces; ``ast.parse``
+and writing ``scene.py`` are the maximum.
 """
 
 from __future__ import annotations
 
 import ast
 import json
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -22,7 +24,10 @@ from bayan.pipeline.models import (
     LessonPlan,
 )
 from bayan.pipeline.pricing import estimate_cost_usd
-from bayan.pipeline.records import evidence_fingerprint, write_stage_record
+from bayan.pipeline.profiles import digit_rule, get_profile, lexicon_rule
+from bayan.pipeline.provider import as_token_usage
+from bayan.pipeline.records import evidence_fingerprint, stage_record, write_stage_record
+from bayan.pipeline.taxonomy import FailureClassification
 from bayan.templates.catalogue import get_template_catalogue, read_fixture_code
 from bayan.utils.atomic_io import atomic_write_text
 
@@ -75,6 +80,7 @@ def select_few_shot_fixtures() -> list[str]:
 
 def build_coder_prompt(plan: LessonPlan, profile: str, example_codes: list[str]) -> tuple[str, str]:
     """Build the system and user prompts, embedding the plan beats verbatim."""
+    profile_data = get_profile(profile)
     beats_json = json.dumps(
         {"beats": [beat.model_dump() for beat in plan.beats]},
         ensure_ascii=False,
@@ -87,6 +93,8 @@ def build_coder_prompt(plan: LessonPlan, profile: str, example_codes: list[str])
     system = CODER_SYSTEM_PROMPT
     user = (
         f"Lesson plan (the contract), language profile: {profile}\n"
+        f"{digit_rule(profile_data)}\n"
+        f"{lexicon_rule(profile_data)}\n"
         f"{beats_json}\n\n"
         "Follow the style of these approved catalogue examples:\n\n"
         f"{examples}"
@@ -135,6 +143,8 @@ class CoderService:
 
         cleaned = clean_code_block(evidence.code)
         if not cleaned:
+            # Defensive re-check of the seam contract: providers deliver
+            # fence-free code; the empty case still gets a typed failure.
             raise self._fail(
                 "Coding failed: the provider returned empty scene code.",
                 [AttemptRecord.rejected(1, "empty output", evidence.raw_response)],
@@ -208,18 +218,17 @@ class CoderService:
         failure: str | None,
         provider_fingerprint: str | None = None,
     ) -> dict[str, Any]:
-        return {
-            "stage": "coding",
-            "status": status,
-            "created_at": datetime.now(UTC).isoformat(),
-            "prompt": prompt,
-            "system_prompt": system_prompt,
-            "profile": profile,
-            "provider_fingerprint": provider_fingerprint,
-            "attempts": attempts,
-            "failure": failure,
-            "scene": SCENE_FILENAME if status == "completed" else None,
-        }
+        return stage_record(
+            "coding",
+            status,
+            failure,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            profile=profile,
+            provider_fingerprint=provider_fingerprint,
+            attempts=attempts,
+            scene=SCENE_FILENAME if status == "completed" else None,
+        )
 
 
 class LLMCoderProvider:
@@ -239,5 +248,55 @@ class LLMCoderProvider:
                 self.client.model, self.client.base_url, plan.model_dump_json()
             ),
             model=self.client.model,
-            usage=self.client.last_usage,
+            usage=as_token_usage(self.client.last_usage),
         )
+
+    def repair_scene_code(
+        self, *, code: str, classification: FailureClassification, plan: LessonPlan | None
+    ) -> CodeAttemptEvidence:
+        return repair_scene_code_with_client(
+            self.client, code=code, classification=classification, plan=plan
+        )
+
+
+REPAIR_PROMPT_TEMPLATE = (
+    "You fix Manim scene code. Change the least possible: a minimal fix only.\n"
+    "Problem category: {category}\n"
+    "What to fix: {suggestion}\n"
+    "Failure evidence: {evidence}\n"
+    "The current scene code follows:\n\n{code}\n\n"
+    "Return the complete fixed Python file and nothing else."
+)
+
+
+def repair_scene_code_with_client(
+    client: LLMClient,
+    *,
+    code: str,
+    classification: FailureClassification,
+    plan: LessonPlan | None,
+) -> CodeAttemptEvidence:
+    """Adapter body shared by the client-backed repair provider."""
+    plan_context = plan.model_dump_json(indent=2, ensure_ascii=False) if plan is not None else "n/a"
+    fixed = client.generate_code(
+        system_prompt=(
+            "You repair Arabic Manim lesson scenes with minimal edits. "
+            "Reply with the complete fixed Python file only."
+        ),
+        user_prompt=REPAIR_PROMPT_TEMPLATE.format(
+            category=classification.category,
+            suggestion=classification.suggestion,
+            evidence=classification.evidence,
+            code=code,
+        )
+        + f"\n\nLesson plan (context):\n{plan_context}",
+    )
+    return CodeAttemptEvidence(
+        code=fixed,
+        raw_response=client.last_raw_content or "",
+        fingerprint=evidence_fingerprint(
+            client.model, client.base_url, f"repair:{classification.category}:{code}"
+        ),
+        model=client.model,
+        usage=as_token_usage(client.last_usage),
+    )

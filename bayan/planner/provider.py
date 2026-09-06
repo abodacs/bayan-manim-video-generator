@@ -4,15 +4,16 @@ import hashlib
 import json
 from typing import Protocol
 
-from bayan.generator.llm_client import LLMUsage
 from bayan.pipeline.models import (
     INSIGHT_MOVES,
     CodeAttemptEvidence,
     LessonBeat,
     LessonPlan,
     PlanAttemptEvidence,
+    TokenUsage,
 )
 from bayan.pipeline.records import evidence_fingerprint
+from bayan.pipeline.taxonomy import FailureClassification
 from bayan.planner.models import LessonSegment, PlanRenderPreferences, ScenePlan
 from bayan.templates.catalogue import get_template_catalogue
 
@@ -86,7 +87,7 @@ class FakeProvider:
         plan = LessonPlan(topic=prompt.strip(), profile=profile, beats=beats)
         prompt_tokens = 50 + int(fingerprint[5:8], 16) % 50
         completion_tokens = 200 + int(fingerprint[8:11], 16) % 300
-        usage = LLMUsage(
+        usage = TokenUsage(
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=prompt_tokens + completion_tokens,
@@ -103,18 +104,19 @@ class FakeProvider:
         self, *, plan: LessonPlan, system_prompt: str, user_prompt: str
     ) -> CodeAttemptEvidence:
         plan_hash = evidence_fingerprint(self.model_name, "fake", plan.model_dump_json())
-        on_screen_text = plan.beats[0].on_screen_text
-        scene = (
-            "from manim import *\n"
-            "from bayan.utils.arabic_helper import ArabicText, rtl_glyphs\n"
-            "\n"
-            "class GeneratedScene(Scene):\n"
-            "    def construct(self):\n"
-            f"        message = ArabicText({on_screen_text!r})\n"
-            "        message.next_to(ORIGIN, UP)\n"
-            "        self.play(Write(rtl_glyphs(message)))\n"
-            "        self.wait(1)\n"
-        )
+        lines = [
+            "from manim import *",
+            "from bayan.utils.arabic_helper import ArabicText, rtl_glyphs",
+            "",
+            "class GeneratedScene(Scene):",
+            "    def construct(self):",
+        ]
+        for index, beat in enumerate(plan.beats):
+            lines.append(f"        message_{index} = ArabicText({beat.on_screen_text!r})")
+            lines.append(f"        message_{index}.next_to(ORIGIN, UP)")
+            lines.append(f"        self.play(Write(rtl_glyphs(message_{index})))")
+        lines.append("        self.wait(1)")
+        scene = "\n".join(lines) + "\n"
         prompt_tokens = 40 + int(plan_hash[0:3], 16) % 60
         completion_tokens = 150 + int(plan_hash[3:6], 16) % 250
         return CodeAttemptEvidence(
@@ -122,9 +124,44 @@ class FakeProvider:
             raw_response=scene,
             fingerprint=plan_hash,
             model=self.model_name,
-            usage=LLMUsage(
+            usage=TokenUsage(
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 total_tokens=prompt_tokens + completion_tokens,
             ),
+        )
+
+    def repair_scene_code(
+        self, *, code: str, classification: FailureClassification, plan: LessonPlan
+    ) -> CodeAttemptEvidence:
+        """Deterministic minimal fixes for the two repairable gate families."""
+        if classification.category == "disallowed_import":
+            allowed_prefixes = (
+                "from manim",
+                "from bayan.utils.arabic_helper",
+                "import manim",
+                "import math",
+            )
+            lines = [
+                line
+                for line in code.splitlines()
+                if not (
+                    line.startswith(("import ", "from ")) and not line.startswith(allowed_prefixes)
+                )
+            ]
+            code = "\n".join(lines) + "\n"
+        if classification.category == "arabic_layout":
+            code = code.replace("Text(", "ArabicText(")
+            if "arabic_helper" not in code:
+                helper_import = (
+                    "from manim import *\n"
+                    "from bayan.utils.arabic_helper import ArabicText, rtl_glyphs\n"
+                )
+                code = code.replace("from manim import *\n", helper_import)
+        return CodeAttemptEvidence(
+            code=code,
+            raw_response=code,
+            fingerprint=evidence_fingerprint(self.model_name, "fake", f"repair:{code}"),
+            model=self.model_name,
+            usage=None,
         )
