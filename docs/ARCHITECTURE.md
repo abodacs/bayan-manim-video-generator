@@ -94,6 +94,9 @@ is an implementation decision. The boundary itself is not optional.
 - `bayan/utils/arabic_helper.py` contains the current Arabic text and glyph
   helpers.
 - `bayan/utils/sanity_check.py` is the current render-level integration scene.
+- `course/` is a self-contained Manim CE course module: static lessons plus a
+  stdlib-only site generator, validated by the CI course gate (see
+  `docs/agdr/AgDR-0003-course-module-boundaries.md`).
 - `tests/` contains focused helper tests and package smoke tests.
 - `main.py` is still an application entry-point placeholder.
 - `docs/agdr/` records decisions that explain development and architecture

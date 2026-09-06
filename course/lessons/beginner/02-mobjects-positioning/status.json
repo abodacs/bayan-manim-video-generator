@@ -1,0 +1,11 @@
+{
+  "id": "02-mobjects-positioning",
+  "tier": 1,
+  "slug": "02-mobjects-positioning",
+  "status": "reviewed",
+  "title": "Mobjects, positioning, and grouping",
+  "objective": "Choose the smallest mobject for the idea, position it precisely in Manim's coordinate system, and group it correctly.",
+  "misconception": "That positions are pixel coordinates you eyeball. Manim uses a math coordinate system centered at the origin; you place objects with next_to/arrange/to_edge and verify with bounding boxes.",
+  "prereqs": ["01-first-scene"],
+  "ref": "mobjects.md"
+}

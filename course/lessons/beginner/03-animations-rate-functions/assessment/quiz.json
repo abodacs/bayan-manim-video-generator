@@ -1,0 +1,105 @@
+{
+  "kind": "quiz",
+  "id": "03-animations-rate-functions",
+  "tier": 1,
+  "title": "Lesson 03 — Animations & rate functions",
+  "items": [
+    {
+      "id": "q1",
+      "type": "single-choice",
+      "bloom": "Remember",
+      "prompt": "Which animation builds an object by drawing its stroke?",
+      "options": [
+        "Create(circle)",
+        "FadeIn(circle)",
+        "Indicate(circle)",
+        "Transform(circle, square)"
+      ],
+      "answer": 0,
+      "explanation": "Create draws the stroke onto the screen. FadeIn reveals without drawing; Indicate only draws attention; Transform morphs one object into another.",
+      "ref": "animations.md"
+    },
+    {
+      "id": "q2",
+      "type": "single-choice",
+      "bloom": "Understand",
+      "prompt": "Why prefer TransformMatchingTex when changing one equation into another?",
+      "options": [
+        "It shows which terms persist across the change.",
+        "It renders faster than any other animation.",
+        "It avoids using self.wait afterwards.",
+        "It disables rate functions automatically."
+      ],
+      "answer": 0,
+      "explanation": "TransformMatchingTex matches shared TeX fragments so the viewer sees continuity between the two equations — the relationship is the lesson.",
+      "ref": "animations.md, equations.md"
+    },
+    {
+      "id": "q3",
+      "type": "fill-blank",
+      "bloom": "Apply",
+      "prompt": "Which rate function makes a motion emphasise a point and then return to the start?",
+      "answer": "there_and_back",
+      "explanation": "there_and_back moves to the target and back, ideal for a passing emphasis. linear is constant speed; smooth eases in and out but does not return.",
+      "ref": "animations.md"
+    },
+    {
+      "id": "q4",
+      "type": "predict-output",
+      "bloom": "Analyze",
+      "prompt": "After this runs, what colour is sq?",
+      "code": "sq = Square(color=BLUE)\nself.add(sq)\nself.play(sq.animate.set_color(RED), run_time=0.5)",
+      "answer": "RED",
+      "explanation": "sq is added first, then .animate.set_color(RED) animates the change. After play, sq is RED. Without self.add it would not be visible.",
+      "ref": "animations.md"
+    },
+    {
+      "id": "q5",
+      "type": "bug-spot",
+      "bloom": "Analyze",
+      "prompt": "Find the broken line and choose the fix.",
+      "code": "sq = Square(color=BLUE)\nself.play(sq.animate.shift(RIGHT), sq.animate.set_color(RED), run_time=1.0)",
+      "brokenLine": 2,
+      "options": [
+        "Chain the changes: sq.animate.shift(RIGHT).set_color(RED).",
+        "Remove the run_time argument.",
+        "Use Create(sq) instead of animate.",
+        "Add a second square."
+      ],
+      "answer": 0,
+      "explanation": "Line 2 drives two competing .animate calls on the same mobject in one play. Chain them into a single coherent state change: sq.animate.shift(RIGHT).set_color(RED).",
+      "ref": "animations.md, troubleshooting.md"
+    },
+    {
+      "id": "q6",
+      "type": "multi-select",
+      "bloom": "Evaluate",
+      "prompt": "Which are correct uses of composition / attention animations? (Select all.)",
+      "options": [
+        "LaggedStart to stagger a sequence of appearances.",
+        "Indicate to draw attention without changing the model.",
+        "AnimationGroup for simultaneous animations.",
+        "Competing .animate calls on one property in one play call."
+      ],
+      "answer": [0, 1, 2],
+      "explanation": "The first three are correct composition/attention uses. Competing .animate calls on one property are a bug — chain them instead.",
+      "ref": "animations.md"
+    },
+    {
+      "id": "q7",
+      "type": "create",
+      "bloom": "Create",
+      "prompt": "Write a scene that creates a shape, transforms it into a different shape, and emphasises the result with there_and_back. Pause after each beat.",
+      "modelAnswer": "from manim import *\n\nclass TransformEmphasis(Scene):\n    def construct(self):\n        self.camera.background_color = \"#1C1C1C\"\n        sq = Square(side_length=1.5, color=BLUE)\n        self.play(Create(sq), run_time=1.0)\n        self.wait(0.8)\n        self.play(Transform(sq, Circle(radius=0.9, color=BLUE)), run_time=1.5)\n        self.wait(1.0)\n        self.play(sq.animate.scale(1.1), rate_func=there_and_back, run_time=1.0)\n        self.wait(1.0)\n        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)",
+      "rubric": [
+        { "criterion": "Creates a shape, then transforms it into another.", "weight": 30 },
+        { "criterion": "Uses there_and_back for the emphasis beat.", "weight": 25 },
+        { "criterion": "Pauses (self.wait) after each reveal.", "weight": 25 },
+        { "criterion": "Mobject created before any property animation.", "weight": 10 },
+        { "criterion": "Cleans up with Group(*self.mobjects).", "weight": 10 }
+      ],
+      "explanation": "The model chains create -> transform -> emphasise, with a pause after each beat and a Group cleanup.",
+      "ref": "animations.md"
+    }
+  ]
+}

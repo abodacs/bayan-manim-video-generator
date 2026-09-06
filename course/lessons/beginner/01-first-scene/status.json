@@ -1,0 +1,11 @@
+{
+  "id": "01-first-scene",
+  "tier": 1,
+  "slug": "01-first-scene",
+  "status": "reviewed",
+  "title": "Install Manim and render your first Scene",
+  "objective": "Install Manim Community Edition (>= 0.20.1) and render a first scene from the command line.",
+  "misconception": "That Manim is a GUI video editor. It is a Python library: you write a Scene class and render it headlessly to a video file.",
+  "prereqs": [],
+  "ref": "rendering.md, mobjects.md"
+}
