@@ -154,6 +154,7 @@ class LLMClient:
         self.base_url = base_url or os.environ.get("BAYAN_BASE_URL", DEFAULT_BASE_URL)
         self.model: str = model or os.environ.get("BAYAN_LLM_MODEL", DEFAULT_MODEL)
         self.last_usage: LLMUsage | None = None
+        self.last_raw_content: str | None = None
 
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
@@ -219,6 +220,7 @@ class LLMClient:
             detail = _bound(_redact(str(error), self.api_key), MAX_ERROR_CHARS)
             raise LLMProviderError(f"Failed to communicate with LLM provider: {detail}") from None
         self.last_usage = _extract_usage(response)
+        self.last_raw_content = raw_content
         return raw_content
 
     def _parse_structured(self, raw_content: str, response_model: type[ModelT]) -> ModelT:

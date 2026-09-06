@@ -184,6 +184,22 @@ def test_last_usage_is_none_when_provider_omits_usage(mock_openai_class):
     assert client.last_usage is None
 
 
+@patch("bayan.generator.llm_client.OpenAI")
+def test_last_raw_content_exposes_the_untrimmed_reply(mock_openai_class):
+    """Run records need the raw reply, not just the cleaned code."""
+    raw = "```python\nx = 1\n```"
+    mock_client = _mocked_client(mock_openai_class)
+    mock_client.chat.completions.create.return_value = _mock_response(raw)
+
+    client = LLMClient(api_key="fake-api-key")
+    assert client.last_raw_content is None
+
+    code = client.generate_manim_code("Draw a square")
+
+    assert code == "x = 1"
+    assert client.last_raw_content == raw
+
+
 # =========================================================================
 # 4. Structured Output Mode
 # =========================================================================
