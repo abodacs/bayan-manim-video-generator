@@ -176,14 +176,10 @@ class LLMClient:
 
     def generate_manim_code(self, user_prompt: str) -> str:
         """Send the user prompt to the LLM and return the parsed Python script."""
-        messages: list[ChatCompletionMessageParam] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": f"Create a Manim scene for: {user_prompt}",
-            },
-        ]
-        return self._clean_code(self._complete(messages))
+        return self.generate_code(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=f"Create a Manim scene for: {user_prompt}",
+        )
 
     def generate_code(
         self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
@@ -197,7 +193,7 @@ class LLMClient:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
-        return self._clean_code(self._complete(messages, temperature=temperature))
+        return clean_code_block(self._complete(messages, temperature=temperature))
 
     def generate_structured(
         self,
@@ -279,7 +275,3 @@ class LLMClient:
         """Assemble a bounded, key-free failure message for a bad provider reply."""
         excerpt = _bound(_redact(reply, self.api_key), MAX_EXCERPT_CHARS)
         return _bound(f"{summary}. Reply excerpt: {excerpt!r}", MAX_ERROR_CHARS)
-
-    def _clean_code(self, raw_code: str) -> str:
-        """Backward-compatible alias for :func:`clean_code_block`."""
-        return clean_code_block(raw_code)

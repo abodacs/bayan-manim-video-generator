@@ -73,7 +73,7 @@ class CodeAttemptEvidence(AttemptEvidence):
 
 
 class AttemptRecord(BaseModel):
-    """One provider attempt as serialized into the planning stage record."""
+    """One provider attempt as serialized into a stage record."""
 
     attempt: int
     status: Literal["ok", "invalid_output"]

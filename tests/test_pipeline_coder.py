@@ -14,11 +14,11 @@ from bayan.pipeline.coder import (
     CodingError,
     LLMCoderProvider,
     build_coder_prompt,
-    read_fixture_code,
     select_few_shot_fixtures,
 )
 from bayan.pipeline.models import CodeAttemptEvidence, LessonPlan
 from bayan.planner.provider import FakeProvider
+from bayan.templates.catalogue import read_fixture_code
 from tests.helpers import mock_chat_response as _mock_response
 from tests.helpers import mocked_client as _mocked_client
 
@@ -110,8 +110,8 @@ def test_coder_record_contains_prompt_model_and_usage(tmp_path):
 
 def test_prompt_embeds_plan_beats_and_few_shot_examples():
     plan = _plan()
-    slugs = select_few_shot_fixtures(plan)
-    assert 1 <= len(slugs) <= 2
+    slugs = select_few_shot_fixtures()
+    assert len(slugs) == 2
     examples = [read_fixture_code(slug) for slug in slugs]
 
     system, user = build_coder_prompt(plan, DEFAULT_PROFILE, examples)
@@ -124,12 +124,13 @@ def test_prompt_embeds_plan_beats_and_few_shot_examples():
     assert "GeneratedScene" in system
     assert "self.play" in system
     assert examples[0] in user
+    assert examples[1] in user
     assert "::-1" not in system
     assert "::-1" not in user
 
 
 def test_few_shot_selection_is_deterministic():
-    assert select_few_shot_fixtures(_plan()) == select_few_shot_fixtures(_plan())
+    assert select_few_shot_fixtures() == select_few_shot_fixtures()
 
 
 # -------------------------------------------------------------------------
@@ -146,6 +147,7 @@ def test_empty_output_refused_with_typed_error(tmp_path):
 
     assert "empty" in str(exc_info.value)
     assert "coding.json" in str(exc_info.value)
+    assert exc_info.value.record_path == tmp_path / "records" / "coding.json"
     record = _read_record(tmp_path)
     assert record["status"] == "failed"
     assert not (tmp_path / "scene.py").exists()

@@ -8,11 +8,11 @@ reverse.
 
 from __future__ import annotations
 
-import hashlib
 from typing import Protocol
 
 from bayan.generator.llm_client import LLMClient
 from bayan.pipeline.models import LessonPlan, PlanAttemptEvidence
+from bayan.pipeline.records import evidence_fingerprint
 
 LESSON_PLAN_SYSTEM_PROMPT = (
     "You plan Arabic math lessons for Egyptian grade-6 students as strict JSON. "
@@ -44,13 +44,12 @@ class LLMPlanProvider:
             user_prompt=f"Lesson request: {prompt.strip()}\nLanguage profile: {profile}",
             response_model=LessonPlan,
         )
-        fingerprint = hashlib.sha256(
-            f"{self.client.model}:{self.client.base_url}:{profile}:{prompt.strip()}".encode()
-        ).hexdigest()
         return PlanAttemptEvidence(
             plan=plan,
             raw_response=self.client.last_raw_content or "",
-            fingerprint=fingerprint,
+            fingerprint=evidence_fingerprint(
+                self.client.model, self.client.base_url, f"{profile}:{prompt.strip()}"
+            ),
             model=self.client.model,
             usage=self.client.last_usage,
         )

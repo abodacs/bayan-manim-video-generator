@@ -12,30 +12,29 @@ from bayan.generator.llm_client import (
     LLMProviderError,
     LLMResponseFormatError,
     LLMUsage,
+    clean_code_block,
 )
 from tests.helpers import mock_chat_response as _mock_response
 from tests.helpers import mocked_client as _mocked_client
 
 # -------------------------------------------------------------------------
-# 1. Tests for Code Cleaner Function (_clean_code)
+# 1. Tests for the Code Cleaner Function (clean_code_block)
 # -------------------------------------------------------------------------
 
 
 def test_clean_code_with_markdown_wrapper():
     """Verify that pure code is extracted properly when enclosed in Markdown code blocks."""
-    client = LLMClient(api_key="fake-api-key")
     raw_response = (
         "```python\nclass GeneratedScene(Scene):\n    def construct(self):\n        pass\n```"
     )
     expected_clean_code = "class GeneratedScene(Scene):\n    def construct(self):\n        pass"
-    assert client._clean_code(raw_response) == expected_clean_code
+    assert clean_code_block(raw_response) == expected_clean_code
 
 
 def test_clean_code_without_markdown_wrapper():
     """Verify that raw code is returned as-is if no Markdown wrappers are present."""
-    client = LLMClient(api_key="fake-api-key")
     raw_response = "class GeneratedScene(Scene):\n    pass"
-    assert client._clean_code(raw_response) == raw_response.strip()
+    assert clean_code_block(raw_response) == raw_response.strip()
 
 
 # -------------------------------------------------------------------------

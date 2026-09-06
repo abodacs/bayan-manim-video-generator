@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+
 # Define the required metadata shape for all Bayan templates
 CATALOGUE: dict[str, dict[str, object]] = {
     "create-circle": {
@@ -72,6 +76,11 @@ def get_template_catalogue() -> dict[str, dict[str, object]]:
 def fixture_filename(slug: str) -> str:
     """Return the fixture scene filename for a catalogue slug."""
     return f"{slug.replace('-', '_')}.py"
+
+
+def read_fixture_code(slug: str) -> str:
+    """Read an approved catalogue fixture scene from disk."""
+    return (FIXTURES_DIR / fixture_filename(slug)).read_text(encoding="utf-8")
 
 
 def validate_catalogue_entries(catalogue: dict[str, dict[str, object]]) -> list[str]:

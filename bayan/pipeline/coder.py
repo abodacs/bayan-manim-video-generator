@@ -9,22 +9,26 @@ produces; ``ast.parse`` and writing ``scene.py`` are the maximum.
 from __future__ import annotations
 
 import ast
-import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
 from bayan.generator.llm_client import LLMClient, LLMError, clean_code_block
-from bayan.pipeline.models import DEFAULT_PROFILE, AttemptRecord, CodeAttemptEvidence, LessonPlan
+from bayan.pipeline.models import (
+    DEFAULT_PROFILE,
+    AttemptRecord,
+    CodeAttemptEvidence,
+    LessonPlan,
+)
 from bayan.pipeline.pricing import estimate_cost_usd
-from bayan.templates.catalogue import fixture_filename, get_template_catalogue
+from bayan.pipeline.records import evidence_fingerprint, write_stage_record
+from bayan.templates.catalogue import get_template_catalogue, read_fixture_code
 from bayan.utils.atomic_io import atomic_write_text
 
 SCENE_FILENAME = "scene.py"
-CODING_RECORD_FILENAME = "coding.json"
 
-FIXTURES_DIR = Path(__file__).resolve().parents[1] / "templates" / "fixtures"
+FIXTURE_EXEMPLAR_COUNT = 2
 
 CODER_SYSTEM_PROMPT = (
     "You write Manim (Community Edition) scene code for Arabic math lessons as "
@@ -58,27 +62,14 @@ class CodingError(RuntimeError):
         self.record_path = record_path
 
 
-def select_few_shot_fixtures(plan: LessonPlan, count: int = 2) -> list[str]:
-    """Deterministically pick catalogue fixture slugs as few-shot exemplars.
+def select_few_shot_fixtures() -> list[str]:
+    """Pick catalogue fixture slugs as few-shot style exemplars.
 
-    Ranking prefers catalogue purposes sharing words with the plan topic; ties
-    and misses fall back to slug order, so the same plan always selects the
-    same fixtures and records stay reproducible.
+    The exemplars anchor code style (helper usage, animation discipline), not
+    lesson semantics, so the first fixtures in slug order are used and every
+    run grounds the prompt identically.
     """
-    catalogue = get_template_catalogue()
-    topic_words = set(plan.topic.lower().split())
-    ranked = []
-    for slug in sorted(catalogue):
-        purpose_words = set(str(catalogue[slug]["purpose"]).lower().split())
-        purpose_words.update(slug.split("-"))
-        overlap = len(topic_words & purpose_words)
-        ranked.append((-overlap, slug))
-    return [slug for _, slug in ranked[:count]]
-
-
-def read_fixture_code(slug: str) -> str:
-    """Read an approved catalogue fixture from disk at call time."""
-    return (FIXTURES_DIR / fixture_filename(slug)).read_text(encoding="utf-8")
+    return sorted(get_template_catalogue())[:FIXTURE_EXEMPLAR_COUNT]
 
 
 def build_coder_prompt(plan: LessonPlan, profile: str, example_codes: list[str]) -> tuple[str, str]:
@@ -117,11 +108,8 @@ class CoderService:
 
     def code(self, plan: LessonPlan, *, profile: str = DEFAULT_PROFILE) -> str:
         self.run_dir.mkdir(parents=True, exist_ok=True)
-        records_dir = self.run_dir / "records"
-        records_dir.mkdir(exist_ok=True)
-        record_path = records_dir / CODING_RECORD_FILENAME
 
-        examples = [read_fixture_code(slug) for slug in select_few_shot_fixtures(plan)]
+        examples = [read_fixture_code(slug) for slug in select_few_shot_fixtures()]
         system_prompt, user_prompt = build_coder_prompt(plan, profile, examples)
 
         try:
@@ -129,86 +117,88 @@ class CoderService:
                 plan=plan, system_prompt=system_prompt, user_prompt=user_prompt
             )
         except LLMError as error:
-            self._write_record(
-                record_path,
-                status="failed",
-                prompt=user_prompt,
-                system_prompt=system_prompt,
-                profile=profile,
-                attempts=[AttemptRecord.rejected(1, str(error))],
-                failure=f"Coding failed: the provider call did not return code. "
-                f"Last error: {error}. See {record_path}.",
-            )
-            raise CodingError(
-                f"Coding failed: the provider call did not return code. "
-                f"Last error: {error}. See {record_path}.",
-                record_path,
-            ) from None
+            raise self._fail(
+                f"Coding failed: the provider call did not return code. Last error: {error}.",
+                [AttemptRecord.rejected(1, str(error))],
+                user_prompt,
+                system_prompt,
+                profile,
+            ) from error
 
         cleaned = clean_code_block(evidence.code)
-        if not cleaned.strip():
-            failure = f"Coding failed: the provider returned empty scene code. See {record_path}."
-            self._write_record(
-                record_path,
-                status="failed",
-                prompt=user_prompt,
-                system_prompt=system_prompt,
-                profile=profile,
-                attempts=[AttemptRecord.rejected(1, "empty output", evidence.raw_response)],
-                failure=failure,
+        if not cleaned:
+            raise self._fail(
+                "Coding failed: the provider returned empty scene code.",
+                [AttemptRecord.rejected(1, "empty output", evidence.raw_response)],
+                user_prompt,
+                system_prompt,
+                profile,
             )
-            raise CodingError(failure, record_path)
 
         try:
             ast.parse(cleaned)
         except SyntaxError as error:
-            failure = (
-                f"Coding failed: the produced scene code does not parse ({error}). "
-                f"See {record_path}."
-            )
-            self._write_record(
-                record_path,
-                status="failed",
+            raise self._fail(
+                f"Coding failed: the produced scene code does not parse ({error}).",
+                [AttemptRecord.rejected(1, f"does not parse: {error}", evidence.raw_response)],
+                user_prompt,
+                system_prompt,
+                profile,
+            ) from None
+
+        atomic_write_text(self.run_dir / SCENE_FILENAME, cleaned + "\n")
+        write_stage_record(
+            self.run_dir,
+            self._record(
+                status="completed",
                 prompt=user_prompt,
                 system_prompt=system_prompt,
                 profile=profile,
                 attempts=[
-                    AttemptRecord.rejected(1, f"does not parse: {error}", evidence.raw_response)
+                    AttemptRecord.accepted(
+                        1, evidence, estimate_cost_usd(evidence.model, evidence.usage)
+                    ).model_dump()
                 ],
-                failure=failure,
-            )
-            raise CodingError(failure, record_path) from None
-
-        atomic_write_text(self.run_dir / SCENE_FILENAME, cleaned + "\n")
-        self._write_record(
-            record_path,
-            status="completed",
-            prompt=user_prompt,
-            system_prompt=system_prompt,
-            profile=profile,
-            attempts=[
-                AttemptRecord.accepted(
-                    1, evidence, estimate_cost_usd(evidence.model, evidence.usage)
-                )
-            ],
-            failure=None,
-            provider_fingerprint=evidence.fingerprint,
+                failure=None,
+                provider_fingerprint=evidence.fingerprint,
+            ),
         )
         return cleaned
 
-    def _write_record(
+    def _fail(
         self,
-        record_path: Path,
+        failure: str,
+        attempts: list[AttemptRecord],
+        prompt: str,
+        system_prompt: str,
+        profile: str,
+    ) -> CodingError:
+        """Write the failure record and return the typed error to raise."""
+        record_path = write_stage_record(
+            self.run_dir,
+            self._record(
+                status="failed",
+                prompt=prompt,
+                system_prompt=system_prompt,
+                profile=profile,
+                attempts=[attempt.model_dump() for attempt in attempts],
+                failure=f"{failure} See records/coding.json.",
+            ),
+        )
+        return CodingError(f"{failure} See {record_path}.", record_path)
+
+    def _record(
+        self,
         *,
         status: str,
         prompt: str,
         system_prompt: str,
         profile: str,
-        attempts: list[AttemptRecord],
+        attempts: list[dict[str, Any]],
         failure: str | None,
         provider_fingerprint: str | None = None,
-    ) -> None:
-        record: dict[str, Any] = {
+    ) -> dict[str, Any]:
+        return {
             "stage": "coding",
             "status": status,
             "created_at": datetime.now(UTC).isoformat(),
@@ -216,14 +206,10 @@ class CoderService:
             "system_prompt": system_prompt,
             "profile": profile,
             "provider_fingerprint": provider_fingerprint,
-            "attempts": [attempt.model_dump() for attempt in attempts],
+            "attempts": attempts,
             "failure": failure,
             "scene": SCENE_FILENAME if status == "completed" else None,
         }
-        atomic_write_text(
-            record_path,
-            json.dumps(record, indent=2, ensure_ascii=False) + "\n",
-        )
 
 
 class LLMCoderProvider:
@@ -236,13 +222,12 @@ class LLMCoderProvider:
         self, *, plan: LessonPlan, system_prompt: str, user_prompt: str
     ) -> CodeAttemptEvidence:
         code = self.client.generate_code(system_prompt=system_prompt, user_prompt=user_prompt)
-        fingerprint = hashlib.sha256(
-            f"{self.client.model}:{self.client.base_url}:{plan.model_dump_json()}".encode()
-        ).hexdigest()
         return CodeAttemptEvidence(
             code=code,
             raw_response=self.client.last_raw_content or "",
-            fingerprint=fingerprint,
+            fingerprint=evidence_fingerprint(
+                self.client.model, self.client.base_url, plan.model_dump_json()
+            ),
             model=self.client.model,
             usage=self.client.last_usage,
         )

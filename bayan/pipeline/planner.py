@@ -7,7 +7,6 @@ layout: ``plan.json`` at the run root, the stage record under ``records/``.
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -20,6 +19,7 @@ from bayan.pipeline.models import (
 )
 from bayan.pipeline.pricing import estimate_cost_usd
 from bayan.pipeline.provider import LessonPlanProvider
+from bayan.pipeline.records import write_stage_record
 from bayan.utils.atomic_io import atomic_write_text
 
 MAX_PLANNING_ATTEMPTS = 3
@@ -60,15 +60,12 @@ class PlannerService:
 
     def plan(self, prompt: str, *, profile: str = DEFAULT_PROFILE) -> LessonPlan:
         self.run_dir.mkdir(parents=True, exist_ok=True)
-        records_dir = self.run_dir / "records"
-        records_dir.mkdir(exist_ok=True)
-        record_path = records_dir / PLANNING_RECORD_FILENAME
+        record_path = self.run_dir / "records" / PLANNING_RECORD_FILENAME
 
         prompt_text = prompt.strip()
         if not prompt_text:
             failure = "Prompt is empty: describe the lesson in one Arabic sentence."
-            self._write_record(
-                record_path,
+            self._record_path(
                 status="failed",
                 prompt=prompt_text,
                 profile=profile,
@@ -98,8 +95,7 @@ class PlannerService:
                 )
             )
             self._write_plan(evidence.plan)
-            self._write_record(
-                record_path,
+            record_path = self._record_path(
                 status="completed",
                 prompt=prompt_text,
                 profile=profile,
@@ -113,10 +109,9 @@ class PlannerService:
         failure = (
             f"Planning failed after {self.max_attempts} attempts: the provider never "
             f"returned a schema-valid lesson plan. Last error: {last_error}. "
-            f"See {record_path} for every recorded attempt."
+            f"See records/{PLANNING_RECORD_FILENAME} for every recorded attempt."
         )
-        self._write_record(
-            record_path,
+        self._record_path(
             status="failed",
             prompt=prompt_text,
             profile=profile,
@@ -131,9 +126,8 @@ class PlannerService:
             plan.model_dump_json(indent=2, ensure_ascii=False) + "\n",
         )
 
-    def _write_record(
+    def _record_path(
         self,
-        record_path: Path,
         *,
         status: str,
         prompt: str,
@@ -141,7 +135,7 @@ class PlannerService:
         attempts: list[AttemptRecord],
         failure: str | None,
         provider_fingerprint: str | None = None,
-    ) -> None:
+    ) -> Path:
         record: dict[str, Any] = {
             "stage": "planning",
             "status": status,
@@ -154,7 +148,4 @@ class PlannerService:
             "failure": failure,
             "plan": PLAN_FILENAME if status == "completed" else None,
         }
-        atomic_write_text(
-            record_path,
-            json.dumps(record, indent=2, ensure_ascii=False) + "\n",
-        )
+        return write_stage_record(self.run_dir, record)

@@ -12,6 +12,7 @@ from bayan.pipeline.models import (
     LessonPlan,
     PlanAttemptEvidence,
 )
+from bayan.pipeline.records import evidence_fingerprint
 from bayan.planner.models import LessonSegment, PlanRenderPreferences, ScenePlan
 from bayan.templates.catalogue import get_template_catalogue
 
@@ -58,9 +59,7 @@ class FakeProvider:
         )
 
     def generate_lesson_plan(self, prompt: str, profile: str) -> PlanAttemptEvidence:
-        fingerprint = hashlib.sha256(
-            f"{self.model_name}:{profile}:{prompt.strip()}".encode()
-        ).hexdigest()
+        fingerprint = evidence_fingerprint(self.model_name, "fake", f"{profile}:{prompt.strip()}")
 
         beat_count = 2 + int(fingerprint[0], 16) % 3
         dividend = int(fingerprint[1:3], 16) % 90 + 10
@@ -103,9 +102,7 @@ class FakeProvider:
     def generate_scene_code(
         self, *, plan: LessonPlan, system_prompt: str, user_prompt: str
     ) -> CodeAttemptEvidence:
-        plan_hash = hashlib.sha256(
-            f"{self.model_name}:{plan.model_dump_json()}".encode()
-        ).hexdigest()
+        plan_hash = evidence_fingerprint(self.model_name, "fake", plan.model_dump_json())
         on_screen_text = plan.beats[0].on_screen_text
         scene = (
             "from manim import *\n"
