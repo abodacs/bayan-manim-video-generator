@@ -1,0 +1,34 @@
+{
+  "topic": "شرح مفهوم المعادلة باستخدام الميزان: س + ٢ = ٧",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 89 على 3، الخطوة 1",
+      "insight_move": "animate_count",
+      "numbers": [
+        89.0,
+        3.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "نقسم 89 على 3، الخطوة 2",
+      "insight_move": "compare",
+      "numbers": [
+        89.0,
+        3.0
+      ]
+    },
+    {
+      "title": "الخطوة 3",
+      "on_screen_text": "الناتج 29 والباقي 2",
+      "insight_move": "summarize",
+      "numbers": [
+        29.0,
+        2.0
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "topic": "شرح تحليل العدد ٢٤ إلى عوامل أولية",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 78 على 5، الخطوة 1",
+      "insight_move": "summarize",
+      "numbers": [
+        78.0,
+        5.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "الناتج 15 والباقي 3",
+      "insight_move": "summarize",
+      "numbers": [
+        15.0,
+        3.0
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "0011",
+  "unit": "equations",
+  "slug": "one-step-equation",
+  "prompt": "شرح حل المعادلة س + ٣ = ١٠",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 2
+  }
+}

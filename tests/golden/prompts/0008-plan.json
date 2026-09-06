@@ -1,0 +1,25 @@
+{
+  "topic": "شرح تبسيط العبارة ٢س + ٣ + س",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 42 على 6، الخطوة 1",
+      "insight_move": "reveal",
+      "numbers": [
+        42.0,
+        6.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "الناتج 7 والباقي 0",
+      "insight_move": "summarize",
+      "numbers": [
+        7.0,
+        0.0
+      ]
+    }
+  ]
+}

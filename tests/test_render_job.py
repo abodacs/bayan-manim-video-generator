@@ -8,7 +8,7 @@ import pytest
 from bayan.planner.models import PlanRenderPreferences, RenderQuality, ScenePlan
 from bayan.renderer.docker import DockerExecutor
 from bayan.renderer.errors import DockerError
-from bayan.renderer.executor import RenderError, RenderJobRunner
+from bayan.renderer.executor import RenderError, RenderJobRunner, render_scene_code
 from bayan.renderer.models import ImageMetadata, RenderJob, RenderSettings
 from bayan.renderer.process import CommandResult
 from bayan.renderer.smoke import (
@@ -334,3 +334,106 @@ def test_failed_render_still_prunes_old_run_directories(
     # Pruning before allocation bounds failures at the retained window plus
     # the one fresh directory the failed render used.
     assert len(remaining) == MAX_RETAINED_RUN_DIRECTORIES + 1
+
+
+# -------------------------------------------------------------------------
+# Render quality plumbing (draft by default; flag chosen in one mapping)
+# -------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("quality_name", "expected_flag"),
+    [
+        ("low_quality", "-ql"),
+        ("medium_quality", "-qm"),
+        ("high_quality", "-qh"),
+    ],
+)
+def test_quality_flag_reaches_manim_command(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    quality_name: RenderQuality,
+    expected_flag: str,
+) -> None:
+    rendered: list[tuple[str, ...]] = []
+    executor = _fake_successful_render(tmp_path, monkeypatch, rendered=rendered)
+    plan = _plan_for("create-circle")
+    plan.render_settings = PlanRenderPreferences(quality=quality_name)
+
+    RenderJobRunner(executor=executor).run_job(plan, output_dir=tmp_path)
+
+    video_commands = [command for command in rendered if "--format=png" not in command]
+    assert video_commands
+    for command in video_commands:
+        assert command[1] == expected_flag
+
+    job_record = json.loads((tmp_path / "render_job.json").read_text(encoding="utf-8"))
+    assert job_record["quality"] == quality_name
+
+
+def test_render_scene_code_defaults_to_draft_quality(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered: list[tuple[str, ...]] = []
+    executor = _fake_successful_render(tmp_path, monkeypatch, rendered=rendered)
+
+    render_scene_code("from manim import *", tmp_path / "draft.mp4", executor=executor)
+
+    video_commands = [command for command in rendered if "--format=png" not in command]
+    assert video_commands
+    assert all(command[1] == "-ql" for command in video_commands)
+
+
+def test_render_scene_code_accepts_named_qualities(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered: list[tuple[str, ...]] = []
+    executor = _fake_successful_render(tmp_path, monkeypatch, rendered=rendered)
+
+    render_scene_code(
+        "from manim import *",
+        tmp_path / "draft.mp4",
+        executor=executor,
+        quality="high_quality",
+    )
+
+    video_commands = [command for command in rendered if "--format=png" not in command]
+    assert video_commands
+    assert all(command[1] == "-qh" for command in video_commands)
+
+
+def test_unknown_quality_fails_before_any_container_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered: list[tuple[str, ...]] = []
+    executor = _fake_successful_render(tmp_path, monkeypatch, rendered=rendered)
+
+    with pytest.raises(RenderError, match="Unknown render quality"):
+        render_scene_code(
+            "from manim import *",
+            tmp_path / "draft.mp4",
+            executor=executor,
+            quality="ultra",
+        )
+
+    assert rendered == []
+
+
+def test_run_job_unknown_quality_fails_before_container_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered: list[tuple[str, ...]] = []
+    executor = _fake_successful_render(tmp_path, monkeypatch, rendered=rendered)
+    # model_construct bypasses the literal validation on purpose: the runner
+    # must still fail safely when an unvalidated quality reaches it.
+    plan = _plan_for("create-circle").model_copy(
+        update={"render_settings": PlanRenderPreferences.model_construct(quality="bogus")}
+    )
+
+    with pytest.raises(RenderError, match="Unknown render quality"):
+        RenderJobRunner(executor=executor).run_job(plan, output_dir=tmp_path)
+
+    assert rendered == []
+    job_record = json.loads((tmp_path / "render_job.json").read_text(encoding="utf-8"))
+    assert job_record["status"] == "failed"
+    assert job_record["quality"] == "bogus"

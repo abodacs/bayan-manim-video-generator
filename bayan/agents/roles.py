@@ -1,10 +1,12 @@
 """Typed agent roles with bounded repair semantics.
 
-Deliberately not wired into the orchestrator yet: the render failure path
-currently uses the orchestrator's own retry model, and the error-evidence
-shape consumed here (category/message) is defined by the preflight and
-critic gates. Integration is tracked by MVP issue #83 (RepairService and
-failure taxonomy), which supersedes these roles' bounded-repair loop.
+``RepairAgent`` is wired into the generate pipeline through
+:class:`bayan.pipeline.repair.RepairService`: it owns the attempt budget
+(max 2 per run), the policy/security short-circuit to the review packet,
+and loop detection via input hashes. Its ``agent_records/`` entries are the
+agent's own audit trail; the run's repair record of truth is
+``records/07-repair.json`` written by RepairService. The legacy orchestrator
+(``bayan run``) does not use these roles.
 """
 
 from __future__ import annotations

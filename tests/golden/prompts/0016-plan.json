@@ -1,0 +1,43 @@
+{
+  "topic": "شرح إيجاد محيط مستطيل طوله ٦ وعرضه ٤",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 99 على 3، الخطوة 1",
+      "insight_move": "summarize",
+      "numbers": [
+        99.0,
+        3.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "نقسم 99 على 3، الخطوة 2",
+      "insight_move": "animate_count",
+      "numbers": [
+        99.0,
+        3.0
+      ]
+    },
+    {
+      "title": "الخطوة 3",
+      "on_screen_text": "نقسم 99 على 3، الخطوة 3",
+      "insight_move": "animate_count",
+      "numbers": [
+        99.0,
+        3.0
+      ]
+    },
+    {
+      "title": "الخطوة 4",
+      "on_screen_text": "الناتج 33 والباقي 0",
+      "insight_move": "summarize",
+      "numbers": [
+        33.0,
+        0.0
+      ]
+    }
+  ]
+}

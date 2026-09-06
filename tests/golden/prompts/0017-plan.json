@@ -1,0 +1,43 @@
+{
+  "topic": "شرح إيجاد مساحة مستطيل طوله ٦ وعرضه ٤",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 95 على 10، الخطوة 1",
+      "insight_move": "summarize",
+      "numbers": [
+        95.0,
+        10.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "نقسم 95 على 10، الخطوة 2",
+      "insight_move": "animate_count",
+      "numbers": [
+        95.0,
+        10.0
+      ]
+    },
+    {
+      "title": "الخطوة 3",
+      "on_screen_text": "نقسم 95 على 10، الخطوة 3",
+      "insight_move": "animate_count",
+      "numbers": [
+        95.0,
+        10.0
+      ]
+    },
+    {
+      "title": "الخطوة 4",
+      "on_screen_text": "الناتج 9 والباقي 5",
+      "insight_move": "summarize",
+      "numbers": [
+        9.0,
+        5.0
+      ]
+    }
+  ]
+}

@@ -220,4 +220,7 @@ __marimo__/
 # Manim media outputs
 media/
 
+# Generated run directories
+runs/
+
 *.mp4

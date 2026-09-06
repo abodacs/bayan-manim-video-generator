@@ -1,0 +1,11 @@
+{
+  "id": "0009",
+  "unit": "algebra",
+  "slug": "evaluate-expression",
+  "prompt": "شرح إيجاد قيمة ٢س + ١ عندما س = ٤",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 2
+  }
+}

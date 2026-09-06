@@ -1,0 +1,11 @@
+{
+  "id": "0005",
+  "unit": "integers",
+  "slug": "number-line",
+  "prompt": "شرح مفهوم الأعداد الصحيحة وترتيب ٣ و -٢ و ٠ على خط الأعداد",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 4
+  }
+}

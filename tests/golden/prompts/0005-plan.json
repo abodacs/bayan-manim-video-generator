@@ -1,0 +1,43 @@
+{
+  "topic": "شرح مفهوم الأعداد الصحيحة وترتيب ٣ و -٢ و ٠ على خط الأعداد",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 67 على 3، الخطوة 1",
+      "insight_move": "summarize",
+      "numbers": [
+        67.0,
+        3.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "نقسم 67 على 3، الخطوة 2",
+      "insight_move": "compare",
+      "numbers": [
+        67.0,
+        3.0
+      ]
+    },
+    {
+      "title": "الخطوة 3",
+      "on_screen_text": "نقسم 67 على 3، الخطوة 3",
+      "insight_move": "animate_count",
+      "numbers": [
+        67.0,
+        3.0
+      ]
+    },
+    {
+      "title": "الخطوة 4",
+      "on_screen_text": "الناتج 22 والباقي 1",
+      "insight_move": "summarize",
+      "numbers": [
+        22.0,
+        1.0
+      ]
+    }
+  ]
+}

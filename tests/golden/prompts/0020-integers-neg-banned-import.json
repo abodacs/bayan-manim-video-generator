@@ -1,0 +1,11 @@
+{
+  "id": "0020",
+  "unit": "integers",
+  "slug": "neg-banned-import",
+  "prompt": "شرح عملية جمع تحتاج إلى أداة خارجية",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "fail:imports",
+    "beats": 4
+  }
+}

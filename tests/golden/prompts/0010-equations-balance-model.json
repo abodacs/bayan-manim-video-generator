@@ -1,0 +1,11 @@
+{
+  "id": "0010",
+  "unit": "equations",
+  "slug": "balance-model",
+  "prompt": "شرح مفهوم المعادلة باستخدام الميزان: س + ٢ = ٧",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 3
+  }
+}

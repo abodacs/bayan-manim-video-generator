@@ -1,0 +1,11 @@
+{
+  "id": "0016",
+  "unit": "geometry",
+  "slug": "perimeter",
+  "prompt": "شرح إيجاد محيط مستطيل طوله ٦ وعرضه ٤",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 4
+  }
+}

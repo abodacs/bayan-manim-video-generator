@@ -1,0 +1,11 @@
+{
+  "id": "0001",
+  "unit": "numbers",
+  "slug": "divisibility-rules",
+  "prompt": "شرح قواعد القسمة على ٢ و ٥ و ١٠ مع أمثلة",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 2
+  }
+}

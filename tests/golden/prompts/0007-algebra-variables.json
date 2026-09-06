@@ -1,0 +1,11 @@
+{
+  "id": "0007",
+  "unit": "algebra",
+  "slug": "variables",
+  "prompt": "شرح مفهوم المتغير في العبارة س + ٥ حيث س = ٣",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 2
+  }
+}
