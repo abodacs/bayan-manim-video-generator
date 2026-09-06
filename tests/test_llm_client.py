@@ -141,47 +141,66 @@ def test_provider_error_never_contains_the_api_key(mock_openai_class):
 
 
 @patch("bayan.generator.llm_client.OpenAI")
-def test_generate_manim_code_sets_last_usage(mock_openai_class):
-    """Token usage from the last response is exposed as a typed value."""
+def test_generate_code_result_carries_the_call_evidence(mock_openai_class):
+    """Token usage rides on the returned result, not on mutable client state."""
     mock_client = _mocked_client(mock_openai_class)
     mock_client.chat.completions.create.return_value = _mock_response(
         "```python\nx = 1\n```", usage=(9, 4, 13)
     )
 
     client = LLMClient(api_key="fake-api-key")
-    assert client.last_usage is None
+    result = client.generate_code(system_prompt="system", user_prompt="user")
 
-    result = client.generate_manim_code("Draw a red circle")
-
-    assert result == "x = 1"
-    assert client.last_usage == LLMUsage(prompt_tokens=9, completion_tokens=4, total_tokens=13)
+    assert result.content == "x = 1"
+    assert result.usage == LLMUsage(prompt_tokens=9, completion_tokens=4, total_tokens=13)
+    assert result.model == client.model
+    assert result.base_url == client.base_url
 
 
 @patch("bayan.generator.llm_client.OpenAI")
-def test_last_usage_is_none_when_provider_omits_usage(mock_openai_class):
+def test_result_usage_is_none_when_provider_omits_usage(mock_openai_class):
     mock_client = _mocked_client(mock_openai_class)
     mock_client.chat.completions.create.return_value = _mock_response("print(1)")
 
     client = LLMClient(api_key="fake-api-key")
-    client.generate_manim_code("Draw a square")
+    result = client.generate_code(system_prompt="system", user_prompt="user")
 
-    assert client.last_usage is None
+    assert result.usage is None
 
 
 @patch("bayan.generator.llm_client.OpenAI")
-def test_last_raw_content_exposes_the_untrimmed_reply(mock_openai_class):
-    """Run records need the raw reply, not just the cleaned code."""
+def test_result_keeps_raw_and_cleaned_content_apart(mock_openai_class):
+    """Run records need the raw reply; the coder needs the cleaned code."""
     raw = "```python\nx = 1\n```"
     mock_client = _mocked_client(mock_openai_class)
     mock_client.chat.completions.create.return_value = _mock_response(raw)
 
     client = LLMClient(api_key="fake-api-key")
-    assert client.last_raw_content is None
+    result = client.generate_code(system_prompt="system", user_prompt="user")
 
-    code = client.generate_manim_code("Draw a square")
+    assert result.content == "x = 1"
+    assert result.raw_content == raw
 
-    assert code == "x = 1"
-    assert client.last_raw_content == raw
+
+@patch("bayan.generator.llm_client.OpenAI")
+def test_results_are_frozen_snapshots_immune_to_later_calls(mock_openai_class):
+    """A second call can never rewrite the first call's evidence."""
+    mock_client = _mocked_client(mock_openai_class)
+    mock_client.chat.completions.create.side_effect = [
+        _mock_response("x = 1", usage=(9, 4, 13)),
+        _mock_response("y = 2", usage=(1, 1, 2)),
+    ]
+
+    client = LLMClient(api_key="fake-api-key")
+    first = client.generate_code(system_prompt="system", user_prompt="first")
+    second = client.generate_code(system_prompt="system", user_prompt="second")
+
+    assert first.content == "x = 1"
+    assert first.usage == LLMUsage(prompt_tokens=9, completion_tokens=4, total_tokens=13)
+    assert second.content == "y = 2"
+    assert second.usage == LLMUsage(prompt_tokens=1, completion_tokens=1, total_tokens=2)
+    with pytest.raises(AttributeError):
+        first.usage = None  # type: ignore[misc]
 
 
 @patch("bayan.generator.llm_client.OpenAI")
@@ -194,9 +213,9 @@ def test_generate_code_returns_cleaned_code_with_caller_prompts(mock_openai_clas
 
     result = client.generate_code(system_prompt="system rules", user_prompt="user plan")
 
-    assert result == "from manim import *"
-    assert client.last_raw_content == raw
-    assert client.last_usage == LLMUsage(prompt_tokens=7, completion_tokens=3, total_tokens=10)
+    assert result.content == "from manim import *"
+    assert result.raw_content == raw
+    assert result.usage == LLMUsage(prompt_tokens=7, completion_tokens=3, total_tokens=10)
 
     create_kwargs = mock_client.chat.completions.create.call_args[1]
     assert create_kwargs["messages"][0]["content"] == "system rules"
@@ -210,21 +229,22 @@ def test_generate_code_returns_cleaned_code_with_caller_prompts(mock_openai_clas
 
 @patch("bayan.generator.llm_client.OpenAI")
 def test_structured_mode_returns_parsed_json_and_usage(mock_openai_class):
-    """Structured mode sends the JSON schema and returns a validated model."""
+    """Structured mode sends the JSON schema and returns evidence plus the model."""
     mock_client = _mocked_client(mock_openai_class)
     mock_client.chat.completions.create.return_value = _mock_response(
         '{"item": "dates", "price": 7}', usage=(11, 5, 16)
     )
 
     client = LLMClient(api_key="fake-api-key")
-    quote = client.generate_structured(
+    result = client.generate_structured(
         system_prompt="Return JSON only.",
         user_prompt="What is the price of dates?",
         response_model=_Quote,
     )
 
-    assert quote == _Quote(item="dates", price=7)
-    assert client.last_usage == LLMUsage(prompt_tokens=11, completion_tokens=5, total_tokens=16)
+    assert result.data == _Quote(item="dates", price=7)
+    assert result.content == '{"item": "dates", "price": 7}'
+    assert result.usage == LLMUsage(prompt_tokens=11, completion_tokens=5, total_tokens=16)
 
     called_kwargs = mock_client.chat.completions.create.call_args[1]
     response_format = called_kwargs["response_format"]
@@ -243,13 +263,13 @@ def test_structured_mode_accepts_markdown_fenced_json(mock_openai_class):
     )
 
     client = LLMClient(api_key="fake-api-key")
-    quote = client.generate_structured(
+    result = client.generate_structured(
         system_prompt="Return JSON only.",
         user_prompt="What is the price of milk?",
         response_model=_Quote,
     )
 
-    assert quote == _Quote(item="milk", price=3)
+    assert result.data == _Quote(item="milk", price=3)
 
 
 @patch("bayan.generator.llm_client.OpenAI")

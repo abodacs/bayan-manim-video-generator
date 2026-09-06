@@ -55,17 +55,17 @@ class LLMPlanProvider:
         self.client = client
 
     def generate_lesson_plan(self, prompt: str, profile: str) -> PlanAttemptEvidence:
-        plan: LessonPlan = self.client.generate_structured(
+        result = self.client.generate_structured(
             system_prompt=LESSON_PLAN_SYSTEM_PROMPT,
             user_prompt=f"Lesson request: {prompt.strip()}\nLanguage profile: {profile}",
             response_model=LessonPlan,
         )
         return PlanAttemptEvidence(
-            plan=plan,
-            raw_response=self.client.last_raw_content or "",
+            plan=result.data,
+            raw_response=result.raw_content,
             fingerprint=evidence_fingerprint(
-                self.client.model, self.client.base_url, f"{profile}:{prompt.strip()}"
+                result.model, result.base_url, f"{profile}:{prompt.strip()}"
             ),
-            model=self.client.model,
-            usage=as_token_usage(self.client.last_usage),
+            model=result.model,
+            usage=as_token_usage(result.usage),
         )
