@@ -1,13 +1,13 @@
 # Manim CE Glossary
 
-The controlled vocabulary used across the course. Adhere to these terms in every lesson.
+The shared Manim vocabulary for this repository. Adhere to these terms in docs, templates, and authored lessons.
 
 | Term | Meaning |
 |---|---|
 | **Manim CE** | Manim Community Edition, the community-maintained fork. Target ≥ 0.20.1. |
 | **Mobject** | "Mathematical object" — anything visible on screen (shapes, text, graphs). Base class `Mobject`. |
 | **VMobject** | Vector mobject — a `Mobject` made of bezier curves; supports fill/stroke. Most primitives. |
-| **Scene** | A renderable unit; one `Scene` subclass with a `construct(self)` method = one conceptual point. |
+| **Scene** | In Manim, a renderable unit: one `Scene` subclass with a `construct(self)` method. In Bayan's domain model, a *scene* is the visual sequence produced from a scene plan (see `CONTEXT.md`). |
 | **construct** | The method Manim calls to build a scene: create mobjects, `play`, `wait`. |
 | **play** | `self.play(animation, run_time=…)` — animates one beat. |
 | **wait** | `self.wait(seconds)` — holds the frame; the *pause after a reveal*. |

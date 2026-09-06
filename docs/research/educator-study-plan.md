@@ -7,7 +7,8 @@
 ## Why this study
 
 `PRODUCT_DIRECTION.md` rests on zero observation (`PROJECT_NORTH_STAR.md`
-lines 32–35). Three assumptions are load-bearing and untested: that teachers
+"Working product strategy"
+section). Three assumptions are load-bearing and untested: that teachers
 think in "aha" terms, that their real workflow has a gap a video fills, and that
 a low-tech teacher can read and direct a storyboard board. This study tests all
 three cheaply, in one session per educator.

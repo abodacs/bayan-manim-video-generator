@@ -8,7 +8,7 @@
 Bayan is an Arabic AI-powered video generator built on top of Manim.
 
 This project targets **Manim Community Edition**. It installs the Community
-Edition package as `manim` (version 0.20 or newer), rather than the legacy
+Edition package as `manim` (version 0.20.1 or newer), rather than the legacy
 `manimlib` package.
 
 ## System Requirements
@@ -182,6 +182,11 @@ docs/
     ├── ARCHITECTURE.md             Target system boundaries
     ├── DOMAIN_MODEL.md             Domain relationships and invariants
     ├── DEVELOPMENT.md              Contributor development loop
+    ├── reference/                  Terminology references
+    │   └── manim-glossary.md       Shared Manim vocabulary
+    ├── research/                   Product research notes
+    │   ├── educator-study-plan.md
+    │   └── probe-storyboard-circle-area.md
     └── agdr/                       Architecture and developer decisions
         ├── AgDR-0001-type-checker.md
         └── AgDR-0002-render-isolation.md
@@ -218,9 +223,10 @@ The key architectural rule is to keep domain logic independent of Manim. Scene
 files should be thin rendering adapters, while generated code should run in an
 isolated process rather than inside the application host.
 
-See the detailed [architecture](docs/ARCHITECTURE.md), [domain model](docs/DOMAIN_MODEL.md),
-and [project North Star](docs/PROJECT_NORTH_STAR.md) for the proposed direction.
-The current product direction is in [PRODUCT_DIRECTION.md](docs/PRODUCT_DIRECTION.md).
+See the detailed [architecture](docs/ARCHITECTURE.md) and [domain model](docs/DOMAIN_MODEL.md).
+The current product direction is in [PRODUCT_DIRECTION.md](docs/PRODUCT_DIRECTION.md);
+[PROJECT_NORTH_STAR.md](docs/PROJECT_NORTH_STAR.md) is scoped to the POC strategy
+and success signals.
 
 ## Design and engineering decisions
 
