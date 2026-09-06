@@ -26,9 +26,9 @@ idea, then compose named mobjects into a group.
 
 ```python
 row = VGroup(circle, square, triangle).arrange(RIGHT, buff=0.6)  # even spacing
-row.to_edge(UP, buff=1.0)                                         # edge + buffer
-label.next_to(row, DOWN, buff=0.8)                                # relative to bbox
-dot.move_to(np.array([2.0, 1.0, 0.0]))                            # explicit coords
+row.to_edge(UP, buff=1.0)  # edge + buffer
+label.next_to(row, DOWN, buff=0.8)  # relative to bbox
+dot.move_to(np.array([2.0, 1.0, 0.0]))  # explicit coords
 ```
 
 `next_to` and `arrange` position relative to **bounding boxes**, so layouts stay

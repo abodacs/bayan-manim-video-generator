@@ -39,9 +39,9 @@
 </ul>
 <h2>Position precisely</h2>
 <pre class="code"><code class="language-python">row = VGroup(circle, square, triangle).arrange(RIGHT, buff=0.6)  # even spacing
-row.to_edge(UP, buff=1.0)                                         # edge + buffer
-label.next_to(row, DOWN, buff=0.8)                                # relative to bbox
-dot.move_to(np.array([2.0, 1.0, 0.0]))                            # explicit coords</code></pre>
+row.to_edge(UP, buff=1.0)  # edge + buffer
+label.next_to(row, DOWN, buff=0.8)  # relative to bbox
+dot.move_to(np.array([2.0, 1.0, 0.0]))  # explicit coords</code></pre>
 <p><code>next_to</code> and <code>arrange</code> position relative to <strong>bounding boxes</strong>, so layouts stay correct as content changes. Use <code>buff &gt;= 0.5</code> near frame edges. After placement, check the result by rendering a still (<code>--format=png -s</code>).</p>
 <h2>VGroup vs Group — the rule that bites</h2>
 <ul>

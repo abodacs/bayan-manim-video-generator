@@ -28,9 +28,9 @@
 <section class="block" style="padding-top:18px"><article class="lesson-doc"><h1>03 — play/wait, Create/FadeIn/Transform, and rate functions</h1>
 <blockquote><strong>Objective.</strong> Choose creation, visibility, and transform animations deliberately, and pick rate functions that express intent.  <strong>Misconception it kills.</strong> <em>“Animation choice is cosmetic.”</em> It carries meaning: <code>Create</code> <strong>builds</strong>, <code>FadeIn</code> <strong>reveals</strong>, <code>Transform</code> <strong>relates</strong>. Rate functions express intent — <code>linear</code> = machine/constant, <code>smooth</code> = natural ease, <code>there_and_back</code> = a passing emphasis.  <strong>Prerequisites.</strong> <a href="../02-mobjects-positioning/index.html">02 — Mobjects &amp; positioning</a>.  <strong>Source reference.</strong> <code>animations.md</code>.</blockquote>
 <h2>The three families</h2>
-<pre class="code"><code class="language-python">self.play(Create(circle), run_time=1.0)        # build the stroke
-self.play(FadeIn(square, shift=DOWN * 0.3))    # reveal without drawing
-self.play(Transform(circle, square))           # morph: show a relationship</code></pre>
+<pre class="code"><code class="language-python">self.play(Create(circle), run_time=1.0)  # build the stroke
+self.play(FadeIn(square, shift=DOWN * 0.3))  # reveal without drawing
+self.play(Transform(circle, square))  # morph: show a relationship</code></pre>
 <ul>
 <li><strong>Creation:</strong> <code>Create</code>, <code>Write</code>, <code>DrawBorderThenFill</code>, <code>GrowFromCenter</code>.</li>
 <li><strong>Visibility:</strong> <code>FadeIn</code>, <code>FadeOut</code>, <code>Uncreate</code>, <code>ShrinkToCenter</code>.</li>
@@ -43,8 +43,8 @@ self.play(Transform(circle, square))           # morph: show a relationship</cod
 <p><code>ShowPassingFlash</code>.</p>
 <blockquote>Do <strong>not</strong> separately animate the same property in competing animations within one <code>play</code> call. Chain related changes with <code>.animate</code> instead.</blockquote>
 <h2>Rate functions express intent</h2>
-<pre class="code"><code class="language-python">self.play(dot.animate.shift(RIGHT * 2), rate_func=linear,        run_time=2.0)
-self.play(dot.animate.shift(RIGHT * 2), rate_func=smooth,         run_time=2.0)
+<pre class="code"><code class="language-python">self.play(dot.animate.shift(RIGHT * 2), rate_func=linear, run_time=2.0)
+self.play(dot.animate.shift(RIGHT * 2), rate_func=smooth, run_time=2.0)
 self.play(dot.animate.shift(RIGHT * 0.5), rate_func=there_and_back, run_time=1.0)</code></pre>
 <p>Use <code>MoveAlongPath</code> for meaningful trajectories and <code>Rotate</code> for a one-time rotation (an updater for continuous rotation — see Lesson 10).</p>
 <h2>Composition</h2>
