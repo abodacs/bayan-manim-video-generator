@@ -27,6 +27,7 @@ from bayan.templates.catalogue import get_template_catalogue, read_fixture_code
 from bayan.utils.atomic_io import atomic_write_text
 
 SCENE_FILENAME = "scene.py"
+CODING_RECORD_FILENAME = "coding.json"
 
 FIXTURE_EXEMPLAR_COUNT = 2
 
@@ -102,9 +103,16 @@ class CoderService:
     executed.
     """
 
-    def __init__(self, provider: SceneCodeProvider, run_dir: Path) -> None:
+    def __init__(
+        self,
+        provider: SceneCodeProvider,
+        run_dir: Path,
+        *,
+        record_filename: str = CODING_RECORD_FILENAME,
+    ) -> None:
         self.provider = provider
         self.run_dir = run_dir
+        self.record_filename = record_filename
 
     def code(self, plan: LessonPlan, *, profile: str = DEFAULT_PROFILE) -> str:
         self.run_dir.mkdir(parents=True, exist_ok=True)
@@ -162,6 +170,7 @@ class CoderService:
                 failure=None,
                 provider_fingerprint=evidence.fingerprint,
             ),
+            self.record_filename,
         )
         return cleaned
 
@@ -182,8 +191,9 @@ class CoderService:
                 system_prompt=system_prompt,
                 profile=profile,
                 attempts=[attempt.model_dump() for attempt in attempts],
-                failure=f"{failure} See records/coding.json.",
+                failure=f"{failure} See records/{self.record_filename}.",
             ),
+            self.record_filename,
         )
         return CodingError(f"{failure} See {record_path}.", record_path)
 

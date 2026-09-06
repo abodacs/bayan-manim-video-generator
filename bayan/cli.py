@@ -7,8 +7,11 @@ from typing import Annotated
 import typer
 from dotenv import load_dotenv
 
-from bayan.generator.llm_client import LLMClient
+from bayan.generator.llm_client import LLMClient, LLMConfigError
 from bayan.orchestrator import ManifestError, StageStatus, WorkflowOrchestrator
+from bayan.pipeline.coder import LLMCoderProvider
+from bayan.pipeline.provider import LLMPlanProvider
+from bayan.pipeline.spine import LanguageProfile, run_generate
 from bayan.planner.service import run_planning_pipeline
 from bayan.renderer.executor import RenderError, render_scene_code
 from bayan.templates.catalogue import fixture_filename, get_template_catalogue
@@ -253,6 +256,66 @@ def run(
     success = orchestrator.run(reporter=TyperStageReporter())
     if not success:
         raise typer.Exit(code=1)
+
+
+def _build_providers() -> tuple[LLMPlanProvider, LLMCoderProvider]:
+    """Build the real provider adapters over one hardened client."""
+    client = LLMClient()
+    return LLMPlanProvider(client), LLMCoderProvider(client)
+
+
+@app.command(name="generate")
+def generate(
+    prompt: Annotated[
+        str,
+        typer.Argument(help="Free-form Arabic lesson prompt."),
+    ],
+    profile: Annotated[
+        LanguageProfile,
+        typer.Option("--profile", "-p", help="Language profile for digits and dialect."),
+    ] = LanguageProfile.msa_western,
+    runs_root: Annotated[
+        Path,
+        typer.Option("--runs-root", help="Directory that holds generated runs."),
+    ] = Path("./runs"),
+    quality: Annotated[
+        str,
+        typer.Option(
+            "--quality",
+            help="Render quality; wired through by the render-quality sub-issue.",
+        ),
+    ] = "draft",
+    vlm: Annotated[
+        bool,
+        typer.Option("--vlm", help="Enable the VLM critic (default off; critic lands later)."),
+    ] = False,
+) -> None:
+    """Generate a lesson video from one free-form Arabic prompt."""
+    try:
+        planner, coder = _build_providers()
+    except LLMConfigError as error:
+        typer.secho(f"Configuration Error: {error}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
+
+    typer.echo("Planning the lesson...")
+    result = run_generate(
+        prompt=prompt,
+        profile=profile,
+        runs_root=runs_root,
+        planner=planner,
+        coder=coder,
+    )
+
+    if result.status != "completed":
+        typer.secho(f"Generation failed: {result.failure}", fg=typer.colors.RED)
+        typer.secho(f"Run directory: {result.run_dir}", fg=typer.colors.YELLOW)
+        raise typer.Exit(code=1)
+
+    typer.secho(
+        f"Success! Run directory: {result.run_dir} "
+        f"(cost estimate: ${result.total_cost_estimate_usd:.4f})",
+        fg=typer.colors.GREEN,
+    )
 
 
 if __name__ == "__main__":

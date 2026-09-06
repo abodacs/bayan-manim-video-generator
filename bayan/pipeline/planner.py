@@ -51,12 +51,14 @@ class PlannerService:
         run_dir: Path,
         *,
         max_attempts: int = MAX_PLANNING_ATTEMPTS,
+        record_filename: str = PLANNING_RECORD_FILENAME,
     ) -> None:
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least 1.")
         self.provider = provider
         self.run_dir = run_dir
         self.max_attempts = max_attempts
+        self.record_filename = record_filename
 
     def plan(self, prompt: str, *, profile: str = DEFAULT_PROFILE) -> LessonPlan:
         self.run_dir.mkdir(parents=True, exist_ok=True)
@@ -148,4 +150,4 @@ class PlannerService:
             "failure": failure,
             "plan": PLAN_FILENAME if status == "completed" else None,
         }
-        return write_stage_record(self.run_dir, record)
+        return write_stage_record(self.run_dir, record, self.record_filename)
