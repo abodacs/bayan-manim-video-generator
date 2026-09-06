@@ -12,12 +12,16 @@ from bayan.renderer.docker import DockerExecutor, check_docker
 from bayan.renderer.errors import DockerError
 from bayan.renderer.models import ImageMetadata, RenderSettings, SmokeManifest
 from bayan.renderer.process import CommandResult
+from bayan.templates.catalogue import fixture_filename, get_template_catalogue
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_IMAGE = "bayan/manim-smoke:0.20.1"
 DEFAULT_OUTPUT_ROOT = Path("artifacts/container-smoke")
 SCENE_PATH = "/workspace/bayan/utils/sanity_check.py"
 SCENE_NAME = "ArabicSanityCheck"
+CONTAINER_OUTPUT_ROOT = Path("/workspace/output")
+CONTAINER_SOURCE_ROOT = Path("/workspace/bayan")
+FIXTURES_ROOT = CONTAINER_SOURCE_ROOT / "templates" / "fixtures"
 
 
 class SmokeError(RuntimeError):
@@ -71,7 +75,7 @@ class SmokeRunner:
         media_directory.mkdir()
         uid, gid = current_container_user()
         container_user = f"{uid}:{gid}"
-        _prepare_media_directory(media_directory, uid, gid)
+        prepare_writable_directory(media_directory, uid, gid)
 
         settings = RenderSettings(
             build_timeout_seconds=self.config.build_timeout,
@@ -130,42 +134,29 @@ class SmokeRunner:
                     "The container has no usable Noto Sans Arabic font. Rebuild the image."
                 )
 
-            video_result = executor.run_container(
+            video_result = render_scene_in_worker(
+                executor,
                 self.config.image,
-                (
-                    "manim",
-                    "-ql",
-                    SCENE_PATH,
-                    SCENE_NAME,
-                    "--media_dir",
-                    "/workspace/output/video",
-                ),
-                log_path,
-                self.config.render_timeout,
-                include_source_mount=True,
+                SCENE_PATH,
+                SCENE_NAME,
+                media_dir=CONTAINER_OUTPUT_ROOT / "video",
                 output_directory=media_directory,
+                log_path=log_path,
                 phase="render video",
             )
             self._record_phase("render video", video_result, log_path)
             require_success("Rendering the Arabic video", video_result, self.config.render_timeout)
 
-            preview_result = executor.run_container(
+            preview_result = render_scene_in_worker(
+                executor,
                 self.config.image,
-                (
-                    "manim",
-                    "-ql",
-                    "-s",
-                    "--format=png",
-                    SCENE_PATH,
-                    SCENE_NAME,
-                    "--media_dir",
-                    "/workspace/output/preview",
-                ),
-                log_path,
-                self.config.render_timeout,
-                include_source_mount=True,
+                SCENE_PATH,
+                SCENE_NAME,
+                media_dir=CONTAINER_OUTPUT_ROOT / "preview",
                 output_directory=media_directory,
+                log_path=log_path,
                 phase="render preview",
+                preview=True,
             )
             self._record_phase("render preview", preview_result, log_path)
             require_success(
@@ -185,6 +176,8 @@ class SmokeRunner:
             self._validate_video(executor, media_directory, video_path, log_path)
             validate_png(preview_path)
 
+            template_outputs = self._render_catalogue_templates(executor, media_directory, log_path)
+
             draft_path = run_directory / "draft.mp4"
             still_path = run_directory / "preview.png"
             shutil.copy2(video_path, draft_path)
@@ -195,6 +188,7 @@ class SmokeRunner:
                 "preview": str(still_path.relative_to(run_directory)),
                 "log": str(log_path.relative_to(run_directory)),
                 "raw_media": str(media_directory.relative_to(run_directory)),
+                **template_outputs,
             }
             manifest.write(run_directory)
             return SmokeResult(run_directory, draft_path, still_path, manifest)
@@ -219,6 +213,8 @@ class SmokeRunner:
         media_directory: Path,
         video_path: Path,
         log_path: Path,
+        phase: str = "validate video",
+        label: str = "MP4 video",
     ) -> None:
         """Ask the same pinned image to parse the produced MP4."""
         relative_path = video_path.relative_to(media_directory)
@@ -239,12 +235,125 @@ class SmokeRunner:
             self.config.render_timeout,
             output_directory=media_directory,
             output_read_only=True,
-            phase="validate video",
+            phase=phase,
         )
-        self._record_phase("validate video", result, log_path)
-        require_success("Validating the MP4 video", result, self.config.render_timeout)
+        self._record_phase(phase, result, log_path)
+        require_success(f"Validating the {label}", result, self.config.render_timeout)
         if not result.output_tail.strip():
-            raise SmokeError("The MP4 video has no readable duration. See render.log.")
+            raise SmokeError(f"The {label} has no readable duration. See render.log.")
+
+    def _render_catalogue_templates(
+        self,
+        executor: DockerExecutor,
+        media_directory: Path,
+        log_path: Path,
+    ) -> dict[str, str]:
+        """Render every catalogue fixture in the isolated worker for evidence.
+
+        Each approved template is rendered to a low-quality video and a PNG
+        preview inside the same security boundary as the sanity scene, so the
+        catalogue cannot drift away from scenes that actually render.
+        """
+        outputs: dict[str, str] = {}
+        for slug, metadata in get_template_catalogue().items():
+            class_name = str(metadata["class_name"])
+            scene_path = str(FIXTURES_ROOT / fixture_filename(slug))
+
+            video_dir = media_directory / "templates" / slug / "video"
+            video_result = render_scene_in_worker(
+                executor,
+                self.config.image,
+                scene_path,
+                class_name,
+                media_dir=CONTAINER_OUTPUT_ROOT / "templates" / slug / "video",
+                output_directory=media_directory,
+                log_path=log_path,
+                phase=f"render template {slug} video",
+            )
+            self._record_phase(f"render template {slug} (video)", video_result, log_path)
+            require_success(
+                f"Rendering template '{slug}' video", video_result, self.config.render_timeout
+            )
+
+            preview_dir = media_directory / "templates" / slug / "preview"
+            preview_result = render_scene_in_worker(
+                executor,
+                self.config.image,
+                scene_path,
+                class_name,
+                media_dir=CONTAINER_OUTPUT_ROOT / "templates" / slug / "preview",
+                output_directory=media_directory,
+                log_path=log_path,
+                phase=f"render template {slug} preview",
+                preview=True,
+            )
+            self._record_phase(f"render template {slug} (preview)", preview_result, log_path)
+            require_success(
+                f"Rendering template '{slug}' preview", preview_result, self.config.render_timeout
+            )
+
+            video_path = first_artifact(
+                video_dir,
+                f"{class_name}.mp4",
+                f"MP4 video for template '{slug}'",
+            )
+            self._validate_video(
+                executor,
+                media_directory,
+                video_path,
+                log_path,
+                phase=f"validate template {slug} video",
+                label=f"template '{slug}' MP4 video",
+            )
+            preview_path = first_artifact(
+                preview_dir,
+                f"{class_name}*.png",
+                f"PNG preview for template '{slug}'",
+            )
+            validate_png(preview_path)
+            outputs[f"template_{slug}_video"] = str(video_path.relative_to(media_directory))
+            outputs[f"template_{slug}_preview"] = str(preview_path.relative_to(media_directory))
+        return outputs
+
+
+MAX_RETAINED_RUN_DIRECTORIES = 5
+
+
+def render_scene_in_worker(
+    executor: DockerExecutor,
+    image: str,
+    scene_path: str,
+    class_name: str,
+    media_dir: Path,
+    output_directory: Path,
+    log_path: Path,
+    phase: str,
+    quality_flag: str = "-ql",
+    preview: bool = False,
+) -> CommandResult:
+    """Render one scene to a video or PNG preview inside the worker.
+
+    Single source of truth for the manim invocation shared by the smoke run
+    and the render jobs, so the two cannot drift: a preview is always a fast
+    low-quality single frame, a video honors the caller's quality flag, and
+    every render mounts the source read-only with the given output directory
+    as the only writable surface.
+    """
+    if preview:
+        # A preview is a single final frame; it stays fast at low quality.
+        command: list[str] = ["manim", "-ql", "-s", "--format=png"]
+    else:
+        command = ["manim", quality_flag]
+    command.extend((scene_path, class_name, "--media_dir", str(media_dir)))
+    return executor.run_container(
+        image,
+        command,
+        log_path,
+        executor.settings.render_timeout_seconds,
+        include_source_mount=True,
+        output_directory=output_directory,
+        phase=phase,
+    )
 
 
 def allocate_run_directory(output_root: Path) -> Path:
@@ -262,10 +371,31 @@ def allocate_run_directory(output_root: Path) -> Path:
         return candidate
 
 
+def prune_run_directories(output_root: Path, keep: int = MAX_RETAINED_RUN_DIRECTORIES) -> None:
+    """Delete the oldest run directories beyond the retained window.
+
+    Repeated renders against the same output must not grow host disk
+    without bound. Callers prune before allocating a new run directory
+    (so failed renders stay bounded too) and after a successful copy.
+    Failures to delete are ignored rather than failing the render.
+    """
+    if not output_root.is_dir():
+        return
+    run_directories = [
+        path
+        for path in output_root.iterdir()
+        if path.is_dir() and (path.name == "run" or path.name.startswith("run-"))
+    ]
+    run_directories.sort(key=lambda path: (path.stat().st_mtime, path.name))
+    excess = run_directories[:-keep] if keep > 0 else run_directories
+    for stale in excess:
+        shutil.rmtree(stale, ignore_errors=True)
+
+
 def current_container_user() -> tuple[str, str]:
     """Return a non-root UID and GID for the container process."""
-    uid = os.getuid() if hasattr(os, "getuid") else 10001
-    gid = os.getgid() if hasattr(os, "getgid") else 10001
+    uid = getattr(os, "getuid", lambda: 10001)()
+    gid = getattr(os, "getgid", lambda: 10001)()
     if uid == 0:
         return "10001", "10001"
     return str(uid), str(gid)
@@ -302,14 +432,19 @@ def source_hashes(project_root: Path) -> dict[str, str]:
         "container/uv.lock": project_root / "container/uv.lock",
         "scripts/container_smoke.py": project_root / "scripts/container_smoke.py",
         "bayan/renderer/docker.py": project_root / "bayan/renderer/docker.py",
+        "bayan/renderer/executor.py": project_root / "bayan/renderer/executor.py",
         "bayan/renderer/errors.py": project_root / "bayan/renderer/errors.py",
         "bayan/renderer/models.py": project_root / "bayan/renderer/models.py",
         "bayan/renderer/process.py": project_root / "bayan/renderer/process.py",
         "bayan/renderer/security.py": project_root / "bayan/renderer/security.py",
         "bayan/renderer/smoke.py": project_root / "bayan/renderer/smoke.py",
+        "bayan/templates/catalogue.py": project_root / "bayan/templates/catalogue.py",
         "bayan/utils/arabic_helper.py": project_root / "bayan/utils/arabic_helper.py",
         "bayan/utils/sanity_check.py": project_root / "bayan/utils/sanity_check.py",
     }
+    for slug in get_template_catalogue():
+        relative = f"bayan/templates/fixtures/{fixture_filename(slug)}"
+        files[relative] = project_root / relative
     return {name: sha256_file(path) for name, path in files.items()}
 
 
@@ -336,9 +471,9 @@ def require_success(phase: str, result: CommandResult, timeout_seconds: int) -> 
     raise SmokeError(f"{phase} failed with exit code {code}: {summary}")
 
 
-def _prepare_media_directory(directory: Path, uid: str, gid: str) -> None:
+def prepare_writable_directory(directory: Path, uid: str, gid: str) -> None:
     """Make the dedicated output bind mount writable for a root host user."""
-    if os.getuid() != 0 or not hasattr(os, "chown"):
+    if getattr(os, "getuid", lambda: -1)() != 0 or not hasattr(os, "chown"):
         return
     try:
         os.chown(directory, int(uid), int(gid))

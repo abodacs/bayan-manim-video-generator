@@ -15,9 +15,9 @@
 ## The three families
 
 ```python
-self.play(Create(circle), run_time=1.0)        # build the stroke
-self.play(FadeIn(square, shift=DOWN * 0.3))    # reveal without drawing
-self.play(Transform(circle, square))           # morph: show a relationship
+self.play(Create(circle), run_time=1.0)  # build the stroke
+self.play(FadeIn(square, shift=DOWN * 0.3))  # reveal without drawing
+self.play(Transform(circle, square))  # morph: show a relationship
 ```
 
 - **Creation:** `Create`, `Write`, `DrawBorderThenFill`, `GrowFromCenter`.
@@ -34,8 +34,8 @@ self.play(Transform(circle, square))           # morph: show a relationship
 ## Rate functions express intent
 
 ```python
-self.play(dot.animate.shift(RIGHT * 2), rate_func=linear,        run_time=2.0)
-self.play(dot.animate.shift(RIGHT * 2), rate_func=smooth,         run_time=2.0)
+self.play(dot.animate.shift(RIGHT * 2), rate_func=linear, run_time=2.0)
+self.play(dot.animate.shift(RIGHT * 2), rate_func=smooth, run_time=2.0)
 self.play(dot.animate.shift(RIGHT * 0.5), rate_func=there_and_back, run_time=1.0)
 ```
 

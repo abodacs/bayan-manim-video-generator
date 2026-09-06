@@ -41,6 +41,13 @@ the rest of the system should not depend on a particular model provider.
 Generated content must be treated as data until it passes the checks required
 to become executable scene code.
 
+The shared generation contract is deliberately deferred: only one real
+generator exists today (`bayan/generator/llm_client.py`), and a seam with a
+single adapter stays hypothetical. Introduce the contract when a deterministic
+generator lands. Until then both generators-in-waiting agree on one rule: the
+RTL technique is `rtl_glyphs` from `bayan/utils/arabic_helper.py`, never
+ad-hoc string reversal.
+
 ### Rendering
 
 Owns the render job lifecycle, invokes Manim, captures logs, and records output
@@ -87,6 +94,9 @@ is an implementation decision. The boundary itself is not optional.
 - `bayan/utils/arabic_helper.py` contains the current Arabic text and glyph
   helpers.
 - `bayan/utils/sanity_check.py` is the current render-level integration scene.
+- `course/` is a self-contained Manim CE course module: static lessons plus a
+  stdlib-only site generator, validated by the CI course gate (see
+  `docs/agdr/AgDR-0003-course-module-boundaries.md`).
 - `tests/` contains focused helper tests and package smoke tests.
 - `main.py` is still an application entry-point placeholder.
 - `docs/agdr/` records decisions that explain development and architecture

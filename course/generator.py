@@ -51,22 +51,12 @@ class Report:
     def __init__(self):
         self.errors = []
         self.warnings = []
-        self.notes = []
 
     def err(self, where, msg):
         self.errors.append("[ERROR] %s: %s" % (where, msg))
 
     def warn(self, where, msg):
         self.warnings.append("[warn] %s: %s" % (where, msg))
-
-    def note(self, msg):
-        self.notes.append(msg)
-
-    def ok(self):
-        return not self.errors
-
-
-R = Report()
 
 
 # --------------------------------------------------------------------------- #
@@ -339,7 +329,7 @@ def validate_item(it):
     return errs
 
 
-def validate_assessment(obj, where, kind):
+def validate_assessment(obj, where, kind, report):
     errs = []
     if not isinstance(obj, dict):
         return ["%s: root is not an object" % where]
@@ -374,15 +364,15 @@ def validate_assessment(obj, where, kind):
         if not (15 <= len(items) <= 25):
             errs.append("%s: gate must have 15-25 items (has %d)" % (where, len(items)))
         thr = obj.get("threshold")
-        if thr is None:
-            obj["threshold"] = 0.85
-        elif not isinstance(thr, (int, float)) or not (0 < thr <= 1):
+        # Validate only; the default lives with the loader (read_gate), so the
+        # parsed input object is never mutated during validation.
+        if thr is not None and (not isinstance(thr, (int, float)) or not (0 < thr <= 1)):
             errs.append("%s: gate 'threshold' must be in (0,1]" % where)
         if any(it.get("type") == "create" for it in items):
             errs.append("%s: gates must not contain 'create' items (must be auto-scored)" % where)
         missing = set(BLOOM_LEVELS) - blooms
         if missing:
-            R.warn(where, "missing Bloom levels: %s (recommended)" % sorted(missing))
+            report.warn(where, "missing Bloom levels: %s (recommended)" % sorted(missing))
     return errs
 
 
@@ -453,7 +443,7 @@ def load_json(path):
         return json.load(fh)
 
 
-def read_lesson(tier, lesson_dir):
+def read_lesson(tier, lesson_dir, report):
     where = "lessons/%s/%s" % (TIER_DIR[tier], os.path.basename(lesson_dir))
     status_path = os.path.join(lesson_dir, "status.json")
     readme_path = os.path.join(lesson_dir, "README.md")
@@ -462,7 +452,7 @@ def read_lesson(tier, lesson_dir):
     readme = open(readme_path, encoding="utf-8").read() if os.path.exists(readme_path) else ""
     body_html = md_to_html(readme)
     if status.get("status", "draft") not in STATUSES:
-        R.err(
+        report.err(
             where,
             "unknown status %r (expected one of %s)"
             % (status.get("status"), "|".join(sorted(STATUSES))),
@@ -473,14 +463,14 @@ def read_lesson(tier, lesson_dir):
     # data-*- attributes and querySelector() calls; keep it to a safe charset
     # rather than trusting the filesystem.
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", lid):
-        R.err(where, "invalid lesson dir name %r (use [a-z0-9-], start alnum)" % lid)
+        report.err(where, "invalid lesson dir name %r (use [a-z0-9-], start alnum)" % lid)
     code_files = {}
     for fn in ("scene.py", "example-practical.py", "example-production.py"):
         p = os.path.join(lesson_dir, fn)
         if os.path.exists(p):
             ok, err = syntax_check(p)
             if not ok:
-                R.err("%s/%s" % (where, fn), "syntax error: %s" % err)
+                report.err("%s/%s" % (where, fn), "syntax error: %s" % err)
             code_files[fn] = open(p, encoding="utf-8").read()
 
     quiz = None
@@ -490,12 +480,12 @@ def read_lesson(tier, lesson_dir):
             quiz.setdefault("kind", "quiz")
             quiz.setdefault("id", lid)
             quiz.setdefault("tier", tier)
-            for e in validate_assessment(quiz, "%s/assessment/quiz.json" % where, "quiz"):
-                R.err("%s/assessment/quiz.json" % where, e)
+            for e in validate_assessment(quiz, "%s/assessment/quiz.json" % where, "quiz", report):
+                report.err("%s/assessment/quiz.json" % where, e)
         except Exception as e:
-            R.err("%s/assessment/quiz.json" % where, "could not parse: %s" % e)
+            report.err("%s/assessment/quiz.json" % where, "could not parse: %s" % e)
     else:
-        R.err(where, "missing assessment/quiz.json")
+        report.err(where, "missing assessment/quiz.json")
 
     return {
         "id": lid,
@@ -516,7 +506,7 @@ def read_lesson(tier, lesson_dir):
     }
 
 
-def read_gate(tier, path):
+def read_gate(tier, path, report):
     where = "exams/%s-gate.json" % TIER_DIR[tier]
     try:
         gate = load_json(path)
@@ -524,15 +514,15 @@ def read_gate(tier, path):
         gate.setdefault("tier", tier)
         gate.setdefault("threshold", 0.85)
         gate.setdefault("lockoutHours", 24)
-        for e in validate_assessment(gate, where, "gate"):
-            R.err(where, e)
+        for e in validate_assessment(gate, where, "gate", report):
+            report.err(where, e)
         return gate
     except Exception as e:
-        R.err(where, "could not parse: %s" % e)
+        report.err(where, "could not parse: %s" % e)
         return None
 
 
-def read_capstone(tier, cdir):
+def read_capstone(tier, cdir, report):
     where = "capstone/%s" % tier
     brief_p = os.path.join(cdir, "brief.md")
     rubric_p = os.path.join(cdir, "rubric.md")
@@ -546,7 +536,7 @@ def read_capstone(tier, cdir):
             if fn.endswith(".py"):
                 ok, err = syntax_check(p)
                 if not ok:
-                    R.err("%s/solution/%s" % (where, fn), "syntax error: %s" % err)
+                    report.err("%s/solution/%s" % (where, fn), "syntax error: %s" % err)
                 solution[fn] = open(p, encoding="utf-8").read()
             elif fn.endswith(".md"):
                 solution[fn] = open(p, encoding="utf-8").read()
@@ -1002,6 +992,9 @@ def main():
     )
     args = ap.parse_args()
 
+    # Explicit per-run report passed between stages; no module-level state.
+    report = Report()
+
     lessons_dir = os.path.join(HERE, "lessons")
     exams_dir = os.path.join(HERE, "exams")
     capstone_dir = os.path.join(HERE, "capstone")
@@ -1015,9 +1008,9 @@ def main():
             for name in sorted(os.listdir(tdir)):
                 ld = os.path.join(tdir, name)
                 if os.path.isdir(ld) and os.path.exists(os.path.join(ld, "status.json")):
-                    lessons.append(read_lesson(tier, ld))
+                    lessons.append(read_lesson(tier, ld, report))
     else:
-        R.err("lessons/", "no lessons/ directory found")
+        report.err("lessons/", "no lessons/ directory found")
 
     # Prereq integrity: a typo'd id silently vanished from the rendered
     # links, and a same-tier-only href assumption 404s on cross-tier prereqs.
@@ -1029,9 +1022,11 @@ def main():
         for p in l["prereqs"]:
             target = lessons_by_id.get(p)
             if target is None:
-                R.err("lessons/%s/%s" % (TIER_DIR[l["tier"]], l["id"]), "unknown prereq %r" % p)
+                report.err(
+                    "lessons/%s/%s" % (TIER_DIR[l["tier"]], l["id"]), "unknown prereq %r" % p
+                )
             elif not os.path.isdir(target["dir"]):
-                R.err(
+                report.err(
                     "lessons/%s/%s" % (TIER_DIR[l["tier"]], l["id"]),
                     "prereq lesson directory missing: %s" % target["dir"],
                 )
@@ -1041,7 +1036,7 @@ def main():
         for tier in (1, 2, 3, 4):
             gp = os.path.join(exams_dir, "%s-gate.json" % TIER_DIR[tier])
             if os.path.exists(gp):
-                g = read_gate(tier, gp)
+                g = read_gate(tier, gp, report)
                 if g:
                     gates[tier] = {"data": g, "url": "exams/%s-gate.html" % TIER_DIR[tier]}
 
@@ -1050,28 +1045,25 @@ def main():
         for tier in (1, 2, 3, 4):
             cdir = os.path.join(capstone_dir, str(tier))
             if os.path.isdir(cdir):
-                capstones[tier] = read_capstone(tier, cdir)
+                capstones[tier] = read_capstone(tier, cdir, report)
 
     sys.stdout.write("\n=== Manim CE course generator ===\n")
     sys.stdout.write("lessons scanned: %d\n" % len(lessons))
     sys.stdout.write("gates scanned:   %d\n" % len(gates))
     sys.stdout.write("capstones:       %d\n" % len(capstones))
-    for n in R.notes:
-        sys.stdout.write(n + "\n")
-    for w in R.warnings:
+    for w in report.warnings:
         sys.stdout.write(w + "\n")
-    if R.errors:
+    if report.errors:
         sys.stdout.write("\n--- validation errors ---\n")
-        for e in R.errors:
+        for e in report.errors:
             sys.stdout.write(e + "\n")
-        sys.stdout.write("\n%d error(s). Site not built.\n" % len(R.errors))
+        sys.stdout.write("\n%d error(s). Site not built.\n" % len(report.errors))
         return 1
 
     if args.check:
         sys.stdout.write("\n--check passed: all quizzes/gates valid, all scenes syntax-valid.\n")
         return 0
 
-    lessons_by_id = {l["id"]: l for l in lessons}
     written = []
     for l in lessons:
         written.append(render_lesson(l, lessons_by_id))

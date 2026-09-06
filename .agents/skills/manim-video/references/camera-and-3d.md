@@ -27,7 +27,9 @@ class SurfaceScene(ThreeDScene):
         axes = ThreeDAxes()
         surface = Surface(
             lambda u, v: axes.c2p(u, v, u**2 - v**2),
-            u_range=[-2, 2], v_range=[-2, 2], resolution=(24, 24),
+            u_range=[-2, 2],
+            v_range=[-2, 2],
+            resolution=(24, 24),
         )
         self.play(Create(axes), Create(surface), run_time=2.0)
         self.wait(1.5)

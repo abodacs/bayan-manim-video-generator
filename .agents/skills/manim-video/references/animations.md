@@ -47,7 +47,7 @@ Use `ValueTracker`, `always_redraw`, or an updater when a label, brace, line, or
 
 ```python
 self.play(Write(equation), run_time=2.0)
-self.wait(2.0)                 # reading time
+self.wait(2.0)  # reading time
 self.play(Circumscribe(term), run_time=0.6)
 self.wait(1.0)
 ```
