@@ -1,6 +1,9 @@
 # Architecture
 
-**Status:** Target architecture for the early product phase
+**Status:** Target architecture for the early product phase (POC)
+
+> Describes the POC architecture. The product direction that builds on it lives
+> in [`PRODUCT_DIRECTION.md`](PRODUCT_DIRECTION.md).
 
 The repository is currently a small Python package with Arabic text utilities,
 one Manim sanity scene, and development tooling. This document describes the
