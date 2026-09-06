@@ -7,6 +7,7 @@ from typing import Protocol
 from bayan.generator.llm_client import LLMUsage
 from bayan.pipeline.models import (
     INSIGHT_MOVES,
+    CodeAttemptEvidence,
     LessonBeat,
     LessonPlan,
     PlanAttemptEvidence,
@@ -97,4 +98,36 @@ class FakeProvider:
             fingerprint=fingerprint,
             model=self.model_name,
             usage=usage,
+        )
+
+    def generate_scene_code(
+        self, *, plan: LessonPlan, system_prompt: str, user_prompt: str
+    ) -> CodeAttemptEvidence:
+        plan_hash = hashlib.sha256(
+            f"{self.model_name}:{plan.model_dump_json()}".encode()
+        ).hexdigest()
+        on_screen_text = plan.beats[0].on_screen_text
+        scene = (
+            "from manim import *\n"
+            "from bayan.utils.arabic_helper import ArabicText, rtl_glyphs\n"
+            "\n"
+            "class GeneratedScene(Scene):\n"
+            "    def construct(self):\n"
+            f"        message = ArabicText({on_screen_text!r})\n"
+            "        message.next_to(ORIGIN, UP)\n"
+            "        self.play(Write(rtl_glyphs(message)))\n"
+            "        self.wait(1)\n"
+        )
+        prompt_tokens = 40 + int(plan_hash[0:3], 16) % 60
+        completion_tokens = 150 + int(plan_hash[3:6], 16) % 250
+        return CodeAttemptEvidence(
+            code=scene,
+            raw_response=scene,
+            fingerprint=plan_hash,
+            model=self.model_name,
+            usage=LLMUsage(
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=prompt_tokens + completion_tokens,
+            ),
         )

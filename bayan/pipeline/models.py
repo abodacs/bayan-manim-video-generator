@@ -49,18 +49,27 @@ class LessonPlan(BaseModel):
 
 
 @dataclass(frozen=True)
-class PlanAttemptEvidence:
-    """What one provider call produced, recorded verbatim by the planner.
+class AttemptEvidence:
+    """What one provider call produced, recorded verbatim by a stage service."""
 
-    ``raw_response``, ``usage``, and ``fingerprint`` feed the planning run
-    record so every attempt stays auditable from disk alone.
-    """
-
-    plan: LessonPlan
     raw_response: str
     fingerprint: str
     model: str
     usage: LLMUsage | None
+
+
+@dataclass(frozen=True)
+class PlanAttemptEvidence(AttemptEvidence):
+    """A planning call's outcome: the validated plan plus its audit trail."""
+
+    plan: LessonPlan
+
+
+@dataclass(frozen=True)
+class CodeAttemptEvidence(AttemptEvidence):
+    """A coding call's outcome: the produced code plus its audit trail."""
+
+    code: str
 
 
 class AttemptRecord(BaseModel):
@@ -77,7 +86,7 @@ class AttemptRecord(BaseModel):
     error: str | None = None
 
     @classmethod
-    def accepted(cls, attempt: int, evidence: PlanAttemptEvidence, cost: float) -> AttemptRecord:
+    def accepted(cls, attempt: int, evidence: AttemptEvidence, cost: float) -> AttemptRecord:
         usage = evidence.usage
         return cls(
             attempt=attempt,

@@ -129,6 +129,14 @@ def _strip_json_fence(text: str) -> str:
     return match.group(1).strip() if match else text.strip()
 
 
+def clean_code_block(raw_code: str) -> str:
+    """Extract raw Python code out of LLM markdown wrappers if present."""
+    match = _CODE_FENCE.search(raw_code)
+    if match:
+        return match.group(1).strip()
+    return raw_code.strip()
+
+
 def _json_schema_response_format(response_model: type[BaseModel]) -> ResponseFormatJSONSchema:
     """Build the response_format payload that requests a pydantic-shaped reply."""
     return {
@@ -176,6 +184,20 @@ class LLMClient:
             },
         ]
         return self._clean_code(self._complete(messages))
+
+    def generate_code(
+        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+    ) -> str:
+        """Free-form code generation with caller-supplied prompts.
+
+        Returns the fence-stripped Python text; the raw reply stays available
+        as ``last_raw_content`` for run records.
+        """
+        messages: list[ChatCompletionMessageParam] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        return self._clean_code(self._complete(messages, temperature=temperature))
 
     def generate_structured(
         self,
@@ -259,8 +281,5 @@ class LLMClient:
         return _bound(f"{summary}. Reply excerpt: {excerpt!r}", MAX_ERROR_CHARS)
 
     def _clean_code(self, raw_code: str) -> str:
-        """Extract raw Python code out of LLM markdown wrappers if present."""
-        match = _CODE_FENCE.search(raw_code)
-        if match:
-            return match.group(1).strip()
-        return raw_code.strip()
+        """Backward-compatible alias for :func:`clean_code_block`."""
+        return clean_code_block(raw_code)

@@ -185,6 +185,25 @@ def test_last_raw_content_exposes_the_untrimmed_reply(mock_openai_class):
     assert client.last_raw_content == raw
 
 
+@patch("bayan.generator.llm_client.OpenAI")
+def test_generate_code_returns_cleaned_code_with_caller_prompts(mock_openai_class):
+    raw = "```python\nfrom manim import *\n```"
+    mock_client = _mocked_client(mock_openai_class)
+    mock_client.chat.completions.create.return_value = _mock_response(raw, usage=(7, 3, 10))
+
+    client = LLMClient(api_key="fake-api-key")
+
+    result = client.generate_code(system_prompt="system rules", user_prompt="user plan")
+
+    assert result == "from manim import *"
+    assert client.last_raw_content == raw
+    assert client.last_usage == LLMUsage(prompt_tokens=7, completion_tokens=3, total_tokens=10)
+
+    create_kwargs = mock_client.chat.completions.create.call_args[1]
+    assert create_kwargs["messages"][0]["content"] == "system rules"
+    assert create_kwargs["messages"][1]["content"] == "user plan"
+
+
 # =========================================================================
 # 4. Structured Output Mode
 # =========================================================================
