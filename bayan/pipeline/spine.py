@@ -21,8 +21,9 @@ from typing import Any
 
 from bayan.pipeline.coder import CoderService, CodingError, SceneCodeProvider
 from bayan.pipeline.models import LessonPlan
-from bayan.pipeline.planner import PlannerService, PlanningError
+from bayan.pipeline.planner import PLAN_FILENAME, PlannerService, PlanningError
 from bayan.pipeline.preflight import gates_blocked, run_gates
+from bayan.pipeline.profiles import UnknownProfileError, get_profile, normalize_plan
 from bayan.pipeline.provider import LessonPlanProvider
 from bayan.pipeline.records import RECORDS_DIRNAME, write_stage_record
 from bayan.renderer.executor import RenderError, render_scene_code
@@ -154,22 +155,27 @@ def run_plan_stage(context: RunContext, stage: Stage) -> StageOutcome:
 
 
 def run_profile_stage(context: RunContext, stage: Stage) -> StageOutcome:
-    """Apply the language-profile normalization hook.
+    """Normalize the validated plan's digits and dialect for the profile."""
+    try:
+        profile = get_profile(context.profile)
+    except UnknownProfileError as error:
+        return _failed(context, stage, str(error))
 
-    The profile name is validated and applied as-is today; the
-    language-profiles sub-issue replaces this stage's internals without
-    changing the seam.
-    """
-    if context.profile not in KNOWN_PROFILES:
-        return _failed(
-            context,
-            stage,
-            f"Unknown language profile {context.profile!r}. "
-            f"Known profiles: {', '.join(KNOWN_PROFILES)}.",
+    if context.plan is not None:
+        context.plan = normalize_plan(context.plan, context.profile)
+        atomic_write_text(
+            context.run_dir / PLAN_FILENAME,
+            context.plan.model_dump_json(indent=2, ensure_ascii=False) + "\n",
         )
     write_stage_record(
         context.run_dir,
-        _stage_record(stage.name, "completed", profile=context.profile),
+        _stage_record(
+            stage.name,
+            "completed",
+            profile=profile.name,
+            digit_style=profile.digit_style.value,
+            font=profile.font,
+        ),
         stage.record_filename,
     )
     return StageOutcome(stage=stage.name, status="completed")

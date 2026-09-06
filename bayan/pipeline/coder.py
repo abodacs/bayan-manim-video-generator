@@ -22,6 +22,7 @@ from bayan.pipeline.models import (
     LessonPlan,
 )
 from bayan.pipeline.pricing import estimate_cost_usd
+from bayan.pipeline.profiles import digit_rule, get_profile, lexicon_rule
 from bayan.pipeline.records import evidence_fingerprint, write_stage_record
 from bayan.templates.catalogue import get_template_catalogue, read_fixture_code
 from bayan.utils.atomic_io import atomic_write_text
@@ -75,6 +76,7 @@ def select_few_shot_fixtures() -> list[str]:
 
 def build_coder_prompt(plan: LessonPlan, profile: str, example_codes: list[str]) -> tuple[str, str]:
     """Build the system and user prompts, embedding the plan beats verbatim."""
+    profile_data = get_profile(profile)
     beats_json = json.dumps(
         {"beats": [beat.model_dump() for beat in plan.beats]},
         ensure_ascii=False,
@@ -87,6 +89,8 @@ def build_coder_prompt(plan: LessonPlan, profile: str, example_codes: list[str])
     system = CODER_SYSTEM_PROMPT
     user = (
         f"Lesson plan (the contract), language profile: {profile}\n"
+        f"{digit_rule(profile_data)}\n"
+        f"{lexicon_rule(profile_data)}\n"
         f"{beats_json}\n\n"
         "Follow the style of these approved catalogue examples:\n\n"
         f"{examples}"

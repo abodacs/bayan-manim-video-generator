@@ -18,6 +18,7 @@ from dataclasses import asdict, dataclass
 from typing import Final, Literal
 
 from bayan.pipeline.models import DEFAULT_PROFILE
+from bayan.pipeline.profiles import LanguageProfile, get_profile
 
 ALLOWED_MODULES: Final[frozenset[str]] = frozenset({"manim", "math", "bayan.utils.arabic_helper"})
 
@@ -263,14 +264,13 @@ def _check_arabic_literals(tree: ast.Module) -> list[GateResult]:
     return failures
 
 
-def _check_string_constants(tree: ast.Module) -> list[GateResult]:
+def _check_string_constants(tree: ast.Module, profile: LanguageProfile) -> list[GateResult]:
+    """Presentation forms and digit-family checks against the profile."""
     failures: list[GateResult] = []
     for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Constant)
-            and isinstance(node.value, str)
-            and contains_presentation_forms(node.value)
-        ):
+        if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+            continue
+        if contains_presentation_forms(node.value):
             failures.append(
                 _failed(
                     "arabic",
@@ -278,6 +278,24 @@ def _check_string_constants(tree: ast.Module) -> list[GateResult]:
                     node.value[:80],
                     "Arabic presentation forms (pre-shaped glyphs) are banned; pass "
                     "plain Arabic text and let ArabicText shape it.",
+                )
+            )
+        unexpected_digits = sorted(
+            {
+                character
+                for character in node.value
+                if character.isdigit() and character not in profile.expected_digits
+            }
+        )
+        if unexpected_digits:
+            failures.append(
+                _failed(
+                    "arabic",
+                    node.lineno,
+                    node.value[:80],
+                    f"The {profile.name} profile expects the digits "
+                    f"{''.join(profile.expected_digits)}; found "
+                    f"{''.join(unexpected_digits)} in on-screen text.",
                 )
             )
     return failures
@@ -305,12 +323,11 @@ def run_gates(code: str, *, profile: str = DEFAULT_PROFILE) -> list[GateResult]:
     Pure: parse and inspect only, no execution. When the syntax gate fails
     the remaining gates cannot evaluate anything meaningful, so its failure
     is the whole result. A passing gate contributes one ``passed`` result; a
-    failing gate contributes one result per violation. ``profile`` is
-    accepted for the digit rules the language-profiles sub-issue adds to the
-    Arabic gate.
+    failing gate contributes one result per violation. The profile decides
+    the expected digit family: under a Western-digit profile, Arabic-Indic
+    digits inside string literals fail the Arabic gate.
     """
-    del profile  # Reserved for profile-aware digit expectations (sub-issue #81).
-
+    profile_data = get_profile(profile)
     tree, syntax_failure = _check_syntax(code)
     if syntax_failure is not None or tree is None:
         return [syntax_failure] if syntax_failure else []
@@ -323,7 +340,7 @@ def run_gates(code: str, *, profile: str = DEFAULT_PROFILE) -> list[GateResult]:
             "arabic",
             [
                 *_check_arabic_literals(tree),
-                *_check_string_constants(tree),
+                *_check_string_constants(tree, profile_data),
                 *_check_comments(code),
             ],
         ),

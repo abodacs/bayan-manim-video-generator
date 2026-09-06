@@ -211,3 +211,15 @@ def test_arabic_gate_blocks_render_before_any_container_call(
     gates_record = json.loads((run_dir / "records" / "04-gates.json").read_text(encoding="utf-8"))
     assert gates_record["status"] == "failed"
     assert not (run_dir / "draft.mp4").exists()
+
+
+@pytest.mark.parametrize("profile_name", ["msa-western", "msa-arabic-indic", "egyptian"])
+def test_cli_accepts_exactly_the_three_profile_names(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_render: None, profile_name: str
+):
+    runs_root = tmp_path / "runs" / profile_name
+    result = _run_generate(monkeypatch, runs_root, "--profile", profile_name)
+
+    assert result.exit_code == 0, result.output
+    summary = json.loads((_only_run_dir(runs_root) / "run.json").read_text(encoding="utf-8"))
+    assert summary["profile"] == profile_name
