@@ -11,7 +11,7 @@ from bayan.pipeline.models import PlanAttemptEvidence, TokenUsage
 from bayan.pipeline.planner import PlannerService, PlanningError
 from bayan.pipeline.pricing import PRICE_TABLE_USD_PER_1M, estimate_cost_usd
 from bayan.pipeline.provider import LLMPlanProvider
-from bayan.planner.provider import FakeProvider
+from bayan.testing import FakeProvider
 from tests.helpers import mock_chat_response as _mock_response
 from tests.helpers import mocked_client as _mocked_client
 

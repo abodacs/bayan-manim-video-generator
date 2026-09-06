@@ -12,7 +12,7 @@ from bayan.pipeline.taxonomy import (
     classify_provider_error,
     classify_render_failure,
 )
-from bayan.planner.provider import FakeProvider
+from bayan.testing import FakeProvider
 
 ARABIC_PROMPT = "شرح القسمة على الأعداد ذات المنزلة الواحدة"
 

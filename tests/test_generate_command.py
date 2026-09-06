@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 from bayan.cli import app
 from bayan.generator.llm_client import LLMConfigError, LLMResponseFormatError
 from bayan.pipeline.models import CodeAttemptEvidence
-from bayan.planner.provider import FakeProvider
+from bayan.testing import FakeProvider
 from tests.conftest import MP4_BYTES, PNG_BYTES
 
 ARABIC_PROMPT = "شرح العامل المشترك الأكبر للأعداد ١٢ و ١٨"
