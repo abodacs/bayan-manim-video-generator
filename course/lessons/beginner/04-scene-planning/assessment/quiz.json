@@ -81,7 +81,10 @@
         "\"Pose the puzzle, let the obvious approach fail\" — one sentence, part of a mystery arc.",
         "\"Display the formula table for reference\" — one sentence, no reveal, 10 s."
       ],
-      "answer": [0, 2],
+      "answer": [
+        0,
+        2
+      ],
       "explanation": "Passing plans are one sentence AND have a payoff (a reveal/aha). The second crams three concepts into one scene; the fourth presents information with no reveal — cut or merge it.",
       "ref": "scene-planning.md"
     },
@@ -90,13 +93,28 @@
       "type": "create",
       "bloom": "Create",
       "prompt": "Write a plan.md and its scene for \"a² + b² = c² via three squares on a triangle\" (build-up arc). Paste both and self-score.",
-      "modelAnswer": "# Plan — Pythagoras by area\n\n## Overview\n- **Topic:** a^2 + b^2 = c^2 as visible area.\n- **Aha:** the two small squares together tile the big one.\n- **Arc:** build-up (seed: right triangle -> perturb: erect squares ->\n  generalise: the identity -> apply: tile).\n- **Grounding:** scene-planning.md.\n\n## Palette\nBG #1C1C1C; PRIMARY #58C4DD (a- and b-squares); ACCENT #FFFF00 (c-square).\n\n## Beat table (one scene, ~12 s)\n| # | Beat | run_time | wait |\n|---|------|---:|---:|\n| 1 | Triangle draws | 1.0 | 0.5 |\n| 2 | Two small squares erect | 1.2 | 1.0 |\n| 3 | Hypotenuse square erects | 1.2 | 1.0 |\n| 4 | Small squares tile into big (key aha) | 1.5 | 2.5 |\n| 5 | Clean exit | 0.6 | 0.3 |\n\n# Scene (transcribed from the table)\nfrom manim import *\n\nclass PythagorasByArea(Scene):\n    def construct(self):\n        self.camera.background_color = \"#1C1C1C\"\n        tri = Polygon([-2, -1, 0], [2, -1, 0], [2, 1.5, 0], color=WHITE)\n        self.play(Create(tri), run_time=1.0)\n        self.wait(0.5)\n        sq_a = Square(side_length=1.5, color=\"#58C4DD\").next_to(tri, LEFT, buff=0)\n        sq_b = Square(side_length=1.5, color=\"#58C4DD\").next_to(tri, DOWN, buff=0)\n        self.play(LaggedStart(Create(sq_a), Create(sq_b), lag_ratio=0.3), run_time=1.2)\n        self.wait(1.0)\n        sq_c = Square(side_length=2.1, color=\"#FFFF00\").rotate(0.6435).next_to(tri, UP + RIGHT, buff=0)\n        self.play(Create(sq_c), run_time=1.2)\n        self.wait(1.0)\n        caption = Text(\"the two tile the one\", font_size=28)\n        caption.to_edge(DOWN, buff=0.8)\n        self.play(Write(caption), run_time=1.5)\n        self.wait(2.5)\n        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)",
+      "modelAnswer": "# Plan — Pythagoras by area\n\n## Overview\n- **Topic:** a^2 + b^2 = c^2 as visible area.\n- **Aha:** the two small squares together tile the big one.\n- **Arc:** build-up (seed: right triangle -> perturb: erect squares ->\n  generalise: the identity -> apply: tile).\n- **Grounding:** scene-planning.md.\n\n## Palette\nBG #1C1C1C; PRIMARY #58C4DD (a- and b-squares); ACCENT #FFFF00 (c-square).\n\n## Beat table (one scene, ~12 s)\n| # | Beat | run_time | wait |\n|---|------|---:|---:|\n| 1 | Triangle draws | 1.0 | 0.5 |\n| 2 | Two small squares erect | 1.2 | 1.0 |\n| 3 | Hypotenuse square erects | 1.2 | 1.0 |\n| 4 | Small squares tile into big (key aha) | 1.5 | 2.5 |\n| 5 | Clean exit | 0.6 | 0.3 |\n\n# Scene (transcribed from the table)\nfrom manim import *\n\nclass PythagorasByArea(Scene):\n    def construct(self):\n        self.camera.background_color = \"#1C1C1C\"\n        # 3-4-5 right triangle (legs 4 and 3, hypotenuse 5), scaled to fit.\n        tri = Polygon([-1.2, -0.9, 0], [1.2, -0.9, 0], [1.2, 0.9, 0], color=WHITE)\n        self.play(Create(tri), run_time=1.0)\n        self.wait(0.5)\n        # Square on the short leg (side 3) and on the long leg (side 4).\n        sq_a = Square(side_length=1.8, color=\"#58C4DD\").move_to([2.1, 0, 0])\n        sq_b = Square(side_length=2.4, color=\"#58C4DD\").move_to([0, -2.1, 0])\n        self.play(LaggedStart(Create(sq_a), Create(sq_b), lag_ratio=0.3), run_time=1.2)\n        self.wait(1.0)\n        # Square on the hypotenuse (side 5), rotated to lie along it.\n        sq_c = Square(side_length=3, color=\"#FFFF00\").rotate(0.6435).move_to([-0.9, 1.2, 0])\n        self.play(Create(sq_c), run_time=1.2)\n        self.wait(1.0)\n        # Key aha: the two leg squares tile the hypotenuse square (9 + 16 = 25).\n        self.play(Transform(VGroup(sq_a, sq_b), sq_c), run_time=1.5)\n        self.wait(2.5)\n        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)\n        self.wait(0.3)",
       "rubric": [
-        { "criterion": "Plan states arc, palette with color meanings, and a beat table (run_time + wait per beat).", "weight": 30 },
-        { "criterion": "Every scene/beat describable in one sentence — one concept each.", "weight": 20 },
-        { "criterion": "Geometry before algebra: squares tile before any formula appears.", "weight": 20 },
-        { "criterion": "Key aha gets the longest hold (>= 2.0 s); every reveal has a wait.", "weight": 20 },
-        { "criterion": "Color constants with fixed meanings; clean exit via Group(*self.mobjects).", "weight": 10 }
+        {
+          "criterion": "Plan states arc, palette with color meanings, and a beat table (run_time + wait per beat).",
+          "weight": 30
+        },
+        {
+          "criterion": "Every scene/beat describable in one sentence — one concept each.",
+          "weight": 20
+        },
+        {
+          "criterion": "Geometry before algebra: squares tile before any formula appears.",
+          "weight": 20
+        },
+        {
+          "criterion": "Key aha gets the longest hold (>= 2.0 s); every reveal has a wait.",
+          "weight": 20
+        },
+        {
+          "criterion": "Color constants with fixed meanings; clean exit via Group(*self.mobjects).",
+          "weight": 10
+        }
       ],
       "explanation": "The model shows plan-first discipline: the beat table exists before code, the code transcribes it, and the aha (tiling) gets the longest pause.",
       "ref": "scene-planning.md"

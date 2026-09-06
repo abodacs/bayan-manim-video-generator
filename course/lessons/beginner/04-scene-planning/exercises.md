@@ -13,6 +13,6 @@
 4. **Swap the transition.** In `example-practical.py`, make `CarryForward`
    keep *both* the term and the note. Render. Decide which elements the next
    scene actually builds on — carry those, fade the rest.
-5. **Run the self-critique.** Take your exercise-1 scene and ask the five
+5. **Run the self-critique.** Take your exercise-1 scene and ask the six
    questions from the README. Cut half the text. If a label is not pulling
    its weight, drop it and re-render.

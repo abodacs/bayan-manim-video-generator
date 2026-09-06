@@ -104,7 +104,18 @@ competing elements on screen.
 2. What does the viewer *feel* at each point — curious, surprised, satisfied?
 3. Where is the payoff? Does every scene have a reveal?
 4. Am I showing the geometry before the algebra?
-5. Can I remove half the text?
+5. Is there a MovingCamera opportunity — a zoom or pan that guides the eye?
+6. Can I remove half the text?
+
+## Pitfalls and how to detect them
+
+| Pitfall | Symptom | Detection |
+|---|---|---|
+| Coding before the plan exists | Scenes accumulate concepts until one `construct` does everything | Write `plan.md` first; the one-sentence test fails the moment a scene needs two sentences |
+| No `wait` after a reveal | The payoff flashes by unreadable | Every beat-table row carries a wait; the key-insight beat holds ≥ 2.0 s |
+| One scene, many concepts | The scene description needs "and" twice | Split into 30–90 s scenes; a 10-minute video is 8–14 scenes |
+| Colors drift between scenes | The same concept changes color mid-video | Shared constants at the top of every scene file; fixed opacity hierarchy |
+| No clean exit | The next scene starts over leftover mobjects | End with `FadeOut(Group(*self.mobjects))`; carry forward only what the next scene builds on |
 
 ## Verification step
 

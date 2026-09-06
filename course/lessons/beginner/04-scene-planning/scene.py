@@ -24,13 +24,20 @@ class PlannedArc(Scene):
         self.play(FadeIn(dot), run_time=0.5)
         self.wait(0.5)
 
-        # Beat 2 — perturb: a second, different dot joins. (rt=0.8, wait=0.8)
-        dot2 = Dot(radius=0.25, color=ACCENT).shift(RIGHT * 2)
+        # Beat 2 — perturb: a second, smaller dot joins. (rt=0.8, wait=0.8)
+        dot2 = Dot(radius=0.15, color=ACCENT).shift(RIGHT * 2)
         self.play(Create(dot2), run_time=0.8)
         self.wait(0.8)
 
-        # Beat 3 — generalise: both become the same shape. (rt=1.5, wait=1.0)
-        self.play(Transform(dot, Square(side_length=0.5, color=PRIMARY)), run_time=1.5)
+        # Beat 3 — generalise: both become squares, each side equal to its
+        # dot's diameter — same rule, different size. (rt=1.5, wait=1.0)
+        square = Square(side_length=0.5, color=PRIMARY)
+        square2 = Square(side_length=0.3, color=ACCENT)
+        self.play(
+            Transform(dot, square),
+            Transform(dot2, square2),
+            run_time=1.5,
+        )
         self.wait(1.0)
 
         # Beat 4 — key insight: the caption IS the payoff. (rt=1.5, wait=2.5)
@@ -39,5 +46,6 @@ class PlannedArc(Scene):
         self.play(Write(caption), run_time=1.5)
         self.wait(2.5)
 
-        # Beat 5 — clean exit. (rt=0.6)
+        # Beat 5 — clean exit. (rt=0.6, wait=0.3)
         self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
+        self.wait(0.3)
