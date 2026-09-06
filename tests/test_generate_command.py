@@ -20,7 +20,10 @@ runner = CliRunner()
 
 
 def _fake_providers(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("bayan.cli._build_providers", lambda: (FakeProvider(), FakeProvider()))
+    monkeypatch.setattr(
+        "bayan.cli._build_providers",
+        lambda: (FakeProvider(), FakeProvider(), FakeProvider()),
+    )
 
 
 def _run_generate(monkeypatch: pytest.MonkeyPatch, runs_root: Path, *args: str):
@@ -98,7 +101,7 @@ def test_failing_plan_stage_stops_later_stages(monkeypatch: pytest.MonkeyPatch, 
 
     monkeypatch.setattr(
         "bayan.cli._build_providers",
-        lambda: (_FailingPlanner(), FakeProvider()),
+        lambda: (_FailingPlanner(), FakeProvider(), FakeProvider()),
     )
     runs_root = tmp_path / "runs"
     result = runner.invoke(app, ["generate", ARABIC_PROMPT, "--runs-root", str(runs_root)])
@@ -200,7 +203,16 @@ def test_arabic_gate_blocks_render_before_any_container_call(
                 usage=None,
             )
 
-    monkeypatch.setattr("bayan.cli._build_providers", lambda: (FakeProvider(), _UngatedCoder()))
+    class _NeverFixRepairer:
+        def repair_scene_code(self, *, code: str, classification: object, plan: object):
+            return CodeAttemptEvidence(
+                code=code, raw_response=code, fingerprint="never-fix", model="fake", usage=None
+            )
+
+    monkeypatch.setattr(
+        "bayan.cli._build_providers",
+        lambda: (FakeProvider(), _UngatedCoder(), _NeverFixRepairer()),
+    )
     runs_root = tmp_path / "runs"
 
     result = runner.invoke(app, ["generate", ARABIC_PROMPT, "--runs-root", str(runs_root)])
@@ -247,3 +259,137 @@ def test_vlm_flag_records_a_not_implemented_verdict(
             "suggestion": "Rely on the deterministic checks plus teacher review.",
         }
     ]
+
+
+def test_repair_loop_fixes_arabic_scene_within_two_attempts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_render: None
+):
+    """BDD #71 success path: a gate failure is repaired and the run completes."""
+    bad_scene = (
+        "from manim import *\n"
+        "\n"
+        "class GeneratedScene(Scene):\n"
+        "    def construct(self):\n"
+        '        Text("\u0645\u0631\u062d\u0628\u0627")\n'
+    )
+    from bayan.pipeline.models import CodeAttemptEvidence as Evidence
+
+    class _BadCoder(FakeProvider):
+        def generate_scene_code(self, *, plan, system_prompt, user_prompt):
+            return Evidence(
+                code=bad_scene,
+                raw_response=bad_scene,
+                fingerprint="bad",
+                model="fake",
+                usage=None,
+            )
+
+    class _FullSceneRepairer(FakeProvider):
+        def repair_scene_code(self, *, code, classification, plan):
+            return self.generate_scene_code(plan=plan, system_prompt="", user_prompt="")
+
+    monkeypatch.setattr(
+        "bayan.cli._build_providers",
+        lambda: (FakeProvider(), _BadCoder(), _FullSceneRepairer()),
+    )
+    runs_root = tmp_path / "runs"
+
+    result = runner.invoke(app, ["generate", ARABIC_PROMPT, "--runs-root", str(runs_root)])
+
+    assert result.exit_code == 0, result.output
+    summary = json.loads((_only_run_dir(runs_root) / "run.json").read_text(encoding="utf-8"))
+    assert summary["stages"]["gates"] == "completed"
+    assert summary["repairs_used"] == 1
+
+
+def test_repair_exhaustion_writes_record_and_exits_non_zero(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_render: list[tuple[str, ...]]
+):
+    class _UngatedCoder:
+        def generate_scene_code(self, *, plan, system_prompt, user_prompt):
+            bad = (
+                "from manim import *\n"
+                "class GeneratedScene(Scene):\n"
+                "    def construct(self):\n"
+                '        Text("\u0627\u0644\u0646\u0627\u062a\u062c")\n'
+            )
+            return CodeAttemptEvidence(
+                code=bad, raw_response=bad, fingerprint="bad", model="fake", usage=None
+            )
+
+    class _NeverFixRepairer:
+        def repair_scene_code(self, *, plan, code, classification):
+            bad = (
+                "from manim import *\n"
+                "class GeneratedScene(Scene):\n"
+                "    def construct(self):\n"
+                '        Text("\u0627\u0644\u0646\u0627\u062a\u062c")\n'
+            )
+            return CodeAttemptEvidence(
+                code=bad, raw_response=bad, fingerprint="bad", model="fake", usage=None
+            )
+
+    monkeypatch.setattr(
+        "bayan.cli._build_providers",
+        lambda: (FakeProvider(), _UngatedCoder(), _NeverFixRepairer()),
+    )
+    runs_root = tmp_path / "runs"
+
+    result = runner.invoke(app, ["generate", ARABIC_PROMPT, "--runs-root", str(runs_root)])
+
+    assert result.exit_code == 1
+    assert "Generation failed" in result.output
+    record = json.loads(
+        (_only_run_dir(runs_root) / "records" / "07-repair.json").read_text(encoding="utf-8")
+    )
+    assert record["status"] == "exhausted"
+    summary = json.loads((_only_run_dir(runs_root) / "run.json").read_text(encoding="utf-8"))
+    assert summary["status"] == "failed"
+    assert fake_render == []
+
+
+def test_policy_violation_short_circuits_without_llm_repair(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_render: list[tuple[str, ...]]
+):
+    policy_scene = (
+        "from manim import *\n"
+        "class GeneratedScene(Scene):\n"
+        "    def construct(self):\n"
+        '        eval("1 + 1")\n'
+    )
+
+    class _PolicyCoder:
+        def generate_scene_code(self, *, plan, system_prompt, user_prompt):
+            return CodeAttemptEvidence(
+                code=policy_scene,
+                raw_response=policy_scene,
+                fingerprint="policy",
+                model="fake",
+                usage=None,
+            )
+
+    repair_calls: list[int] = []
+
+    class _CountingRepairer:
+        def repair_scene_code(self, **kwargs):
+            repair_calls.append(1)
+            return CodeAttemptEvidence(
+                code=policy_scene,
+                raw_response=policy_scene,
+                fingerprint="policy",
+                model="fake",
+                usage=None,
+            )
+
+    monkeypatch.setattr(
+        "bayan.cli._build_providers",
+        lambda: (FakeProvider(), _PolicyCoder(), _CountingRepairer()),
+    )
+    runs_root = tmp_path / "runs"
+
+    result = runner.invoke(app, ["generate", ARABIC_PROMPT, "--runs-root", str(runs_root)])
+
+    assert result.exit_code == 1
+    assert repair_calls == []
+    assert (_only_run_dir(runs_root) / "review_packet.md").exists()
+    assert fake_render == []

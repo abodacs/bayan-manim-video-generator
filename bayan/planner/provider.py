@@ -14,6 +14,7 @@ from bayan.pipeline.models import (
 )
 from bayan.pipeline.records import evidence_fingerprint
 from bayan.planner.models import LessonSegment, PlanRenderPreferences, ScenePlan
+from bayan.renderer.errors import FailureClassification
 from bayan.templates.catalogue import get_template_catalogue
 
 
@@ -128,4 +129,39 @@ class FakeProvider:
                 completion_tokens=completion_tokens,
                 total_tokens=prompt_tokens + completion_tokens,
             ),
+        )
+
+    def repair_scene_code(
+        self, *, code: str, classification: FailureClassification, plan: LessonPlan
+    ) -> CodeAttemptEvidence:
+        """Deterministic minimal fixes for the two repairable gate families."""
+        if classification.category == "disallowed_import":
+            allowed_prefixes = (
+                "from manim",
+                "from bayan.utils.arabic_helper",
+                "import manim",
+                "import math",
+            )
+            lines = [
+                line
+                for line in code.splitlines()
+                if not (
+                    line.startswith(("import ", "from ")) and not line.startswith(allowed_prefixes)
+                )
+            ]
+            code = "\n".join(lines) + "\n"
+        if classification.category == "arabic_layout":
+            code = code.replace("Text(", "ArabicText(")
+            if "arabic_helper" not in code:
+                helper_import = (
+                    "from manim import *\n"
+                    "from bayan.utils.arabic_helper import ArabicText, rtl_glyphs\n"
+                )
+                code = code.replace("from manim import *\n", helper_import)
+        return CodeAttemptEvidence(
+            code=code,
+            raw_response=code,
+            fingerprint=evidence_fingerprint(self.model_name, "fake", f"repair:{code}"),
+            model=self.model_name,
+            usage=None,
         )

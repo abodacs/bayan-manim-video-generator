@@ -24,6 +24,7 @@ from bayan.pipeline.models import (
 from bayan.pipeline.pricing import estimate_cost_usd
 from bayan.pipeline.profiles import digit_rule, get_profile, lexicon_rule
 from bayan.pipeline.records import evidence_fingerprint, write_stage_record
+from bayan.renderer.errors import FailureClassification
 from bayan.templates.catalogue import get_template_catalogue, read_fixture_code
 from bayan.utils.atomic_io import atomic_write_text
 
@@ -245,3 +246,49 @@ class LLMCoderProvider:
             model=self.client.model,
             usage=self.client.last_usage,
         )
+
+    def repair_scene_code(
+        self, *, code: str, classification: FailureClassification, plan: LessonPlan | None
+    ) -> CodeAttemptEvidence:
+        return repair_scene_code_with_client(
+            self.client, code=code, classification=classification, plan=plan
+        )
+
+
+REPAIR_PROMPT_TEMPLATE = (
+    "You fix Manim scene code. Change the least possible: a minimal fix only.\n"
+    "Problem category: {category}\n"
+    "What to fix: {suggestion}\n"
+    "Failure evidence: {evidence}\n"
+    "Return the complete fixed Python file and nothing else."
+)
+
+
+def repair_scene_code_with_client(
+    client: LLMClient,
+    *,
+    code: str,
+    classification: FailureClassification,
+    plan: LessonPlan | None,
+) -> CodeAttemptEvidence:
+    """Adapter body shared by the client-backed repair provider."""
+    fixed = client.generate_code(
+        system_prompt=(
+            "You repair Arabic Manim lesson scenes with minimal edits. "
+            "Reply with the complete fixed Python file only."
+        ),
+        user_prompt=REPAIR_PROMPT_TEMPLATE.format(
+            category=classification.category,
+            suggestion=classification.suggestion,
+            evidence=classification.evidence,
+        ),
+    )
+    return CodeAttemptEvidence(
+        code=fixed,
+        raw_response=client.last_raw_content or "",
+        fingerprint=evidence_fingerprint(
+            client.model, client.base_url, f"repair:{classification.category}:{code}"
+        ),
+        model=client.model,
+        usage=client.last_usage,
+    )

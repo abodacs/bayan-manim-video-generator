@@ -258,10 +258,11 @@ def run(
         raise typer.Exit(code=1)
 
 
-def _build_providers() -> tuple[LLMPlanProvider, LLMCoderProvider]:
+def _build_providers() -> tuple[LLMPlanProvider, LLMCoderProvider, LLMCoderProvider]:
     """Build the real provider adapters over one hardened client."""
     client = LLMClient()
-    return LLMPlanProvider(client), LLMCoderProvider(client)
+    coder = LLMCoderProvider(client)
+    return LLMPlanProvider(client), coder, coder
 
 
 @app.command(name="generate")
@@ -292,7 +293,7 @@ def generate(
 ) -> None:
     """Generate a lesson video from one free-form Arabic prompt."""
     try:
-        planner, coder = _build_providers()
+        planner, coder, repairer = _build_providers()
     except LLMConfigError as error:
         typer.secho(f"Configuration Error: {error}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from None
@@ -306,6 +307,7 @@ def generate(
         runs_root=runs_root,
         planner=planner,
         coder=coder,
+        repairer=repairer,
     )
 
     if result.status != "completed":

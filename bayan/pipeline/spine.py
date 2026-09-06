@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable, Iterator
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -21,12 +21,19 @@ from typing import Any
 
 from bayan.pipeline.coder import CoderService, CodingError, SceneCodeProvider
 from bayan.pipeline.critic import critic_blocked, run_critic
-from bayan.pipeline.models import LessonPlan
+from bayan.pipeline.models import CheckResult, LessonPlan
 from bayan.pipeline.planner import PLAN_FILENAME, PlannerService, PlanningError
-from bayan.pipeline.preflight import gates_blocked, run_gates
+from bayan.pipeline.preflight import GateResult, gates_blocked, run_gates
 from bayan.pipeline.profiles import UnknownProfileError, get_profile, normalize_plan
 from bayan.pipeline.provider import LessonPlanProvider
 from bayan.pipeline.records import RECORDS_DIRNAME, write_stage_record
+from bayan.pipeline.repair import MAX_REPAIR_ATTEMPTS, CodeRepairProvider, RepairService
+from bayan.renderer.errors import (
+    classify_critic_results,
+    classify_gate_results,
+    classify_provider_error,
+    classify_render_failure,
+)
 from bayan.renderer.executor import RenderError, render_scene_code
 from bayan.utils.atomic_io import atomic_write_text
 
@@ -40,6 +47,7 @@ CODE_RECORD_FILENAME = "03-code.json"
 GATES_RECORD_FILENAME = "04-gates.json"
 RENDER_RECORD_FILENAME = "05-render.json"
 CRITIC_RECORD_FILENAME = "06-critic.json"
+REPAIR_RECORD_FILENAME = "07-repair.json"
 
 
 class LanguageProfile(StrEnum):
@@ -85,9 +93,12 @@ class RunContext:
     quality: str
     planner: LessonPlanProvider
     coder: SceneCodeProvider
+    repairer: CodeRepairProvider
     vlm: bool = False
     plan: LessonPlan | None = None
     scene_code: str | None = None
+    gate_results: list[GateResult] = field(default_factory=list)
+    check_results: list[CheckResult] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -117,6 +128,7 @@ class RunResult:
     status: str
     failure: str | None
     total_cost_estimate_usd: float
+    repairs_used: int
 
 
 def _stage_record(
@@ -205,6 +217,7 @@ def run_gates_stage(context: RunContext, stage: Stage) -> StageOutcome:
     # The spine stops at the first failure, so the code stage always ran.
     assert context.scene_code is not None
     results = run_gates(context.scene_code, profile=context.profile)
+    context.gate_results = results
     gate_evidence = [asdict(result) for result in results]
     if gates_blocked(results):
         failure = "; ".join(
@@ -244,6 +257,7 @@ def run_critic_stage(context: RunContext, stage: Stage) -> StageOutcome:
         render_status=render_status,
         vlm=context.vlm,
     )
+    context.check_results = results
     checks = [result.model_dump() for result in results]
     if critic_blocked(results):
         failure = "; ".join(
@@ -302,22 +316,68 @@ STAGES: tuple[Stage, ...] = (
 
 
 class GeneratePipeline:
-    """Sequence stages into a run directory; the first failure stops the run."""
+    """Sequence stages into a run directory; a failure triggers bounded repair.
 
-    def __init__(self, stages: tuple[Stage, ...] = STAGES) -> None:
+    Plan and profile failures stop the run immediately (plan repair is out
+    of scope in phase 1). Failures of the code-driven stages (code, gates,
+    render, critic) enter the repair loop: classify, minimal fix, re-gate,
+    then replay the stages from the gates onward. At most
+    ``max_repairs`` repair attempts; exhaustion fails the run.
+    """
+
+    def __init__(
+        self,
+        stages: tuple[Stage, ...] = STAGES,
+        *,
+        max_repairs: int = MAX_REPAIR_ATTEMPTS,
+    ) -> None:
         self.stages = stages
+        self.max_repairs = max_repairs
 
     def run(self, context: RunContext) -> RunResult:
         context.run_dir.mkdir(parents=True, exist_ok=True)
 
+        stage_names = [stage.name for stage in self.stages]
+        gates_index = stage_names.index("gates")
+        repairable = {"code", "gates", "render", "critic"}
+
         stage_statuses: dict[str, str] = {}
         failure: str | None = None
-        for stage in self.stages:
+        repairs_used = 0
+        repair_service = RepairService(
+            provider=context.repairer,
+            run_dir=context.run_dir,
+            record_filename=REPAIR_RECORD_FILENAME,
+        )
+
+        index = 0
+        while index < len(self.stages):
+            stage = self.stages[index]
             outcome = stage.run(context, stage)
             stage_statuses[outcome.stage] = outcome.status
-            if outcome.status != "completed":
-                failure = outcome.failure
+            if outcome.status == "completed":
+                # A repaired replay clears the earlier failure.
+                failure = None
+                index += 1
+                continue
+
+            failure = outcome.failure
+            if stage.name not in repairable or repairs_used >= self.max_repairs:
                 break
+
+            repairs_used += 1
+            classification = self._classify(stage.name, context, outcome)
+            repair_outcome = repair_service.repair(
+                code=context.scene_code or "",
+                classification=classification,
+                plan=context.plan,
+                profile=context.profile,
+            )
+            if repair_outcome.status != "completed":
+                failure = repair_outcome.failure or failure
+                break
+            context.scene_code = repair_outcome.code
+            index = gates_index  # a fix re-enters at the gates, never the container
 
         status = "completed" if failure is None else "failed"
         total_cost = _total_cost_estimate(context.run_dir)
@@ -331,6 +391,7 @@ class GeneratePipeline:
             "model": _first_model(context.run_dir),
             "total_cost_estimate_usd": total_cost,
             "stages": stage_statuses,
+            "repairs_used": repairs_used,
             "failure": failure,
         }
         atomic_write_text(
@@ -343,7 +404,18 @@ class GeneratePipeline:
             status=status,
             failure=failure,
             total_cost_estimate_usd=total_cost,
+            repairs_used=repairs_used,
         )
+
+    def _classify(self, stage_name: str, context: RunContext, outcome: StageOutcome) -> Any:
+        """Map the failed stage's typed results onto the failure taxonomy."""
+        if stage_name == "gates":
+            return classify_gate_results(context.gate_results)
+        if stage_name == "critic":
+            return classify_critic_results(context.check_results)
+        if stage_name == "render":
+            return classify_render_failure(outcome.failure or "")
+        return classify_provider_error(ValueError(outcome.failure or "unknown"))
 
 
 def _iter_stage_records(run_dir: Path) -> Iterator[dict[str, Any]]:
@@ -387,6 +459,7 @@ def run_generate(
     runs_root: Path,
     planner: LessonPlanProvider,
     coder: SceneCodeProvider,
+    repairer: CodeRepairProvider,
 ) -> RunResult:
     """Allocate a fresh run directory and execute the pipeline over it."""
     run_dir = allocate_run_dir(runs_root, prompt)
@@ -398,5 +471,6 @@ def run_generate(
         vlm=vlm,
         planner=planner,
         coder=coder,
+        repairer=repairer,
     )
     return GeneratePipeline().run(context)
