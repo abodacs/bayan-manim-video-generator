@@ -41,6 +41,13 @@ the rest of the system should not depend on a particular model provider.
 Generated content must be treated as data until it passes the checks required
 to become executable scene code.
 
+The shared generation contract is deliberately deferred: only one real
+generator exists today (`bayan/generator/llm_client.py`), and a seam with a
+single adapter stays hypothetical. Introduce the contract when a deterministic
+generator lands. Until then both generators-in-waiting agree on one rule: the
+RTL technique is `rtl_glyphs` from `bayan/utils/arabic_helper.py`, never
+ad-hoc string reversal.
+
 ### Rendering
 
 Owns the render job lifecycle, invokes Manim, captures logs, and records output

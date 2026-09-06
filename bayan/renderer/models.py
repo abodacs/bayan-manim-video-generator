@@ -7,8 +7,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from bayan.utils.atomic_io import atomic_write_text
+
 RunStatus = Literal["running", "succeeded", "failed"]
 PhaseStatus = Literal["passed", "failed", "timed_out", "output_limited"]
+JobStatus = Literal["requested", "running", "succeeded", "failed"]
 
 
 @dataclass(frozen=True)
@@ -123,10 +126,41 @@ class SmokeManifest:
 
     def write(self, run_directory: Path) -> None:
         """Atomically update the manifest in the run directory."""
-        manifest_path = run_directory / "smoke_manifest.json"
-        temporary_path = run_directory / "smoke_manifest.json.tmp"
-        temporary_path.write_text(
+        atomic_write_text(
+            run_directory / "smoke_manifest.json",
             json.dumps(self.to_dict(), ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
         )
-        temporary_path.replace(manifest_path)
+
+
+@dataclass
+class RenderJob:
+    """Represents the lifecycle and metadata of a rendering job."""
+
+    job_id: str
+    status: JobStatus
+    scene_plan_id: str
+    template_id: str
+    # Reproducibility evidence, mirroring SmokeManifest: the image actually
+    # used, the security/resource settings applied, and a hash of the fixture
+    # source that was rendered.
+    image: ImageMetadata | None = None
+    settings: RenderSettings | None = None
+    fixture_hash: str | None = None
+    failure_stage: str | None = None
+    exit_reason: str | None = None
+    artifacts: dict[str, str] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a JSON-compatible representation."""
+        return {
+            "job_id": self.job_id,
+            "status": self.status,
+            "scene_plan_id": self.scene_plan_id,
+            "template_id": self.template_id,
+            "image": self.image.to_dict() if self.image is not None else None,
+            "settings": self.settings.to_dict() if self.settings is not None else None,
+            "fixture_hash": self.fixture_hash,
+            "failure_stage": self.failure_stage,
+            "exit_reason": self.exit_reason,
+            "artifacts": dict(self.artifacts),
+        }
