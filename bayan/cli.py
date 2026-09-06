@@ -282,7 +282,7 @@ def generate(
         str,
         typer.Option(
             "--quality",
-            help="Render quality; wired through by the render-quality sub-issue.",
+            help="Render quality: draft, medium_quality, high_quality, highest_quality.",
         ),
     ] = "draft",
     vlm: Annotated[
@@ -301,6 +301,7 @@ def generate(
     result = run_generate(
         prompt=prompt,
         profile=profile,
+        quality=quality,
         runs_root=runs_root,
         planner=planner,
         coder=coder,

@@ -77,6 +77,7 @@ class RunContext:
     run_dir: Path
     prompt: str
     profile: str
+    quality: str
     planner: LessonPlanProvider
     coder: SceneCodeProvider
     plan: LessonPlan | None = None
@@ -198,12 +199,19 @@ def run_render_stage(context: RunContext, stage: Stage) -> StageOutcome:
             output_path=context.run_dir / DRAFT_FILENAME,
             scene_class_name="GeneratedScene",
             preview_path=context.run_dir / PREVIEW_FILENAME,
+            quality=context.quality,
         )
     except RenderError as error:
         return _failed(context, stage, str(error))
     write_stage_record(
         context.run_dir,
-        _stage_record(stage.name, "completed", draft=DRAFT_FILENAME, preview=PREVIEW_FILENAME),
+        _stage_record(
+            stage.name,
+            "completed",
+            quality=context.quality,
+            draft=DRAFT_FILENAME,
+            preview=PREVIEW_FILENAME,
+        ),
         stage.record_filename,
     )
     return StageOutcome(stage=stage.name, status="completed")
@@ -243,6 +251,7 @@ class GeneratePipeline:
             "created_at": datetime.now(UTC).isoformat(),
             "prompt": context.prompt,
             "profile": context.profile,
+            "quality": context.quality,
             "model": _first_model(context.run_dir),
             "total_cost_estimate_usd": total_cost,
             "stages": stage_statuses,
@@ -297,6 +306,7 @@ def run_generate(
     prompt: str,
     *,
     profile: str,
+    quality: str = "draft",
     runs_root: Path,
     planner: LessonPlanProvider,
     coder: SceneCodeProvider,
@@ -307,6 +317,7 @@ def run_generate(
         run_dir=run_dir,
         prompt=prompt,
         profile=profile,
+        quality=quality,
         planner=planner,
         coder=coder,
     )
