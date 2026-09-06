@@ -102,6 +102,25 @@ project's `.venv` automatically.
    uv run pytest
    ```
 
+### Environment variables
+
+`bayan` reads its LLM settings from the environment (a local `.env` file is
+loaded automatically and must never be committed). The resolution order is:
+explicit CLI argument, then the `BAYAN_*` variable, then the fallback.
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `BAYAN_API_KEY` | API key for the OpenAI-compatible provider. Required unless `OPENAI_API_KEY` is set. | none |
+| `OPENAI_API_KEY` | Fallback API key when `BAYAN_API_KEY` is unset. | none |
+| `BAYAN_BASE_URL` | OpenAI-compatible API endpoint. | `https://api.z.ai/api/coding/paas/v4/` |
+| `BAYAN_LLM_MODEL` | Model name sent with every request. | `glm-5.2` |
+
+Copy `.env.example` to `.env` and fill in your key. Follow the key-safety
+guidance at
+[Best practices for API key safety](https://help.openai.com/en/articles/5112595-best-practices-for-api-key-safety):
+keys never belong in source code, error messages, logs, or run records, and
+Bayan redacts the resolved key from every error it raises.
+
 ```bash
 uv run manim --version
 uv run manim -ql bayan/utils/sanity_check.py ArabicSanityCheck
