@@ -1,0 +1,11 @@
+{
+  "id": "0012",
+  "unit": "fractions",
+  "slug": "comparing-fractions",
+  "prompt": "شرح مقارنة الكسرين ٣/٧ و ٥/٧",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 2
+  }
+}

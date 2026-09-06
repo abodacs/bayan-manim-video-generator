@@ -1,0 +1,25 @@
+{
+  "topic": "شرح قواعد القسمة على ٢ و ٥ و ١٠ مع أمثلة",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 34 على 10، الخطوة 1",
+      "insight_move": "compare",
+      "numbers": [
+        34.0,
+        10.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "الناتج 3 والباقي 4",
+      "insight_move": "summarize",
+      "numbers": [
+        3.0,
+        4.0
+      ]
+    }
+  ]
+}

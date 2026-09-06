@@ -1,0 +1,11 @@
+{
+  "id": "0015",
+  "unit": "ratio",
+  "slug": "ratio-concept",
+  "prompt": "شرح مفهوم النسبة ٣ إلى ٢",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 3
+  }
+}

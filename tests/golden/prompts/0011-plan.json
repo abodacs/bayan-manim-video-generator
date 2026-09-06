@@ -1,0 +1,25 @@
+{
+  "topic": "شرح حل المعادلة س + ٣ = ١٠",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 53 على 6، الخطوة 1",
+      "insight_move": "reveal",
+      "numbers": [
+        53.0,
+        6.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "الناتج 8 والباقي 5",
+      "insight_move": "summarize",
+      "numbers": [
+        8.0,
+        5.0
+      ]
+    }
+  ]
+}

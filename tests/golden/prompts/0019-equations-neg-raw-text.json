@@ -1,0 +1,11 @@
+{
+  "id": "0019",
+  "unit": "equations",
+  "slug": "neg-raw-text",
+  "prompt": "شرح كتابة جملة ترحيبية على الشاشة",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "fail:arabic",
+    "beats": 3
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "id": "0002",
+  "unit": "numbers",
+  "slug": "gcf",
+  "prompt": "شرح القاسم المشترك الأكبر للعددين ١٢ و ١٨",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 3
+  }
+}

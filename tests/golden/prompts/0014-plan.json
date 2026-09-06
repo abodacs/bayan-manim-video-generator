@@ -1,0 +1,25 @@
+{
+  "topic": "شرح ضرب العدد ٤ في الكسر ٢/٩",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 17 على 6، الخطوة 1",
+      "insight_move": "animate_count",
+      "numbers": [
+        17.0,
+        6.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "الناتج 2 والباقي 5",
+      "insight_move": "summarize",
+      "numbers": [
+        2.0,
+        5.0
+      ]
+    }
+  ]
+}

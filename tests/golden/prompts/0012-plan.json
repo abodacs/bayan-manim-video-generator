@@ -1,0 +1,25 @@
+{
+  "topic": "شرح مقارنة الكسرين ٣/٧ و ٥/٧",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 88 على 2، الخطوة 1",
+      "insight_move": "animate_count",
+      "numbers": [
+        88.0,
+        2.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "الناتج 44 والباقي 0",
+      "insight_move": "summarize",
+      "numbers": [
+        44.0,
+        0.0
+      ]
+    }
+  ]
+}

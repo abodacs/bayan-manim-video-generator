@@ -1,0 +1,11 @@
+{
+  "id": "0014",
+  "unit": "fractions",
+  "slug": "multiplying-fraction",
+  "prompt": "شرح ضرب العدد ٤ في الكسر ٢/٩",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 2
+  }
+}

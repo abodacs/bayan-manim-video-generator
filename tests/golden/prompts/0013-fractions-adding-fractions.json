@@ -1,0 +1,11 @@
+{
+  "id": "0013",
+  "unit": "fractions",
+  "slug": "adding-fractions",
+  "prompt": "شرح جمع الكسرين ٢/٧ و ٣/٧",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 3
+  }
+}

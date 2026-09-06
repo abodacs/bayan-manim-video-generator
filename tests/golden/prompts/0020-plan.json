@@ -1,0 +1,43 @@
+{
+  "topic": "شرح عملية جمع تحتاج إلى أداة خارجية",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 75 على 4، الخطوة 1",
+      "insight_move": "animate_count",
+      "numbers": [
+        75.0,
+        4.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "نقسم 75 على 4، الخطوة 2",
+      "insight_move": "summarize",
+      "numbers": [
+        75.0,
+        4.0
+      ]
+    },
+    {
+      "title": "الخطوة 3",
+      "on_screen_text": "نقسم 75 على 4، الخطوة 3",
+      "insight_move": "animate_count",
+      "numbers": [
+        75.0,
+        4.0
+      ]
+    },
+    {
+      "title": "الخطوة 4",
+      "on_screen_text": "الناتج 18 والباقي 3",
+      "insight_move": "summarize",
+      "numbers": [
+        18.0,
+        3.0
+      ]
+    }
+  ]
+}

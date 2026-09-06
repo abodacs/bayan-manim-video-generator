@@ -1,0 +1,25 @@
+{
+  "topic": "شرح مفهوم المتغير في العبارة س + ٥ حيث س = ٣",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 55 على 8، الخطوة 1",
+      "insight_move": "summarize",
+      "numbers": [
+        55.0,
+        8.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "الناتج 6 والباقي 7",
+      "insight_move": "summarize",
+      "numbers": [
+        6.0,
+        7.0
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "0006",
+  "unit": "integers",
+  "slug": "comparing-integers",
+  "prompt": "شرح مقارنة العددين -٥ و -٢",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 4
+  }
+}

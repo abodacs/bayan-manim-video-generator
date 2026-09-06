@@ -1,0 +1,43 @@
+{
+  "topic": "شرح مقارنة العددين -٥ و -٢",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 14 على 8، الخطوة 1",
+      "insight_move": "compare",
+      "numbers": [
+        14.0,
+        8.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "نقسم 14 على 8، الخطوة 2",
+      "insight_move": "animate_count",
+      "numbers": [
+        14.0,
+        8.0
+      ]
+    },
+    {
+      "title": "الخطوة 3",
+      "on_screen_text": "نقسم 14 على 8، الخطوة 3",
+      "insight_move": "compare",
+      "numbers": [
+        14.0,
+        8.0
+      ]
+    },
+    {
+      "title": "الخطوة 4",
+      "on_screen_text": "الناتج 1 والباقي 6",
+      "insight_move": "summarize",
+      "numbers": [
+        1.0,
+        6.0
+      ]
+    }
+  ]
+}

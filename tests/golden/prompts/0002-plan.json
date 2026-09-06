@@ -1,0 +1,34 @@
+{
+  "topic": "شرح القاسم المشترك الأكبر للعددين ١٢ و ١٨",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 70 على 2، الخطوة 1",
+      "insight_move": "animate_count",
+      "numbers": [
+        70.0,
+        2.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "نقسم 70 على 2، الخطوة 2",
+      "insight_move": "summarize",
+      "numbers": [
+        70.0,
+        2.0
+      ]
+    },
+    {
+      "title": "الخطوة 3",
+      "on_screen_text": "الناتج 35 والباقي 0",
+      "insight_move": "summarize",
+      "numbers": [
+        35.0,
+        0.0
+      ]
+    }
+  ]
+}

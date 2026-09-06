@@ -1,0 +1,11 @@
+{
+  "id": "0003",
+  "unit": "numbers",
+  "slug": "lcm",
+  "prompt": "شرح المضاعف المشترك الأصغر للعددين ٤ و ٦",
+  "profile": "msa-western",
+  "expected": {
+    "gates": "pass",
+    "beats": 3
+  }
+}

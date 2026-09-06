@@ -1,0 +1,34 @@
+{
+  "topic": "شرح جمع الكسرين ٢/٧ و ٣/٧",
+  "language": "ar",
+  "profile": "msa-western",
+  "beats": [
+    {
+      "title": "الخطوة 1",
+      "on_screen_text": "نقسم 16 على 2، الخطوة 1",
+      "insight_move": "animate_count",
+      "numbers": [
+        16.0,
+        2.0
+      ]
+    },
+    {
+      "title": "الخطوة 2",
+      "on_screen_text": "نقسم 16 على 2، الخطوة 2",
+      "insight_move": "reveal",
+      "numbers": [
+        16.0,
+        2.0
+      ]
+    },
+    {
+      "title": "الخطوة 3",
+      "on_screen_text": "الناتج 8 والباقي 0",
+      "insight_move": "summarize",
+      "numbers": [
+        8.0,
+        0.0
+      ]
+    }
+  ]
+}

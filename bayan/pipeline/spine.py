@@ -339,7 +339,12 @@ class GeneratePipeline:
     def __init__(self, stages: tuple[Stage, ...] = STAGES) -> None:
         self.stages = stages
 
-    def run(self, context: RunContext) -> RunResult:
+    def run(self, context: RunContext, *, stop_after: str | None = None) -> RunResult:
+        """Run the stages; ``stop_after`` halts after that stage completes.
+
+        Used by the golden tests to exercise the pipeline deterministically
+        up to and including the preflight gates, never rendering.
+        """
         context.run_dir.mkdir(parents=True, exist_ok=True)
 
         stage_names = [stage.name for stage in self.stages]
@@ -368,6 +373,8 @@ class GeneratePipeline:
             if outcome.status == "completed":
                 # A repaired replay clears the earlier failure.
                 failure = None
+                if stop_after is not None and stage.name == stop_after:
+                    break
                 index += 1
                 continue
 
