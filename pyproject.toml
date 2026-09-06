@@ -12,6 +12,7 @@ dependencies = [
     "openai>=3.2.0",
     "python-dotenv>=1.2.2",
     "pydantic>=2",
+    "manim-physics>=0.2.4",
 ]
 
 [dependency-groups]
@@ -40,6 +41,10 @@ select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
 # Manim scenes idiomatically use `from manim import *` -- F401/F403/F405 are
 # the star-import noise that produces.
 "bayan/utils/sanity_check.py" = ["F401", "F403", "F405"]
+# Standalone runnable templates under templates/ share the same star-import
+# pattern, and a few manipulate sys.path (so they can import the bayan package)
+# before importing from it -- E402 is the resulting "import not at top" noise.
+"templates/*.py" = ["F401", "F403", "F405", "E402"]
 # The course ships runnable Manim scenes (star-imports, the idiomatic pattern)
 # plus a zero-dep stdlib generator; mirror the templates ignores so the gate
 # passes without fighting the library's import style.
