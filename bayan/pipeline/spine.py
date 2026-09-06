@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from bayan.pipeline.coder import CoderService, CodingError, SceneCodeProvider
+from bayan.pipeline.critic import critic_blocked, run_critic
 from bayan.pipeline.models import LessonPlan
 from bayan.pipeline.planner import PLAN_FILENAME, PlannerService, PlanningError
 from bayan.pipeline.preflight import gates_blocked, run_gates
@@ -38,6 +39,7 @@ PROFILE_RECORD_FILENAME = "02-profile.json"
 CODE_RECORD_FILENAME = "03-code.json"
 GATES_RECORD_FILENAME = "04-gates.json"
 RENDER_RECORD_FILENAME = "05-render.json"
+CRITIC_RECORD_FILENAME = "06-critic.json"
 
 
 class LanguageProfile(StrEnum):
@@ -83,6 +85,7 @@ class RunContext:
     quality: str
     planner: LessonPlanProvider
     coder: SceneCodeProvider
+    vlm: bool = False
     plan: LessonPlan | None = None
     scene_code: str | None = None
 
@@ -223,6 +226,43 @@ def run_gates_stage(context: RunContext, stage: Stage) -> StageOutcome:
     return StageOutcome(stage=stage.name, status="completed")
 
 
+def run_critic_stage(context: RunContext, stage: Stage) -> StageOutcome:
+    """Run the deterministic critic over the produced artifacts."""
+    # The spine stops at the first failure, so the predecessors always ran.
+    assert context.plan is not None and context.scene_code is not None
+    render_record_path = context.run_dir / "records" / RENDER_RECORD_FILENAME
+    render_status = (
+        json.loads(render_record_path.read_text(encoding="utf-8")).get("status")
+        if render_record_path.exists()
+        else None
+    )
+    results = run_critic(
+        plan=context.plan,
+        code=context.scene_code,
+        draft_path=context.run_dir / DRAFT_FILENAME,
+        preview_path=context.run_dir / PREVIEW_FILENAME,
+        render_status=render_status,
+        vlm=context.vlm,
+    )
+    checks = [result.model_dump() for result in results]
+    if critic_blocked(results):
+        failure = "; ".join(
+            f"{result.check}: {result.evidence}" for result in results if result.status == "failed"
+        )
+        write_stage_record(
+            context.run_dir,
+            _stage_record(stage.name, "failed", failure, checks=checks),
+            stage.record_filename,
+        )
+        return StageOutcome(stage=stage.name, status="failed", failure=failure)
+    write_stage_record(
+        context.run_dir,
+        _stage_record(stage.name, "completed", checks=checks),
+        stage.record_filename,
+    )
+    return StageOutcome(stage=stage.name, status="completed")
+
+
 def run_render_stage(context: RunContext, stage: Stage) -> StageOutcome:
     """Render the scene code in the isolated container worker."""
     # The spine stops at the first failure, so the code stage always ran.
@@ -257,6 +297,7 @@ STAGES: tuple[Stage, ...] = (
     Stage("code", CODE_RECORD_FILENAME, run_code_stage),
     Stage("gates", GATES_RECORD_FILENAME, run_gates_stage),
     Stage("render", RENDER_RECORD_FILENAME, run_render_stage),
+    Stage("critic", CRITIC_RECORD_FILENAME, run_critic_stage),
 )
 
 
@@ -342,6 +383,7 @@ def run_generate(
     *,
     profile: str,
     quality: str = "draft",
+    vlm: bool = False,
     runs_root: Path,
     planner: LessonPlanProvider,
     coder: SceneCodeProvider,
@@ -353,6 +395,7 @@ def run_generate(
         prompt=prompt,
         profile=profile,
         quality=quality,
+        vlm=vlm,
         planner=planner,
         coder=coder,
     )

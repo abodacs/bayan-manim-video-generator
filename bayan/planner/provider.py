@@ -103,18 +103,19 @@ class FakeProvider:
         self, *, plan: LessonPlan, system_prompt: str, user_prompt: str
     ) -> CodeAttemptEvidence:
         plan_hash = evidence_fingerprint(self.model_name, "fake", plan.model_dump_json())
-        on_screen_text = plan.beats[0].on_screen_text
-        scene = (
-            "from manim import *\n"
-            "from bayan.utils.arabic_helper import ArabicText, rtl_glyphs\n"
-            "\n"
-            "class GeneratedScene(Scene):\n"
-            "    def construct(self):\n"
-            f"        message = ArabicText({on_screen_text!r})\n"
-            "        message.next_to(ORIGIN, UP)\n"
-            "        self.play(Write(rtl_glyphs(message)))\n"
-            "        self.wait(1)\n"
-        )
+        lines = [
+            "from manim import *",
+            "from bayan.utils.arabic_helper import ArabicText, rtl_glyphs",
+            "",
+            "class GeneratedScene(Scene):",
+            "    def construct(self):",
+        ]
+        for index, beat in enumerate(plan.beats):
+            lines.append(f"        message_{index} = ArabicText({beat.on_screen_text!r})")
+            lines.append(f"        message_{index}.next_to(ORIGIN, UP)")
+            lines.append(f"        self.play(Write(rtl_glyphs(message_{index})))")
+        lines.append("        self.wait(1)")
+        scene = "\n".join(lines) + "\n"
         prompt_tokens = 40 + int(plan_hash[0:3], 16) % 60
         completion_tokens = 150 + int(plan_hash[3:6], 16) % 250
         return CodeAttemptEvidence(

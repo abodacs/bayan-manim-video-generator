@@ -107,3 +107,12 @@ class AttemptRecord(BaseModel):
             raw_response=raw_response,
             error=error,
         )
+
+
+class CheckResult(BaseModel):
+    """One critic check's machine-readable verdict."""
+
+    check: str
+    status: Literal["passed", "failed", "not_applicable", "not_implemented"]
+    evidence: str
+    suggestion: str | None = None

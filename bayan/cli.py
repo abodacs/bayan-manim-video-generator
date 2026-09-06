@@ -287,7 +287,7 @@ def generate(
     ] = "draft",
     vlm: Annotated[
         bool,
-        typer.Option("--vlm", help="Enable the VLM critic (default off; critic lands later)."),
+        typer.Option("--vlm", help="Record a VLM critique pass (stub; default off)."),
     ] = False,
 ) -> None:
     """Generate a lesson video from one free-form Arabic prompt."""
@@ -302,6 +302,7 @@ def generate(
         prompt=prompt,
         profile=profile,
         quality=quality,
+        vlm=vlm,
         runs_root=runs_root,
         planner=planner,
         coder=coder,

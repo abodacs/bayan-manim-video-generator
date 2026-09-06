@@ -64,6 +64,7 @@ def test_generate_happy_path_creates_run_dir(
         "code": "completed",
         "gates": "completed",
         "render": "completed",
+        "critic": "completed",
     }
     assert summary["failure"] is None
 
@@ -82,6 +83,7 @@ def test_every_stage_writes_one_ordered_record(
         "03-code.json",
         "04-gates.json",
         "05-render.json",
+        "06-critic.json",
     ]
     for record_path in sorted(records_dir.glob("*.json")):
         record = json.loads(record_path.read_text(encoding="utf-8"))
@@ -223,3 +225,25 @@ def test_cli_accepts_exactly_the_three_profile_names(
     assert result.exit_code == 0, result.output
     summary = json.loads((_only_run_dir(runs_root) / "run.json").read_text(encoding="utf-8"))
     assert summary["profile"] == profile_name
+
+
+def test_vlm_flag_records_a_not_implemented_verdict(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_render: None
+):
+    runs_root = tmp_path / "runs"
+    result = _run_generate(monkeypatch, runs_root, "--vlm")
+
+    assert result.exit_code == 0, result.output
+    critic_record = json.loads(
+        (_only_run_dir(runs_root) / "records" / "06-critic.json").read_text(encoding="utf-8")
+    )
+    vlm_checks = [check for check in critic_record["checks"] if check["check"] == "vlm"]
+    assert vlm_checks == [
+        {
+            "check": "vlm",
+            "status": "not_implemented",
+            "evidence": "The VLM critic is not implemented; it is out of scope for the "
+            "MVP per epic #68.",
+            "suggestion": "Rely on the deterministic checks plus teacher review.",
+        }
+    ]
