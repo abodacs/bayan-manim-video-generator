@@ -2,7 +2,6 @@ from bayan.agents.roles import (
     BaseAgent,
     PlannerAgent,
     RenderAgent,
-    RepairAgent,
     TemplateAgent,
     ValidationAgent,
 )
@@ -13,5 +12,4 @@ __all__ = [
     "TemplateAgent",
     "RenderAgent",
     "ValidationAgent",
-    "RepairAgent",
 ]

@@ -116,6 +116,63 @@ def test_failure_classification_covers_all_sources():
 # -------------------------------------------------------------------------
 
 
+def test_round_returns_the_candidate_fix_for_re_gating(tmp_path):
+    """A produced fix is handed back ``fixed``; the pipeline re-gates it."""
+    provider = _ScriptedRepairer([FIXED_SCENE])
+    service = RepairService(provider=provider, run_dir=tmp_path)
+    classification = FailureClassification(
+        type="preflight",
+        category="disallowed_import",
+        suggestion="remove the import",
+    )
+
+    outcome = service.repair_round(
+        code=BANNED_IMPORT_SCENE, classification=classification, plan=_plan()
+    )
+
+    assert provider.calls == 1
+    assert outcome.status == "fixed"
+    assert outcome.code == FIXED_SCENE
+
+
+def test_budget_caps_provider_calls_at_two(tmp_path):
+    """Distinct-but-still-broken fixes burn the budget, then stop cleanly."""
+
+    class _DriftingRepairer:
+        """Returns different, still-broken code on every call."""
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def repair_scene_code(
+            self, *, code: str, classification: FailureClassification, plan: LessonPlan
+        ) -> CodeAttemptEvidence:
+            self.calls += 1
+            return _evidence(f"{code}\n# attempt {self.calls}")
+
+    provider = _DriftingRepairer()
+    service = RepairService(provider=provider, run_dir=tmp_path)
+    classification = FailureClassification(
+        type="preflight",
+        category="disallowed_import",
+        suggestion="remove the import",
+    )
+
+    outcomes = [
+        service.repair_round(code=f"code {number}", classification=classification, plan=_plan())
+        for number in range(4)
+    ]
+
+    assert provider.calls == MAX_REPAIR_ATTEMPTS
+    assert [outcome.status for outcome in outcomes] == [
+        "fixed",
+        "fixed",
+        "exhausted",
+        "exhausted",
+    ]
+    assert "exhausted" in (outcomes[-1].failure or "")
+
+
 def test_repair_never_exceeds_two_attempts(tmp_path):
     provider = _ScriptedRepairer([BANNED_IMPORT_SCENE] * 10)
     service = RepairService(provider=provider, run_dir=tmp_path)
@@ -156,6 +213,8 @@ def test_exhaustion_writes_failure_record(tmp_path):
     record = json.loads((tmp_path / "records" / "repair.json").read_text(encoding="utf-8"))
     assert record["status"] == "exhausted"
     assert record["last_evidence"]
+    # One record trail: the folded-in agent no longer writes its own.
+    assert not (tmp_path / "agent_records").exists()
 
 
 def test_identical_fix_is_detected_as_a_loop(tmp_path):
@@ -194,7 +253,9 @@ def test_policy_category_short_circuits_to_review_packet(tmp_path):
 
     assert provider.calls == 0
     assert outcome.status == "policy_blocked"
-    assert (tmp_path / "review_packet.md").exists()
+    packet = (tmp_path / "review_packet.md").read_text(encoding="utf-8")
+    # The escalation packet carries the finding's evidence for human review.
+    assert "dynamic execution is banned" in packet
     record = json.loads((tmp_path / "records" / "repair.json").read_text(encoding="utf-8"))
     assert record["status"] == "policy_blocked"
 
@@ -209,7 +270,7 @@ def test_render_failure_classification_feeds_the_loop(tmp_path):
         plan=_plan(),
     )
 
-    assert outcome.status == "completed"
+    assert outcome.status == "fixed"
     assert provider.calls == 1
 
 
