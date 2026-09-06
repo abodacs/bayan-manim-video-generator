@@ -1,9 +1,10 @@
 """Repair stage: classify, ask for a minimal fix, re-gate; capped at two.
 
-The service wraps :class:`bayan.agents.roles.RepairAgent` for attempt
-accounting, the policy short-circuit, and loop detection, and re-runs ALL
-preflight gates on every candidate fix -- a repaired scene never skips
-straight to the container.
+The service wraps :class:`bayan.agents.roles.RepairAgent` -- which owns the
+attempt budget (max 2), the policy short-circuit to the review packet, and
+loop detection via input hashes -- so the cap is global to the run, not per
+call. Every candidate fix re-runs ALL preflight gates here; a repaired scene
+never skips straight to the container.
 """
 
 from __future__ import annotations
@@ -14,17 +15,16 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from bayan.agents.roles import RepairAgent
+from bayan.generator.llm_client import LLMError
 from bayan.pipeline.models import DEFAULT_PROFILE, CodeAttemptEvidence, LessonPlan
 from bayan.pipeline.preflight import gates_blocked, run_gates
-from bayan.pipeline.records import evidence_fingerprint, write_stage_record
-from bayan.renderer.errors import (
-    POLICY_CATEGORIES,
-    FailureClassification,
-    classify_gate_results,
-)
+from bayan.pipeline.records import write_stage_record
+from bayan.renderer.errors import POLICY_CATEGORIES, FailureClassification
 
 MAX_REPAIR_ATTEMPTS = 2
 REPAIR_RECORD_FILENAME = "repair.json"
+
+_REFUSAL_MARKERS = ("safety", "refus")
 
 
 class CodeRepairProvider(Protocol):
@@ -37,20 +37,25 @@ class CodeRepairProvider(Protocol):
 
 @dataclass(frozen=True)
 class RepairOutcome:
-    """What the repair loop reports back to the spine."""
+    """What one repair round reports back to the spine.
 
-    status: str  # completed | exhausted | policy_blocked
+    ``completed`` carries the fixed code; ``still_failing`` means the fix was
+    applied but the gates rejected it (the spine may classify the new failure
+    and spend another attempt); ``exhausted`` and ``policy_blocked`` end the
+    loop with a human-review pointer.
+    """
+
+    status: str  # completed | still_failing | exhausted | policy_blocked
     code: str | None
-    attempts: int
     failure: str | None
 
 
 class RepairService:
-    """Classify a failure, request a minimal fix, and re-gate the result.
+    """One repair round: classify-aware fix from the provider, then re-gate.
 
-    At most ``max_attempts`` provider calls; policy categories go straight
-    to the review packet; a provider fix identical to the input stops the
-    loop (exhausted) instead of spinning.
+    The wrapped :class:`RepairAgent` owns the run-global attempt budget, so
+    ``provider_calls`` never exceeds ``max_attempts`` no matter how many
+    rounds the spine runs.
     """
 
     def __init__(
@@ -63,10 +68,15 @@ class RepairService:
     ) -> None:
         self.provider = provider
         self.run_dir = run_dir
-        self.max_attempts = max_attempts
         self.record_filename = record_filename
+        self.attempts: list[dict[str, Any]] = []
+        self.agent = RepairAgent(run_dir=run_dir, max_attempts=max_attempts)
 
-    def repair(
+    @property
+    def provider_calls(self) -> int:
+        return len(self.attempts)
+
+    def repair_round(
         self,
         *,
         code: str,
@@ -74,6 +84,7 @@ class RepairService:
         plan: LessonPlan | None,
         profile: str = DEFAULT_PROFILE,
     ) -> RepairOutcome:
+        """Run one classify -> fix -> re-gate round for the current failure."""
         if classification is None:
             classification = FailureClassification(
                 type="preflight",
@@ -83,100 +94,88 @@ class RepairService:
         if classification.category in POLICY_CATEGORIES:
             return self._policy_block(classification)
 
-        agent = RepairAgent(run_dir=self.run_dir, max_attempts=self.max_attempts)
-        attempts: list[dict[str, Any]] = []
-        current_code = code
-        for attempt_number in range(1, self.max_attempts + 1):
-            loop_result = agent.run_with_loop_check(
-                {"code": current_code, "category": classification.category}
+        loop_result = self.agent.run_with_loop_check(
+            {"code": code, "category": classification.category}
+        )
+        if loop_result.get("status") == "loop_detected":
+            return self._exhausted(
+                "Provider kept returning an identical fix (loop detected); human review required."
             )
-            if loop_result.get("status") == "loop_detected":
-                return self._exhausted(
-                    agent,
-                    attempts,
-                    f"Provider returned an identical fix (loop detected) after "
-                    f"{attempt_number - 1} repair attempt(s).",
-                )
 
-            agent_result = agent.attempt_repair(
-                {
-                    "category": classification.category,
-                    "message": classification.evidence or classification.suggestion,
-                }
+        agent_result = self.agent.attempt_repair(
+            {
+                "category": classification.category,
+                "message": classification.evidence or classification.suggestion,
+            }
+        )
+        if agent_result["status"] == "policy_blocked":
+            return self._policy_block(classification)
+        if agent_result["status"] == "exhausted":
+            return self._exhausted(
+                "Repair attempts exhausted; the gates kept failing. Human review required."
             )
-            if agent_result["status"] == "policy_blocked":
-                return self._policy_block(classification)
-            if agent_result["status"] == "exhausted":
-                return self._exhausted(
-                    agent,
-                    attempts,
-                    f"Repair attempts exhausted after {attempts} attempt(s). "
-                    f"Last failure: {classification.evidence or classification.suggestion}",
-                )
 
+        try:
             evidence = self.provider.repair_scene_code(
-                code=current_code, classification=classification, plan=plan
+                code=code, classification=classification, plan=plan
             )
-            gate_results = run_gates(evidence.code, profile=profile)
-            gate_evidence = [asdict(result) for result in gate_results]
-            attempts.append(
-                {
-                    "attempt": attempt_number,
-                    "category": classification.category,
-                    "evidence": classification.evidence or classification.suggestion,
-                    "code_fingerprint": evidence_fingerprint(
-                        evidence.model, "repair", evidence.code
-                    ),
-                    "gates_passed": not gates_blocked(gate_results),
-                    "gate_results": gate_evidence,
-                }
+        except LLMError as error:
+            self._write_record(
+                status="failed",
+                failure=f"Repair failed: the provider call did not return code ({error}).",
             )
-            if not gates_blocked(gate_results):
-                self._write_record("completed", attempts=attempts, failure=None)
-                return RepairOutcome(
-                    status="completed", code=evidence.code, attempts=attempt_number, failure=None
-                )
-
-            classification = classify_gate_results(gate_results) or classification
-            current_code = evidence.code
-
-        return self._exhausted(
-            agent,
-            attempts,
-            f"Repair attempts exhausted after {len(attempts)} attempt(s). "
-            f"Last failure: {classification.evidence or classification.suggestion}",
+            return RepairOutcome(
+                status="exhausted",
+                code=None,
+                failure=f"Repair failed: the provider call did not return code ({error}).",
+            )
+        gate_results = run_gates(evidence.code, profile=profile)
+        self.attempts.append(
+            {
+                "attempt": agent_result["attempt"],
+                "classification": asdict(classification),
+                "evidence": classification.evidence or classification.suggestion,
+                "code_after": evidence.code,
+                "gates_passed": not gates_blocked(gate_results),
+                "gate_results": [asdict(result) for result in gate_results],
+            }
         )
 
+        if gates_blocked(gate_results):
+            self._write_record("attempted", failure="The gates rejected the repaired code.")
+            return RepairOutcome(
+                status="still_failing",
+                code=evidence.code,
+                failure="The gates rejected the repaired code.",
+            )
+
+        self._write_record("completed", failure=None)
+        return RepairOutcome(status="completed", code=evidence.code, failure=None)
+
     def _policy_block(self, classification: FailureClassification) -> RepairOutcome:
-        agent = RepairAgent(run_dir=self.run_dir, max_attempts=self.max_attempts)
-        agent_result = agent.attempt_repair(
+        agent_result = self.agent.attempt_repair(
             {"category": "security", "message": classification.evidence}
         )
         self._write_record(
             status="policy_blocked",
-            attempts=[],
             failure=f"Policy violation ({classification.category}); human review required.",
             agent_status=agent_result["status"],
         )
         return RepairOutcome(
             status="policy_blocked",
             code=None,
-            attempts=0,
             failure=f"Policy violation ({classification.category}); the scene requires "
             "human review. See review_packet.md.",
         )
 
-    def _exhausted(
-        self, agent: RepairAgent, attempts: list[dict[str, Any]], failure: str
-    ) -> RepairOutcome:
-        self._write_record("exhausted", attempts=attempts, failure=failure)
-        return RepairOutcome(status="exhausted", code=None, attempts=len(attempts), failure=failure)
+    def _exhausted(self, failure: str) -> RepairOutcome:
+        self._write_record("exhausted", failure=failure)
+        return RepairOutcome(status="exhausted", code=None, failure=failure)
 
     def _write_record(
         self,
         status: str,
         *,
-        attempts: list[dict[str, Any]],
         failure: str | None,
         agent_status: str | None = None,
     ) -> None:
@@ -184,12 +183,13 @@ class RepairService:
             "stage": "repair",
             "status": status,
             "created_at": datetime.now(UTC).isoformat(),
-            "max_attempts": self.max_attempts,
-            "attempts": attempts,
-            "repairs_used": len(attempts),
-            "gate_runs": len(attempts),
+            "max_attempts": self.agent.max_attempts,
+            "attempts": self.attempts,
+            "repairs_used": len(self.attempts),
             "failure": failure,
-            "last_evidence": (attempts[-1].get("evidence") or failure) if attempts else failure,
+            "last_evidence": (self.attempts[-1].get("evidence") or failure)
+            if self.attempts
+            else failure,
         }
         if agent_status:
             record["agent_status"] = agent_status

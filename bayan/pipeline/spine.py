@@ -27,7 +27,7 @@ from bayan.pipeline.preflight import GateResult, gates_blocked, run_gates
 from bayan.pipeline.profiles import UnknownProfileError, get_profile, normalize_plan
 from bayan.pipeline.provider import LessonPlanProvider
 from bayan.pipeline.records import RECORDS_DIRNAME, write_stage_record
-from bayan.pipeline.repair import MAX_REPAIR_ATTEMPTS, CodeRepairProvider, RepairService
+from bayan.pipeline.repair import CodeRepairProvider, RepairService
 from bayan.renderer.errors import (
     classify_critic_results,
     classify_gate_results,
@@ -325,14 +325,8 @@ class GeneratePipeline:
     ``max_repairs`` repair attempts; exhaustion fails the run.
     """
 
-    def __init__(
-        self,
-        stages: tuple[Stage, ...] = STAGES,
-        *,
-        max_repairs: int = MAX_REPAIR_ATTEMPTS,
-    ) -> None:
+    def __init__(self, stages: tuple[Stage, ...] = STAGES) -> None:
         self.stages = stages
-        self.max_repairs = max_repairs
 
     def run(self, context: RunContext) -> RunResult:
         context.run_dir.mkdir(parents=True, exist_ok=True)
@@ -343,7 +337,6 @@ class GeneratePipeline:
 
         stage_statuses: dict[str, str] = {}
         failure: str | None = None
-        repairs_used = 0
         repair_service = RepairService(
             provider=context.repairer,
             run_dir=context.run_dir,
@@ -362,22 +355,29 @@ class GeneratePipeline:
                 continue
 
             failure = outcome.failure
-            if stage.name not in repairable or repairs_used >= self.max_repairs:
+            if stage.name not in repairable:
                 break
 
-            repairs_used += 1
-            classification = self._classify(stage.name, context, outcome)
-            repair_outcome = repair_service.repair(
+            round_outcome = repair_service.repair_round(
                 code=context.scene_code or "",
-                classification=classification,
+                classification=self._classify(stage.name, context, outcome),
                 plan=context.plan,
                 profile=context.profile,
             )
-            if repair_outcome.status != "completed":
-                failure = repair_outcome.failure or failure
-                break
-            context.scene_code = repair_outcome.code
-            index = gates_index  # a fix re-enters at the gates, never the container
+            if round_outcome.status == "completed":
+                context.scene_code = round_outcome.code
+                failure = None
+                stage_statuses[stage.name] = "repaired"
+                index = gates_index  # a fix re-enters at the gates, never the container
+                continue
+            if round_outcome.status == "still_failing":
+                # The fix was applied but rejected; re-run the stage so the
+                # next classification sees the new gate results.
+                context.scene_code = round_outcome.code or context.scene_code
+                failure = None
+                continue
+            failure = round_outcome.failure or failure
+            break
 
         status = "completed" if failure is None else "failed"
         total_cost = _total_cost_estimate(context.run_dir)
@@ -391,7 +391,7 @@ class GeneratePipeline:
             "model": _first_model(context.run_dir),
             "total_cost_estimate_usd": total_cost,
             "stages": stage_statuses,
-            "repairs_used": repairs_used,
+            "repairs_used": repair_service.provider_calls,
             "failure": failure,
         }
         atomic_write_text(
@@ -404,7 +404,7 @@ class GeneratePipeline:
             status=status,
             failure=failure,
             total_cost_estimate_usd=total_cost,
-            repairs_used=repairs_used,
+            repairs_used=repair_service.provider_calls,
         )
 
     def _classify(self, stage_name: str, context: RunContext, outcome: StageOutcome) -> Any:

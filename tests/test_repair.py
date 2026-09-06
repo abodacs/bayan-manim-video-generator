@@ -117,56 +117,41 @@ def test_failure_classification_covers_all_sources():
 # -------------------------------------------------------------------------
 
 
-def test_repair_loop_re_gates_and_caps_at_two(tmp_path):
-    still_bad = BANNED_IMPORT_SCENE.replace("subprocess", "socket")
-    provider = _ScriptedRepairer([still_bad, FIXED_SCENE])
-    service = RepairService(provider=provider, run_dir=tmp_path)
-
-    outcome = service.repair(code=BANNED_IMPORT_SCENE, classification=None, plan=_plan())
-
-    assert outcome.status == "completed"
-    assert outcome.attempts == 2
-    assert outcome.code == FIXED_SCENE
-    assert provider.calls == 2
-
-    record = json.loads((tmp_path / "records" / "repair.json").read_text(encoding="utf-8"))
-    assert record["status"] == "completed"
-    assert record["repairs_used"] == 2
-    # Every attempt re-ran all gates between the fix and acceptance.
-    assert record["gate_runs"] == 2
-
-
 def test_repair_never_exceeds_two_attempts(tmp_path):
     provider = _ScriptedRepairer([BANNED_IMPORT_SCENE] * 10)
     service = RepairService(provider=provider, run_dir=tmp_path)
-
-    outcome = service.repair(
-        code=BANNED_IMPORT_SCENE,
-        classification=FailureClassification(
-            type="preflight",
-            category="disallowed_import",
-            suggestion="remove the import",
-        ),
-        plan=_plan(),
+    classification = FailureClassification(
+        type="preflight",
+        category="disallowed_import",
+        suggestion="remove the import",
     )
 
+    for _ in range(5):
+        outcome = service.repair_round(
+            code=BANNED_IMPORT_SCENE, classification=classification, plan=_plan()
+        )
+        if outcome.status == "exhausted":
+            break
+
     assert provider.calls <= MAX_REPAIR_ATTEMPTS
-    assert outcome.attempts <= MAX_REPAIR_ATTEMPTS
+    assert outcome.status == "exhausted"
 
 
 def test_exhaustion_writes_failure_record(tmp_path):
     provider = _ScriptedRepairer([BANNED_IMPORT_SCENE] * 5)
     service = RepairService(provider=provider, run_dir=tmp_path)
-
-    outcome = service.repair(
-        code=BANNED_IMPORT_SCENE,
-        classification=FailureClassification(
-            type="preflight",
-            category="disallowed_import",
-            suggestion="remove the import",
-        ),
-        plan=_plan(),
+    classification = FailureClassification(
+        type="preflight",
+        category="disallowed_import",
+        suggestion="remove the import",
     )
+
+    for _ in range(5):
+        outcome = service.repair_round(
+            code=BANNED_IMPORT_SCENE, classification=classification, plan=_plan()
+        )
+        if outcome.status == "exhausted":
+            break
 
     assert outcome.status == "exhausted"
     record = json.loads((tmp_path / "records" / "repair.json").read_text(encoding="utf-8"))
@@ -177,26 +162,28 @@ def test_exhaustion_writes_failure_record(tmp_path):
 def test_identical_fix_is_detected_as_a_loop(tmp_path):
     provider = _ScriptedRepairer([BANNED_IMPORT_SCENE])
     service = RepairService(provider=provider, run_dir=tmp_path)
-
-    outcome = service.repair(
-        code=BANNED_IMPORT_SCENE,
-        classification=FailureClassification(
-            type="preflight",
-            category="disallowed_import",
-            suggestion="remove the import",
-        ),
-        plan=_plan(),
+    classification = FailureClassification(
+        type="preflight",
+        category="disallowed_import",
+        suggestion="remove the import",
     )
 
-    assert outcome.status == "exhausted"
-    assert "identical" in (outcome.failure or "")
+    first = service.repair_round(
+        code=BANNED_IMPORT_SCENE, classification=classification, plan=_plan()
+    )
+    second = service.repair_round(
+        code=first.code or BANNED_IMPORT_SCENE, classification=classification, plan=_plan()
+    )
+
+    assert second.status == "exhausted"
+    assert "identical" in (second.failure or "")
 
 
 def test_policy_category_short_circuits_to_review_packet(tmp_path):
     provider = _ScriptedRepairer([])
     service = RepairService(provider=provider, run_dir=tmp_path)
 
-    outcome = service.repair(
+    outcome = service.repair_round(
         code=BANNED_IMPORT_SCENE,
         classification=FailureClassification(
             type="preflight",
@@ -217,7 +204,7 @@ def test_render_failure_classification_feeds_the_loop(tmp_path):
     provider = _ScriptedRepairer([FIXED_SCENE])
     service = RepairService(provider=provider, run_dir=tmp_path)
 
-    outcome = service.repair(
+    outcome = service.repair_round(
         code=RAW_ARABIC_SCENE,
         classification=classify_render_failure("worker exited with code 1"),
         plan=_plan(),

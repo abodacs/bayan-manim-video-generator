@@ -260,6 +260,7 @@ REPAIR_PROMPT_TEMPLATE = (
     "Problem category: {category}\n"
     "What to fix: {suggestion}\n"
     "Failure evidence: {evidence}\n"
+    "The current scene code follows:\n\n{code}\n\n"
     "Return the complete fixed Python file and nothing else."
 )
 
@@ -272,6 +273,7 @@ def repair_scene_code_with_client(
     plan: LessonPlan | None,
 ) -> CodeAttemptEvidence:
     """Adapter body shared by the client-backed repair provider."""
+    plan_context = plan.model_dump_json(indent=2, ensure_ascii=False) if plan is not None else "n/a"
     fixed = client.generate_code(
         system_prompt=(
             "You repair Arabic Manim lesson scenes with minimal edits. "
@@ -281,7 +283,9 @@ def repair_scene_code_with_client(
             category=classification.category,
             suggestion=classification.suggestion,
             evidence=classification.evidence,
-        ),
+            code=code,
+        )
+        + f"\n\nLesson plan (context):\n{plan_context}",
     )
     return CodeAttemptEvidence(
         code=fixed,
