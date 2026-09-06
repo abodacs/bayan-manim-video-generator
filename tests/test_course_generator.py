@@ -144,20 +144,22 @@ class TestValidateAssessment:
             _item(id=f"q{i}", bloom=b, **VALID_BY_TYPE["single-choice"])
             for i, b in enumerate(blooms, 1)
         ]
-        assert gen.validate_assessment(_quiz(items), "where", "quiz") == []
+        assert gen.validate_assessment(_quiz(items), "where", "quiz", gen.Report()) == []
 
-        short = gen.validate_assessment(_quiz(items[:5]), "where", "quiz")
+        short = gen.validate_assessment(_quiz(items[:5]), "where", "quiz", gen.Report())
         assert any(">=6 items" in e for e in short)
 
         no_evaluate = [i for i in items if i["bloom"] != "Evaluate"]
         filler = _item(id="qx", bloom="Analyze", **VALID_BY_TYPE["single-choice"])
-        ladder = gen.validate_assessment(_quiz(no_evaluate + [filler]), "where", "quiz")
+        ladder = gen.validate_assessment(
+            _quiz(no_evaluate + [filler]), "where", "quiz", gen.Report()
+        )
         assert any("missing Bloom levels" in e for e in ladder)
 
     def test_duplicate_item_ids_are_rejected(self) -> None:
         blooms = ["Remember", "Understand", "Apply", "Analyze", "Evaluate", "Create"]
         items = [_item(id="same", bloom=b, **VALID_BY_TYPE["single-choice"]) for b in blooms]
-        dup = gen.validate_assessment(_quiz(items), "w", "quiz")
+        dup = gen.validate_assessment(_quiz(items), "w", "quiz", gen.Report())
         assert any("duplicate item id" in e for e in dup)
 
     def test_gate_rejects_create_items_and_bad_threshold(self) -> None:
@@ -167,7 +169,7 @@ class TestValidateAssessment:
             for i in range(15)
         ]
         gate15 = {"id": "g", "title": "t", "items": scored, "threshold": 0.85}
-        assert gen.validate_assessment(gate15, "w", "gate") == []
+        assert gen.validate_assessment(gate15, "w", "gate", gen.Report()) == []
 
         with_create = scored + [
             _item(
@@ -179,14 +181,17 @@ class TestValidateAssessment:
             )
         ]
         gate_create = gen.validate_assessment(
-            {"id": "g", "title": "t", "items": with_create}, "w", "gate"
+            {"id": "g", "title": "t", "items": with_create}, "w", "gate", gen.Report()
         )
         assert any("'create'" in e for e in gate_create)
 
         assert any(
             "threshold" in e
             for e in gen.validate_assessment(
-                {"id": "g", "title": "t", "items": scored, "threshold": 1.5}, "w", "gate"
+                {"id": "g", "title": "t", "items": scored, "threshold": 1.5},
+                "w",
+                "gate",
+                gen.Report(),
             )
         )
 
@@ -282,12 +287,9 @@ class TestLessonDirName:
         bad = tmp_path / 'x" onmouseover=1'
         bad.mkdir()
         (bad / "status.json").write_text(json.dumps({"status": "reviewed"}), encoding="utf-8")
-        gen.R.errors.clear()
-        try:
-            gen.read_lesson(1, str(bad))
-            assert any("invalid lesson dir name" in e for e in gen.R.errors)
-        finally:
-            gen.R.errors.clear()
+        report = gen.Report()
+        gen.read_lesson(1, str(bad), report)
+        assert any("invalid lesson dir name" in e for e in report.errors)
 
 
 class TestGateAndCapstoneRendering:
@@ -399,9 +401,5 @@ class TestFirstBuild:
         _write_lesson_dir(tmp_path, "01-a", [])
         _write_lesson_dir(tmp_path, "02-b", ["01-a"])
         monkeypatch.setattr(_sys, "argv", ["generator.py"])
-        gen.R.errors.clear()
-        try:
-            assert gen.main() == 0
-            assert (tmp_path / "lessons/beginner/02-b/index.html").exists()
-        finally:
-            gen.R.errors.clear()
+        assert gen.main() == 0
+        assert (tmp_path / "lessons/beginner/02-b/index.html").exists()
