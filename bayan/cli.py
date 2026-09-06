@@ -13,7 +13,8 @@ from bayan.pipeline.coder import LLMCoderProvider
 from bayan.pipeline.models import DEFAULT_PROFILE
 from bayan.pipeline.profiles import UnknownProfileError, get_profile
 from bayan.pipeline.provider import LLMPlanProvider
-from bayan.pipeline.records import iter_stage_records
+from bayan.pipeline.records import iter_stage_records, status_label
+from bayan.pipeline.rerun import RerunError, run_rerun
 from bayan.pipeline.runs import (
     RUN_ARTIFACTS,
     has_media,
@@ -21,7 +22,7 @@ from bayan.pipeline.runs import (
     load_run_summary,
     records_cost,
 )
-from bayan.pipeline.spine import RerunError, run_generate, run_rerun
+from bayan.pipeline.spine import run_generate
 from bayan.planner.service import run_planning_pipeline
 from bayan.renderer.executor import RenderError, render_scene_code
 from bayan.templates.catalogue import fixture_filename, get_template_catalogue
@@ -129,13 +130,12 @@ def show_run(
         typer.echo("")
         typer.echo("Stage timeline:")
         for record in iter_stage_records(run_dir):
-            stage_name = _dash(record.get("stage"))
             typer.echo(
-                f"  {stage_name:<10} {_dash(record.get('status')):<10} "
-                f"{_dash(record.get('created_at'))}"
+                f"  {record.stage:<10} {status_label(record.status):<10} "
+                f"{_dash(record.created_at.isoformat())}"
             )
-            if record.get("failure"):
-                typer.echo(f"    failure: {record['failure']}")
+            if record.failure:
+                typer.echo(f"    failure: {record.failure}")
 
     failed_stages = [name for name, status in stages.items() if status == "failed"]
     if failed_stages:
