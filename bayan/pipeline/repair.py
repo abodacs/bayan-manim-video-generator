@@ -20,7 +20,7 @@ from typing import Any, Protocol
 from bayan.generator.llm_client import LLMError
 from bayan.pipeline.models import AttemptRecord, CodeAttemptEvidence, LessonPlan
 from bayan.pipeline.pricing import estimate_cost_usd
-from bayan.pipeline.records import stage_record, write_stage_record
+from bayan.pipeline.records import StageStatus, stage_record, write_stage_record
 from bayan.pipeline.taxonomy import POLICY_CATEGORIES, FailureClassification
 from bayan.utils.atomic_io import atomic_write_text
 
@@ -182,7 +182,7 @@ class RepairService:
             f"# Human Review Required\n\nReason: {reason}\n",
         )
 
-    def _write_record(self, status: str, *, failure: str | None) -> None:
+    def _write_record(self, status: StageStatus, *, failure: str | None) -> None:
         record = stage_record(
             "repair",
             status,

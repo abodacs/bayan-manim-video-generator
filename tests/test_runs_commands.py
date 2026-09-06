@@ -44,6 +44,7 @@ def _fabricate_run(
                 "attempts": [
                     {
                         "attempt": 1,
+                        "status": "ok",
                         "model": "fake-model-v1",
                         "cost_estimate_usd": cost,
                     }

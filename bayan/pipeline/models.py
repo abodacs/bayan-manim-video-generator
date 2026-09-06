@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, get_args
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 DEFAULT_PROFILE = "msa-western"
 
@@ -85,7 +85,15 @@ class CodeAttemptEvidence(AttemptEvidence):
 
 
 class AttemptRecord(BaseModel):
-    """One provider attempt as serialized into a stage record."""
+    """One provider attempt as serialized into a stage record.
+
+    Stages extend attempts with their own evidence keys (the repair loop
+    adds the classification and the fixed code); ``extra="allow"`` keeps
+    those keys verbatim through the typed record round-trip instead of
+    dropping them at validation.
+    """
+
+    model_config = ConfigDict(extra="allow")
 
     attempt: int
     status: Literal["ok", "invalid_output"]

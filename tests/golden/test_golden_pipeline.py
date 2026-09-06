@@ -19,7 +19,7 @@ from bayan.pipeline.models import (
     LessonPlan,
     PlanAttemptEvidence,
 )
-from bayan.pipeline.spine import GeneratePipeline, RunContext
+from bayan.pipeline.spine import GeneratePipeline, RunContext, RunInputs
 
 GOLDEN_DIR = Path(__file__).resolve().parent
 PROMPTS_DIR = GOLDEN_DIR / "prompts"
@@ -68,12 +68,14 @@ class GoldenProvider:
 
 def _context_for(record: dict[str, Any], provider: GoldenProvider, run_dir: Path) -> RunContext:
     return RunContext(
-        run_dir=run_dir,
-        prompt=record["prompt"],
-        profile=record["profile"],
-        quality="draft",
-        planner=provider,
-        coder=provider,
+        inputs=RunInputs(
+            run_dir=run_dir,
+            prompt=record["prompt"],
+            profile=record["profile"],
+            quality="draft",
+            planner=provider,
+            coder=provider,
+        )
     )
 
 

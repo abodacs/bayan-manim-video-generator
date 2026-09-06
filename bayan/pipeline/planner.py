@@ -17,7 +17,12 @@ from bayan.pipeline.models import (
 )
 from bayan.pipeline.pricing import estimate_cost_usd
 from bayan.pipeline.provider import LessonPlanProvider
-from bayan.pipeline.records import RECORDS_DIRNAME, stage_record, write_stage_record
+from bayan.pipeline.records import (
+    RECORDS_DIRNAME,
+    StageStatus,
+    stage_record,
+    write_stage_record,
+)
 from bayan.utils.atomic_io import atomic_write_text
 
 MAX_PLANNING_ATTEMPTS = 3
@@ -129,7 +134,7 @@ class PlannerService:
     def _record_path(
         self,
         *,
-        status: str,
+        status: StageStatus,
         prompt: str,
         profile: str,
         attempts: list[AttemptRecord],

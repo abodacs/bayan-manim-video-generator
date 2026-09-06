@@ -26,7 +26,13 @@ from bayan.pipeline.models import (
 from bayan.pipeline.pricing import estimate_cost_usd
 from bayan.pipeline.profiles import digit_rule, get_profile, lexicon_rule
 from bayan.pipeline.provider import as_token_usage
-from bayan.pipeline.records import evidence_fingerprint, stage_record, write_stage_record
+from bayan.pipeline.records import (
+    StageRecord,
+    StageStatus,
+    evidence_fingerprint,
+    stage_record,
+    write_stage_record,
+)
 from bayan.pipeline.taxonomy import FailureClassification
 from bayan.templates.catalogue import get_template_catalogue, read_fixture_code
 from bayan.utils.atomic_io import atomic_write_text
@@ -210,14 +216,14 @@ class CoderService:
     def _record(
         self,
         *,
-        status: str,
+        status: StageStatus,
         prompt: str,
         system_prompt: str,
         profile: str,
         attempts: list[dict[str, Any]],
         failure: str | None,
         provider_fingerprint: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> StageRecord:
         return stage_record(
             "coding",
             status,
