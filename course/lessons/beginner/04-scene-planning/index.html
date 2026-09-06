@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scene planning and the plan file — Manim CE Course</title>
+<link rel="stylesheet" href="../../../assets/app.css">
+</head>
+<body>
+<header class="site"><div class="shell">
+  <a class="brand" href="../../../index.html">Manim&nbsp;CE <span class="dot">▮</span> Beginner&nbsp;→&nbsp;Master</a>
+  <nav><a href="../../../index.html" class="active">Course</a><a href="../../../index.html#assessment-hub">Assessment hub</a><a href="../../../index.html#run-a-scene">How to run a scene</a></nav>
+</div></header>
+<main class="shell">
+<section class="hero" style="padding:32px 0 18px">
+  <div class="accent-bar" style="background:#1d8ac0;"></div>
+  <p class="muted" style="margin:0">Tier 1 · Beginner · <span class="status-pill reviewed">reviewed</span></p>
+  <h1>Scene planning and the plan file</h1>
+  <p class="promise">Write a plan.md (arc, scenes, palette, beats, timing) before code so each scene carries exactly one concept.</p>
+  <div class="lesson-head" style="margin-top:10px">
+    <p class="meta-line"><strong>Misconception it kills:</strong> <span class="misconception">That planning slows you down. A plan file prevents rework: it forces one concept per scene, visible beats, and deliberate pauses before you write a line of animation code.</span></p>
+    <p class="meta-line"><strong>Prerequisites:</strong> <a href="../03-animations-rate-functions/index.html">play/wait, Create/FadeIn/Transform, and rate functions</a></p>
+    <p class="meta-line"><strong>Source reference:</strong> <code>scene-planning.md</code></p>
+    <p class="meta-line"><a href="README.md">raw README.md</a> · <a href="plan.md">plan.md</a> · <a href="exercises.md">exercises.md</a></p>
+  </div>
+</section>
+
+<section class="block" style="padding-top:18px"><article class="lesson-doc"><h1>04 — Scene planning and the plan file</h1>
+<blockquote><strong>Objective.</strong> Write a <code>plan.md</code> — arc, scenes, palette, beats, timing — <strong>before</strong> code, so every scene carries exactly one concept.  <strong>Misconception it kills.</strong> <em>&quot;Planning slows you down.&quot;</em> A plan file prevents rework: it forces one concept per scene, visible beats, and deliberate pauses before you write a line of animation code.  <strong>Prerequisites.</strong> <a href="../03-animations-rate-functions/index.html">03 — Animations &amp; rate functions</a>.  <strong>Source reference.</strong> <code>scene-planning.md</code>.</blockquote>
+<h2>Plan first, then code</h2>
+<p>Every lesson in this course ships a <code>plan.md</code> next to its <code>scene.py</code>. The plan states the arc, the scene breakdown (one sentence per scene), the palette, and a beat table — animation, <code>run_time</code>, wait. Code is then transcription, not composition: you spend your attention on motion, not on structure.</p>
+<p>A plan catches the expensive mistakes while they are still cheap:</p>
+<ul>
+<li>a scene trying to carry two concepts,</li>
+<li>a reveal with no reading time after it,</li>
+<li>colors that drift between scenes,</li>
+<li>an arc with no payoff.</li>
+</ul>
+<h2>Pick an arc</h2>
+<table class="kvtable"><thead><tr><th>Arc</th><th>Beats</th><th>Use when</th></tr></thead><tbody><tr><td><strong>Build-up</strong></td><td>seed → perturb → generalise → apply</td><td>extending something familiar</td></tr><tr><td><strong>Mystery</strong></td><td>question → explore → discover → exploit → reflect</td><td>a puzzle or paradox</td></tr><tr><td><strong>Zoom-out</strong></td><td>narrow view → context → origin → implication</td><td>situating a known result</td></tr></tbody></table>
+<p>Build-up is the default: <em>simple → broken → fixed → payoff</em>.</p>
+<h2>One concept per scene</h2>
+<p>A scene must be describable in <strong>one sentence</strong>. If it cannot, split it. Production videos are several focused scenes, not one long scene with many internal stages. Typical scene length is <strong>30–90 s</strong>; a 10-minute video is usually <strong>8–14 scenes</strong>.</p>
+<h2>Time every beat</h2>
+<p>The pause <strong>after</strong> a reveal matters more than the animation. A fast reveal with a two-second hold beats a slow reveal with no time to think.</p>
+<table class="kvtable"><thead><tr><th>Beat</th><th>run_time</th><th>Wait after</th></tr></thead><tbody><tr><td>Title/intro appear</td><td>1.5 s</td><td>1.0 s</td></tr><tr><td>Simple object creation</td><td>0.5–0.8 s</td><td>0.5 s</td></tr><tr><td>Complex diagram build</td><td>1.0–1.5 s</td><td>1.0 s</td></tr><tr><td>Formula reveal</td><td>2.0–3.0 s</td><td>2.0 s</td></tr><tr><td>Key insight / &quot;aha&quot;</td><td>1.5 s</td><td>2.5 s</td></tr><tr><td>Transform/morph</td><td>1.5–2.0 s</td><td>0.5 s</td></tr><tr><td>FadeOut cleanup</td><td>0.5 s</td><td>0.2 s</td></tr></tbody></table>
+<h2>Transitions</h2>
+<ul>
+<li><strong>Clean break</strong> (default when changing topics):</li>
+</ul>
+<pre class="code"><code class="language-python">  self.play(FadeOut(Group(*self.mobjects)), run_time=0.5)
+  self.wait(0.3)</code></pre>
+<ul>
+<li><strong>Carry-forward</strong> — keep one or two key elements when the next scene builds</li>
+</ul>
+<p>on them; fade everything else.</p>
+<ul>
+<li><strong>Transform bridge</strong> — transform the previous result into the next scene&#39;s</li>
+</ul>
+<p>starting object when the relationship itself is the point.</p>
+<ul>
+<li><strong>Camera-driven</strong> — zoom toward the detail the next idea lives in (subclass</li>
+</ul>
+<p><code>MovingCameraScene</code> whenever <code>self.camera.frame</code> is touched).</p>
+<h2>Consistency: constants, not vibes</h2>
+<p>Define shared constants at the top of every scene file — the same ones across the whole video:</p>
+<pre class="code"><code class="language-python">BG = &quot;#1C1C1C&quot;
+PRIMARY = &quot;#58C4DD&quot;  # the thing being explained
+SECONDARY = &quot;#83C167&quot;  # supporting structure
+ACCENT = &quot;#FFFF00&quot;  # the key result / focus</code></pre>
+<p>Give colors <strong>meanings</strong> and keep them. Establish hierarchy with opacity: primary <code>1.0</code>, context <code>0.4</code>, scaffolding <code>0.15</code>. Keep at most three or four competing elements on screen.</p>
+<h2>One practical + one production example</h2>
+<ul>
+<li><strong><code>example-practical.py</code> — <code>CleanBreak</code> and <code>CarryForward</code>.</strong> Two short</li>
+</ul>
+<p>scenes: the default transition, then the carry-forward that keeps one element. Render both; feel the difference in continuity.</p>
+<ul>
+<li><strong><code>example-production.py</code> — <code>OpacityLayers</code>.</strong> The checklist applied end to</li>
+</ul>
+<p>end: constants, opacity layering, subcaptions, a ≥ 2.0 s thinking pause, and a clean exit.</p>
+<h2>Self-critique (before any code)</h2>
+<ol>
+<li>Can I describe each scene in one sentence?</li>
+<li>What does the viewer <em>feel</em> at each point — curious, surprised, satisfied?</li>
+<li>Where is the payoff? Does every scene have a reveal?</li>
+<li>Am I showing the geometry before the algebra?</li>
+<li>Is there a MovingCamera opportunity — a zoom or pan that guides the eye?</li>
+<li>Can I remove half the text?</li>
+</ol>
+<h2>Pitfalls and how to detect them</h2>
+<table class="kvtable"><thead><tr><th>Pitfall</th><th>Symptom</th><th>Detection</th></tr></thead><tbody><tr><td>Coding before the plan exists</td><td>Scenes accumulate concepts until one <code>construct</code> does everything</td><td>Write <code>plan.md</code> first; the one-sentence test fails the moment a scene needs two sentences</td></tr><tr><td>No <code>wait</code> after a reveal</td><td>The payoff flashes by unreadable</td><td>Every beat-table row carries a wait; the key-insight beat holds ≥ 2.0 s</td></tr><tr><td>One scene, many concepts</td><td>The scene description needs &quot;and&quot; twice</td><td>Split into 30–90 s scenes; a 10-minute video is 8–14 scenes</td></tr><tr><td>Colors drift between scenes</td><td>The same concept changes color mid-video</td><td>Shared constants at the top of every scene file; fixed opacity hierarchy</td></tr><tr><td>No clean exit</td><td>The next scene starts over leftover mobjects</td><td>End with <code>FadeOut(Group(*self.mobjects))</code>; carry forward only what the next scene builds on</td></tr></tbody></table>
+<h2>Verification step</h2>
+<ol>
+<li>Render <code>scene.py</code>. Check the beat table in <code>plan.md</code> against what you see:</li>
+</ol>
+<p>every reveal followed by its pause; the caption beat held ~2.5 s.</p>
+<ol>
+<li>Render <code>example-practical.py</code> twice (<code>CleanBreak</code>, then <code>CarryForward</code>).</li>
+</ol>
+<p>The first leaves nothing behind; the second carries the circled term forward.</p></article></section>
+
+<section class="block"><h2>Runnable files</h2>
+<p class="lede">Copy any block, save it locally, and render with the command in <a href="../../../index.html#run-a-scene">How to run a scene</a>.</p>
+<h3>scene.py</h3><pre class="code"><span class="filename">scene.py</span><code class="language-python">&quot;&quot;&quot;Lesson 04 — a planned scene: build-up arc, timed beats, clean exit.
+
+Written from plan.md (this directory): seed -&gt; perturb -&gt; generalise,
+every beat with run_time and a deliberate wait after each reveal.
+
+    manim -ql scene.py PlannedArc
+&quot;&quot;&quot;
+
+from manim import *
+
+BG = &quot;#1C1C1C&quot;
+PRIMARY = &quot;#58C4DD&quot;
+ACCENT = &quot;#FFFF00&quot;
+
+
+class PlannedArc(Scene):
+    &quot;&quot;&quot;A build-up arc in miniature, transcribed from the beat table.&quot;&quot;&quot;
+
+    def construct(self):
+        self.camera.background_color = BG
+
+        # Beat 1 — seed: one familiar dot. (rt=0.5, wait=0.5)
+        dot = Dot(radius=0.25, color=PRIMARY).shift(LEFT * 2)
+        self.play(FadeIn(dot), run_time=0.5)
+        self.wait(0.5)
+
+        # Beat 2 — perturb: a second, smaller dot joins. (rt=0.8, wait=0.8)
+        dot2 = Dot(radius=0.15, color=ACCENT).shift(RIGHT * 2)
+        self.play(Create(dot2), run_time=0.8)
+        self.wait(0.8)
+
+        # Beat 3 — generalise: both become squares, each side equal to its
+        # dot&#39;s diameter — same rule, different size. (rt=1.5, wait=1.0)
+        square = Square(side_length=0.5, color=PRIMARY)
+        square2 = Square(side_length=0.3, color=ACCENT)
+        self.play(
+            Transform(dot, square),
+            Transform(dot2, square2),
+            run_time=1.5,
+        )
+        self.wait(1.0)
+
+        # Beat 4 — key insight: the caption IS the payoff. (rt=1.5, wait=2.5)
+        caption = Text(&quot;same rule, different size&quot;, font_size=28)
+        caption.next_to(Group(dot, dot2), DOWN, buff=0.8)
+        self.play(Write(caption), run_time=1.5)
+        self.wait(2.5)
+
+        # Beat 5 — clean exit. (rt=0.6, wait=0.3)
+        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
+        self.wait(0.3)
+</code></pre><h3>example-practical.py</h3><pre class="code"><span class="filename">example-practical.py</span><code class="language-python">&quot;&quot;&quot;Lesson 04 — practical: the two default transitions, side by side.
+
+CleanBreak fades everything (default between topics); CarryForward keeps one
+key element when the next scene builds directly on it. Two small scenes in one
+file is fine for a prototype; production splits per scene.
+
+    manim -ql example-practical.py CleanBreak
+    manim -ql example-practical.py CarryForward
+&quot;&quot;&quot;
+
+from manim import *
+
+BG = &quot;#1C1C1C&quot;
+PRIMARY = &quot;#58C4DD&quot;
+ACCENT = &quot;#FFFF00&quot;
+
+
+class CleanBreak(Scene):
+    &quot;&quot;&quot;Default when changing topics: leave nothing behind.&quot;&quot;&quot;
+
+    def construct(self):
+        self.camera.background_color = BG
+
+        term = MathTex(r&quot;a^2 + b^2&quot;, font_size=48, color=PRIMARY)
+        self.play(Write(term), run_time=1.5)
+        self.wait(1.0)
+
+        # Clean break: fade the whole scene, brief beat of silence.
+        self.play(FadeOut(Group(*self.mobjects)), run_time=0.5)
+        self.wait(0.3)
+
+
+class CarryForward(Scene):
+    &quot;&quot;&quot;Next scene builds on it: keep the key term, fade only the context.&quot;&quot;&quot;
+
+    def construct(self):
+        self.camera.background_color = BG
+
+        term = MathTex(r&quot;a^2 + b^2&quot;, font_size=48, color=PRIMARY)
+        note = Text(&quot;the parts&quot;, font_size=24)
+        note.next_to(term, DOWN, buff=0.8)
+        self.play(Write(term), run_time=1.5)
+        self.wait(0.8)
+        self.play(FadeIn(note, shift=UP * 0.2), run_time=0.5)
+        self.wait(1.0)
+
+        # Carry-forward: the term stays; only the context leaves.
+        self.play(FadeOut(note), Circumscribe(term, color=ACCENT), run_time=0.8)
+        self.wait(1.5)
+
+        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
+</code></pre><h3>example-production.py</h3><pre class="code"><span class="filename">example-production.py</span><code class="language-python">&quot;&quot;&quot;Lesson 04 — production: the full planning checklist applied.
+
+Opacity layering (primary 1.0 / context 0.4 / scaffolding 0.15), shared color
+constants with fixed meanings, subcaptions on every beat, one &gt;= 2.0 s
+thinking pause, safe edge buffing, and a clean Group exit.
+
+    manim -qh example-production.py OpacityLayers
+&quot;&quot;&quot;
+
+from manim import *
+
+BG = &quot;#1C1C1C&quot;
+PRIMARY = &quot;#58C4DD&quot;  # the thing being explained
+SECONDARY = &quot;#83C167&quot;  # supporting structure
+ACCENT = &quot;#FFFF00&quot;  # the key result / focus
+INK = &quot;#FFFFFF&quot;
+
+OPACITY_PRIMARY = 1.0
+OPACITY_CONTEXT = 0.4
+OPACITY_SCAFFOLD = 0.15
+
+
+class OpacityLayers(Scene):
+    &quot;&quot;&quot;Hierarchy without adding a single new mobject type.&quot;&quot;&quot;
+
+    def construct(self):
+        self.camera.background_color = BG
+
+        # Scaffolding: a grid the viewer should feel, not read.
+        grid = NumberPlane(x_range=(-6, 6, 1), y_range=(-3, 3, 1))
+        grid.set_opacity(OPACITY_SCAFFOLD)
+        self.play(Create(grid), run_time=1.0)
+        self.add_subcaption(&quot;a grid to anchor positions&quot;, duration=1.0)
+        self.wait(1.0)
+
+        # Context: a secondary curve, present but recessed.
+        line = FunctionGraph(lambda x: 0.5 * x, x_range=(-4, 4), color=SECONDARY)
+        line.set_opacity(OPACITY_CONTEXT)
+        self.play(Create(line), run_time=1.0)
+        self.add_subcaption(&quot;and a familiar line for reference&quot;, duration=1.2)
+        self.wait(1.0)
+
+        # Primary: the thing being explained, full opacity.
+        curve = FunctionGraph(lambda x: 0.1 * x * x, x_range=(-4, 4), color=PRIMARY)
+        self.play(Create(curve), run_time=1.5)
+        self.add_subcaption(&quot;the curve of interest&quot;, duration=1.2)
+        self.wait(1.0)
+
+        # Key insight: the minimum sits on the reference line.
+        dot = Dot(radius=0.12, color=ACCENT).move_to(ORIGIN)
+        self.play(FadeIn(dot, scale=2.0), run_time=0.8)
+        self.add_subcaption(&quot;its minimum sits exactly on the line&quot;, duration=1.5)
+        self.wait(2.0)  # the thinking pause — longest hold in the scene
+
+        caption = Text(&quot;hierarchy is opacity, not size&quot;, font_size=24, color=INK)
+        caption.to_edge(DOWN, buff=0.8)
+        self.play(Write(caption), run_time=0.8)
+        self.wait(1.5)
+
+        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)
+</code></pre></section>
+
+<section class="block" id="take-quiz"><h2>Assessment</h2>
+<p class="lede">Bloom-laddered (Remember → Create). Explanations appear only after you answer. Create items are self-assessed against a model answer.</p>
+<div id="assessment"></div>
+<script type="application/json" id="quiz-data">{"kind": "quiz", "id": "04-scene-planning", "tier": 1, "title": "Lesson 04 \u2014 Scene planning & the plan file", "items": [{"id": "q1", "type": "single-choice", "bloom": "Remember", "prompt": "What is the typical length of a single production scene?", "options": ["30\u201390 seconds.", "5\u201310 minutes.", "Exactly 10 seconds regardless of content.", "As long as the full explanation needs."], "answer": 0, "explanation": "Scenes run 30\u201390 s; a 10-minute video is usually 8\u201314 scenes. One scene per concept, several focused scenes rather than one long staging.", "ref": "scene-planning.md"}, {"id": "q2", "type": "single-choice", "bloom": "Understand", "prompt": "Why write plan.md before any animation code?", "options": ["It forces one concept per scene, visible beats, and deliberate pauses while changes are still cheap.", "It is required by the manim CLI to render a scene.", "It makes rendering measurably faster at export time.", "It replaces the need for run_time and self.wait in code."], "answer": 0, "explanation": "The plan catches overloaded scenes, missing reading time, and color drift before code exists. Code then transcribes the plan; rendering speed is unaffected.", "ref": "scene-planning.md"}, {"id": "q3", "type": "fill-blank", "bloom": "Apply", "prompt": "Complete the clean-break transition: self.play(FadeOut(______(*self.mobjects)), run_time=0.5)", "answer": "Group", "explanation": "The scene may hold mixed mobject types, so cleanup uses Group(*self.mobjects) \u2014 never VGroup \u2014 then self.wait(0.3) before the next scene.", "ref": "scene-planning.md, mobjects.md"}, {"id": "q4", "type": "predict-output", "bloom": "Analyze", "prompt": "What total on-screen duration (seconds, one decimal) does this beat plan produce?", "code": "runs = [1.5, 0.8, 1.5, 0.5]\nwaits = [1.0, 0.8, 2.5, 0.3]\ntotal = sum(runs) + sum(waits)", "answer": "8.9", "explanation": "Animation time 1.5+0.8+1.5+0.5 = 4.3 s; wait time 1.0+0.8+2.5+0.3 = 4.6 s; total 8.9 s. Waits are screen time too \u2014 a beat plan's duration is the sum of both, which is why over-pausing a plan shows up here first.", "ref": "scene-planning.md"}, {"id": "q5", "type": "bug-spot", "bloom": "Analyze", "prompt": "This scene breaks a planning rule. Find the broken line and choose the fix.", "code": "self.play(Write(title), run_time=1.5)\nself.wait(1.0)\nself.play(Create(circle), Create(graph), Write(label), Write(note), run_time=0.8)\nself.wait(0.5)", "brokenLine": 3, "options": ["Split into separate beats (or cut elements): at most 3\u20134 competing elements reveal at once.", "Increase run_time to 5.0 so everything fits.", "Remove the self.wait(0.5) on line 3.", "Move line 1 after line 2."], "answer": 0, "explanation": "Line 3 reveals four elements in one beat \u2014 over the 3\u20134 competing-element budget and hiding which element matters. Split the beats or cut what is not pulling its weight; stretching run_time does not fix attention overload.", "ref": "scene-planning.md"}, {"id": "q6", "type": "multi-select", "bloom": "Evaluate", "prompt": "Which scene plans pass the self-critique questions? (Select all that pass.)", "options": ["\"Show that the minimum of the curve sits on the line\" \u2014 one sentence, one reveal, 2.5 s hold.", "\"Explain derivatives, integrate the result, and display the proof\" \u2014 one sentence, 90 s.", "\"Pose the puzzle, let the obvious approach fail\" \u2014 one sentence, part of a mystery arc.", "\"Display the formula table for reference\" \u2014 one sentence, no reveal, 10 s."], "answer": [0, 2], "explanation": "Passing plans are one sentence AND have a payoff (a reveal/aha). The second crams three concepts into one scene; the fourth presents information with no reveal \u2014 cut or merge it.", "ref": "scene-planning.md"}, {"id": "q7", "type": "create", "bloom": "Create", "prompt": "Write a plan.md and its scene for \"a\u00b2 + b\u00b2 = c\u00b2 via three squares on a triangle\" (build-up arc). Paste both and self-score.", "modelAnswer": "# Plan \u2014 Pythagoras by area\n\n## Overview\n- **Topic:** a^2 + b^2 = c^2 as visible area.\n- **Aha:** the two small squares together tile the big one.\n- **Arc:** build-up (seed: right triangle -> perturb: erect squares ->\n  generalise: the identity -> apply: tile).\n- **Grounding:** scene-planning.md.\n\n## Palette\nBG #1C1C1C; PRIMARY #58C4DD (a- and b-squares); ACCENT #FFFF00 (c-square).\n\n## Beat table (one scene, ~12 s)\n| # | Beat | run_time | wait |\n|---|------|---:|---:|\n| 1 | Triangle draws | 1.0 | 0.5 |\n| 2 | Two small squares erect | 1.2 | 1.0 |\n| 3 | Hypotenuse square erects | 1.2 | 1.0 |\n| 4 | Small squares tile into big (key aha) | 1.5 | 2.5 |\n| 5 | Clean exit | 0.6 | 0.3 |\n\n# Scene (transcribed from the table)\nfrom manim import *\n\nclass PythagorasByArea(Scene):\n    def construct(self):\n        self.camera.background_color = \"#1C1C1C\"\n        # 3-4-5 right triangle (legs 4 and 3, hypotenuse 5), scaled to fit.\n        tri = Polygon([-1.2, -0.9, 0], [1.2, -0.9, 0], [1.2, 0.9, 0], color=WHITE)\n        self.play(Create(tri), run_time=1.0)\n        self.wait(0.5)\n        # Square on the short leg (side 3) and on the long leg (side 4).\n        sq_a = Square(side_length=1.8, color=\"#58C4DD\").move_to([2.1, 0, 0])\n        sq_b = Square(side_length=2.4, color=\"#58C4DD\").move_to([0, -2.1, 0])\n        self.play(LaggedStart(Create(sq_a), Create(sq_b), lag_ratio=0.3), run_time=1.2)\n        self.wait(1.0)\n        # Square on the hypotenuse (side 5), rotated to lie along it.\n        sq_c = Square(side_length=3, color=\"#FFFF00\").rotate(0.6435).move_to([-0.9, 1.2, 0])\n        self.play(Create(sq_c), run_time=1.2)\n        self.wait(1.0)\n        # Key aha: the two leg squares tile the hypotenuse square (9 + 16 = 25).\n        self.play(Transform(VGroup(sq_a, sq_b), sq_c), run_time=1.5)\n        self.wait(2.5)\n        self.play(FadeOut(Group(*self.mobjects)), run_time=0.6)\n        self.wait(0.3)", "rubric": [{"criterion": "Plan states arc, palette with color meanings, and a beat table (run_time + wait per beat).", "weight": 30}, {"criterion": "Every scene/beat describable in one sentence \u2014 one concept each.", "weight": 20}, {"criterion": "Geometry before algebra: squares tile before any formula appears.", "weight": 20}, {"criterion": "Key aha gets the longest hold (>= 2.0 s); every reveal has a wait.", "weight": 20}, {"criterion": "Color constants with fixed meanings; clean exit via Group(*self.mobjects).", "weight": 10}], "explanation": "The model shows plan-first discipline: the beat table exists before code, the code transcribes it, and the aha (tiling) gets the longest pause.", "ref": "scene-planning.md"}]}</script>
+</section>
+
+</main>
+<footer class="site"><div class="shell">
+  Generated offline by <code>generator.py</code> from <code>course/</code> folders.
+  Grounded in <code>.agents/skills/manim-video/</code>. Manim Community Edition &ge; 0.20.1.
+</div></footer>
+<script src="../../../assets/hl.js"></script>
+<script src="../../../assets/quiz.js"></script>
+</body>
+</html>
