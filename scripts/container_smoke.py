@@ -48,6 +48,17 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use an existing image instead of building it.",
     )
+    result.add_argument(
+        "--cache-from",
+        action="append",
+        default=[],
+        metavar="IMAGE_REF",
+        help=(
+            "Seed the Docker build cache from an existing image reference "
+            "(repeatable), so an ephemeral builder reuses previously pushed "
+            "layers instead of rebuilding from scratch."
+        ),
+    )
     result.add_argument("--build-timeout", type=int, default=900, help="Build timeout in seconds.")
     result.add_argument(
         "--render-timeout", type=int, default=180, help="Render and validation timeout in seconds."
@@ -118,6 +129,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             build_timeout=args.build_timeout,
             render_timeout=args.render_timeout,
             max_log_bytes=args.max_log_bytes,
+            cache_from=tuple(args.cache_from),
         )
     )
     try:

@@ -133,6 +133,19 @@ receives an allowlisted environment; host application secrets are not passed
 to the worker. Use `--skip-build` only when you intentionally want to test an
 already-built local image.
 
+On an ephemeral builder — CI runners or Google Cloud Build — the Docker layer
+cache starts empty, so every build would rebuild the image from scratch. Pass
+a previously pushed image as the cache seed to reuse its layers:
+
+```bash
+uv run python scripts/container_smoke.py --cache-from ghcr.io/acme/bayan-cache:cache
+```
+
+The option is repeatable and recorded in `smoke_manifest.json`
+(`settings.build_cache_from`). CI applies the full loop: pull the cached
+image, build with `--cache-from`, then push the freshly built image back to
+the cache tag so the next build starts warm.
+
 If Docker is installed but its daemon is not running, start Docker and run the
 command again. If the command fails, read `smoke_manifest.json` and
 `render.log` before retrying.

@@ -78,19 +78,33 @@ class DockerExecutor:
         dockerfile: Path,
         context: Path,
         log_path: Path,
+        cache_from: Sequence[str] = (),
     ) -> CommandResult:
-        """Build the image with a bounded log and a hard timeout."""
-        command = (
-            self.docker,
-            "build",
-            "--tag",
-            image,
-            "--file",
-            str(dockerfile),
-            str(context),
+        """Build the image with a bounded log and a hard timeout.
+
+        Each ``cache_from`` reference seeds the build from an existing
+        image's layers instead of rebuilding them, so ephemeral builders
+        (CI runners, Cloud Build) can reuse the previously pushed image
+        as an externalized layer cache.
+        """
+        command: list[str] = [self.docker, "build"]
+        if cache_from:
+            # Inline cache metadata lets BuildKit consumers of the pushed
+            # image resolve its layers as a cache source.
+            command.extend(("--build-arg", "BUILDKIT_INLINE_CACHE=1"))
+            for reference in cache_from:
+                command.extend(("--cache-from", reference))
+        command.extend(
+            (
+                "--tag",
+                image,
+                "--file",
+                str(dockerfile),
+                str(context),
+            )
         )
         return self._run_streaming(
-            command, "build image", log_path, self.settings.build_timeout_seconds
+            tuple(command), "build image", log_path, self.settings.build_timeout_seconds
         )
 
     def inspect_image(self, image: str) -> ImageMetadata:
