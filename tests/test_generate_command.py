@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 
 from bayan.cli import app
 from bayan.generator.llm_client import LLMConfigError, LLMResponseFormatError
+from bayan.pipeline.models import CodeAttemptEvidence
 from bayan.planner.provider import FakeProvider
 from tests.conftest import MP4_BYTES, PNG_BYTES
 
@@ -61,6 +62,7 @@ def test_generate_happy_path_creates_run_dir(
         "plan": "completed",
         "profile": "completed",
         "code": "completed",
+        "gates": "completed",
         "render": "completed",
     }
     assert summary["failure"] is None
@@ -78,7 +80,8 @@ def test_every_stage_writes_one_ordered_record(
         "01-plan.json",
         "02-profile.json",
         "03-code.json",
-        "04-render.json",
+        "04-gates.json",
+        "05-render.json",
     ]
     for record_path in sorted(records_dir.glob("*.json")):
         record = json.loads(record_path.read_text(encoding="utf-8"))
@@ -168,3 +171,43 @@ def test_console_script_is_declared():
     text = pyproject.read_text(encoding="utf-8")
     assert "[project.scripts]" in text
     assert 'bayan = "bayan.cli:app"' in text
+
+
+def test_arabic_gate_blocks_render_before_any_container_call(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_render: list[tuple[str, ...]]
+):
+    """BDD #70: a Text(...) Arabic scene is rejected before Docker ever runs."""
+    banned_scene = (
+        "from manim import *\n"
+        "from bayan.utils.arabic_helper import ArabicText, rtl_glyphs\n"
+        "\n"
+        "class GeneratedScene(Scene):\n"
+        "    def construct(self):\n"
+        '        Text("مرحبا بكم")\n'
+    )
+
+    class _UngatedCoder:
+        def generate_scene_code(
+            self, *, plan: object, system_prompt: str, user_prompt: str
+        ) -> CodeAttemptEvidence:
+            return CodeAttemptEvidence(
+                code=banned_scene,
+                raw_response=banned_scene,
+                fingerprint="scripted",
+                model="scripted-model",
+                usage=None,
+            )
+
+    monkeypatch.setattr("bayan.cli._build_providers", lambda: (FakeProvider(), _UngatedCoder()))
+    runs_root = tmp_path / "runs"
+
+    result = runner.invoke(app, ["generate", ARABIC_PROMPT, "--runs-root", str(runs_root)])
+
+    assert result.exit_code == 1
+    assert "arabic" in result.output
+    assert fake_render == []
+    run_dir = _only_run_dir(runs_root)
+    assert (run_dir / "records" / "04-gates.json").exists()
+    gates_record = json.loads((run_dir / "records" / "04-gates.json").read_text(encoding="utf-8"))
+    assert gates_record["status"] == "failed"
+    assert not (run_dir / "draft.mp4").exists()

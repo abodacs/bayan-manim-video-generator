@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -22,6 +22,7 @@ from typing import Any
 from bayan.pipeline.coder import CoderService, CodingError, SceneCodeProvider
 from bayan.pipeline.models import LessonPlan
 from bayan.pipeline.planner import PlannerService, PlanningError
+from bayan.pipeline.preflight import gates_blocked, run_gates
 from bayan.pipeline.provider import LessonPlanProvider
 from bayan.pipeline.records import RECORDS_DIRNAME, write_stage_record
 from bayan.renderer.executor import RenderError, render_scene_code
@@ -34,7 +35,8 @@ RUN_SUMMARY_FILENAME = "run.json"
 PLAN_RECORD_FILENAME = "01-plan.json"
 PROFILE_RECORD_FILENAME = "02-profile.json"
 CODE_RECORD_FILENAME = "03-code.json"
-RENDER_RECORD_FILENAME = "04-render.json"
+GATES_RECORD_FILENAME = "04-gates.json"
+RENDER_RECORD_FILENAME = "05-render.json"
 
 
 class LanguageProfile(StrEnum):
@@ -189,6 +191,32 @@ def run_code_stage(context: RunContext, stage: Stage) -> StageOutcome:
     return StageOutcome(stage=stage.name, status="completed")
 
 
+def run_gates_stage(context: RunContext, stage: Stage) -> StageOutcome:
+    """Statically gate the scene code; any failed gate blocks the render."""
+    # The spine stops at the first failure, so the code stage always ran.
+    assert context.scene_code is not None
+    results = run_gates(context.scene_code, profile=context.profile)
+    gate_evidence = [asdict(result) for result in results]
+    if gates_blocked(results):
+        failure = "; ".join(
+            f"{result.gate} (line {result.line}): {result.suggestion}"
+            for result in results
+            if result.status != "passed"
+        )
+        write_stage_record(
+            context.run_dir,
+            _stage_record(stage.name, "failed", failure, gates=gate_evidence),
+            stage.record_filename,
+        )
+        return StageOutcome(stage=stage.name, status="failed", failure=failure)
+    write_stage_record(
+        context.run_dir,
+        _stage_record(stage.name, "completed", gates=gate_evidence),
+        stage.record_filename,
+    )
+    return StageOutcome(stage=stage.name, status="completed")
+
+
 def run_render_stage(context: RunContext, stage: Stage) -> StageOutcome:
     """Render the scene code in the isolated container worker."""
     # The spine stops at the first failure, so the code stage always ran.
@@ -221,6 +249,7 @@ STAGES: tuple[Stage, ...] = (
     Stage("plan", PLAN_RECORD_FILENAME, run_plan_stage),
     Stage("profile", PROFILE_RECORD_FILENAME, run_profile_stage),
     Stage("code", CODE_RECORD_FILENAME, run_code_stage),
+    Stage("gates", GATES_RECORD_FILENAME, run_gates_stage),
     Stage("render", RENDER_RECORD_FILENAME, run_render_stage),
 )
 
