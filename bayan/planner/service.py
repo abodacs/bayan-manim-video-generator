@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 
 from bayan.planner.models import LessonSegment
-from bayan.planner.provider import FakeProvider, ModelProvider
+from bayan.planner.provider import ModelProvider
+from bayan.testing import FakeProvider
 from bayan.utils.atomic_io import atomic_write_text
 
 

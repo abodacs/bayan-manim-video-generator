@@ -17,8 +17,8 @@ from bayan.pipeline.coder import (
     select_few_shot_fixtures,
 )
 from bayan.pipeline.models import CodeAttemptEvidence, LessonPlan, TokenUsage
-from bayan.planner.provider import FakeProvider
 from bayan.templates.catalogue import read_fixture_code
+from bayan.testing import FakeProvider
 from tests.helpers import mock_chat_response as _mock_response
 from tests.helpers import mocked_client as _mocked_client
 
