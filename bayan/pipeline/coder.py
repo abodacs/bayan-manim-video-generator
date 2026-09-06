@@ -1,16 +1,18 @@
 """Coding stage: validated LessonPlan in, Manim scene code out.
 
 The service owns prompt grounding (plan beats verbatim plus deterministic
-few-shot catalogue examples), fence stripping, a parse-only sanity check, and
-record keeping. It never executes, imports, or compiles-and-runs the code it
-produces; ``ast.parse`` and writing ``scene.py`` are the maximum.
+few-shot catalogue examples), a parse-only sanity check, and record keeping.
+Fence normalization is the provider seam's contract -- the LLM client
+delivers fence-free code -- and the service re-checks it defensively because
+providers are pluggable and their output is untrusted. The service never
+executes, imports, or compiles-and-runs the code it produces; ``ast.parse``
+and writing ``scene.py`` are the maximum.
 """
 
 from __future__ import annotations
 
 import ast
 import json
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -23,8 +25,9 @@ from bayan.pipeline.models import (
 )
 from bayan.pipeline.pricing import estimate_cost_usd
 from bayan.pipeline.profiles import digit_rule, get_profile, lexicon_rule
-from bayan.pipeline.records import evidence_fingerprint, write_stage_record
-from bayan.renderer.errors import FailureClassification
+from bayan.pipeline.provider import as_token_usage
+from bayan.pipeline.records import evidence_fingerprint, stage_record, write_stage_record
+from bayan.pipeline.taxonomy import FailureClassification
 from bayan.templates.catalogue import get_template_catalogue, read_fixture_code
 from bayan.utils.atomic_io import atomic_write_text
 
@@ -140,6 +143,8 @@ class CoderService:
 
         cleaned = clean_code_block(evidence.code)
         if not cleaned:
+            # Defensive re-check of the seam contract: providers deliver
+            # fence-free code; the empty case still gets a typed failure.
             raise self._fail(
                 "Coding failed: the provider returned empty scene code.",
                 [AttemptRecord.rejected(1, "empty output", evidence.raw_response)],
@@ -213,18 +218,17 @@ class CoderService:
         failure: str | None,
         provider_fingerprint: str | None = None,
     ) -> dict[str, Any]:
-        return {
-            "stage": "coding",
-            "status": status,
-            "created_at": datetime.now(UTC).isoformat(),
-            "prompt": prompt,
-            "system_prompt": system_prompt,
-            "profile": profile,
-            "provider_fingerprint": provider_fingerprint,
-            "attempts": attempts,
-            "failure": failure,
-            "scene": SCENE_FILENAME if status == "completed" else None,
-        }
+        return stage_record(
+            "coding",
+            status,
+            failure,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            profile=profile,
+            provider_fingerprint=provider_fingerprint,
+            attempts=attempts,
+            scene=SCENE_FILENAME if status == "completed" else None,
+        )
 
 
 class LLMCoderProvider:
@@ -244,7 +248,7 @@ class LLMCoderProvider:
                 self.client.model, self.client.base_url, plan.model_dump_json()
             ),
             model=self.client.model,
-            usage=self.client.last_usage,
+            usage=as_token_usage(self.client.last_usage),
         )
 
     def repair_scene_code(
@@ -294,5 +298,5 @@ def repair_scene_code_with_client(
             client.model, client.base_url, f"repair:{classification.category}:{code}"
         ),
         model=client.model,
-        usage=client.last_usage,
+        usage=as_token_usage(client.last_usage),
     )

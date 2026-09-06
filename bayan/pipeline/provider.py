@@ -10,9 +10,25 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from bayan.generator.llm_client import LLMClient
-from bayan.pipeline.models import LessonPlan, PlanAttemptEvidence
+from bayan.generator.llm_client import LLMClient, LLMUsage
+from bayan.pipeline.models import LessonPlan, PlanAttemptEvidence, TokenUsage
 from bayan.pipeline.records import evidence_fingerprint
+
+
+def as_token_usage(usage: LLMUsage | None) -> TokenUsage | None:
+    """Map the client's usage onto the pipeline's neutral TokenUsage.
+
+    The client's usage type belongs to the generator layer; provider adapters
+    translate at the seam so pipeline evidence never carries it.
+    """
+    if usage is None:
+        return None
+    return TokenUsage(
+        prompt_tokens=usage.prompt_tokens,
+        completion_tokens=usage.completion_tokens,
+        total_tokens=usage.total_tokens,
+    )
+
 
 LESSON_PLAN_SYSTEM_PROMPT = (
     "You plan Arabic math lessons for Egyptian grade-6 students as strict JSON. "
@@ -51,5 +67,5 @@ class LLMPlanProvider:
                 self.client.model, self.client.base_url, f"{profile}:{prompt.strip()}"
             ),
             model=self.client.model,
-            usage=self.client.last_usage,
+            usage=as_token_usage(self.client.last_usage),
         )

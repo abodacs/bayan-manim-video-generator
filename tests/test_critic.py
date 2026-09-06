@@ -14,9 +14,9 @@ from bayan.pipeline.critic import (
     critic_blocked,
     probe_duration_seconds,
     run_critic,
+    vlm_critique,
 )
 from bayan.pipeline.models import LessonBeat, LessonPlan
-from bayan.pipeline.vlm import vlm_critique
 
 
 def _png(path: Path, edge_touch: bool) -> Path:

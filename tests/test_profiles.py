@@ -12,7 +12,6 @@ from bayan.pipeline.profiles import (
     normalize_digits,
     normalize_plan,
 )
-from bayan.pipeline.spine import LanguageProfile
 
 MIXED_SENTENCE = "١٢ + 34"
 
@@ -37,7 +36,9 @@ def test_digits_never_touch_non_digit_arabic():
 
 
 def test_three_profiles_exist_with_expected_shape():
-    assert set(PROFILES) == {member.value for member in LanguageProfile}
+    # PROFILES is the single registry of profile names; the CLI validates
+    # against it, so this set is the contract every consumer must accept.
+    assert set(PROFILES) == {"msa-western", "msa-arabic-indic", "egyptian"}
 
     msa_western = get_profile("msa-western")
     msa_indic = get_profile("msa-arabic-indic")

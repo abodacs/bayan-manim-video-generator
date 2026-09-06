@@ -4,17 +4,17 @@ import hashlib
 import json
 from typing import Protocol
 
-from bayan.generator.llm_client import LLMUsage
 from bayan.pipeline.models import (
     INSIGHT_MOVES,
     CodeAttemptEvidence,
     LessonBeat,
     LessonPlan,
     PlanAttemptEvidence,
+    TokenUsage,
 )
 from bayan.pipeline.records import evidence_fingerprint
+from bayan.pipeline.taxonomy import FailureClassification
 from bayan.planner.models import LessonSegment, PlanRenderPreferences, ScenePlan
-from bayan.renderer.errors import FailureClassification
 from bayan.templates.catalogue import get_template_catalogue
 
 
@@ -87,7 +87,7 @@ class FakeProvider:
         plan = LessonPlan(topic=prompt.strip(), profile=profile, beats=beats)
         prompt_tokens = 50 + int(fingerprint[5:8], 16) % 50
         completion_tokens = 200 + int(fingerprint[8:11], 16) % 300
-        usage = LLMUsage(
+        usage = TokenUsage(
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=prompt_tokens + completion_tokens,
@@ -124,7 +124,7 @@ class FakeProvider:
             raw_response=scene,
             fingerprint=plan_hash,
             model=self.model_name,
-            usage=LLMUsage(
+            usage=TokenUsage(
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 total_tokens=prompt_tokens + completion_tokens,

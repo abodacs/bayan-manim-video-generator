@@ -8,7 +8,7 @@ available.
 
 from __future__ import annotations
 
-from bayan.generator.llm_client import LLMUsage
+from bayan.pipeline.models import TokenUsage
 
 PRICE_TABLE_USD_PER_1M: dict[str, tuple[float, float]] = {
     # model: (input USD per 1M tokens, output USD per 1M tokens)
@@ -17,7 +17,7 @@ PRICE_TABLE_USD_PER_1M: dict[str, tuple[float, float]] = {
 }
 
 
-def estimate_cost_usd(model: str, usage: LLMUsage | None) -> float:
+def estimate_cost_usd(model: str, usage: TokenUsage | None) -> float:
     """Estimate the USD cost of one LLM call from its token usage."""
     if usage is None:
         return 0.0

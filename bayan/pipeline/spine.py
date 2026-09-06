@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
-from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -28,9 +27,10 @@ from bayan.pipeline.planner import PLAN_FILENAME, PlannerService, PlanningError
 from bayan.pipeline.preflight import GateResult, gates_blocked, run_gates
 from bayan.pipeline.profiles import UnknownProfileError, get_profile, normalize_plan
 from bayan.pipeline.provider import LessonPlanProvider
-from bayan.pipeline.records import RECORDS_DIRNAME, write_stage_record
+from bayan.pipeline.records import first_model, stage_record, total_cost_usd, write_stage_record
 from bayan.pipeline.repair import CodeRepairProvider, RepairService
-from bayan.renderer.errors import (
+from bayan.pipeline.taxonomy import (
+    FailureClassification,
     classify_critic_results,
     classify_gate_results,
     classify_provider_error,
@@ -50,17 +50,6 @@ GATES_RECORD_FILENAME = "04-gates.json"
 RENDER_RECORD_FILENAME = "05-render.json"
 CRITIC_RECORD_FILENAME = "06-critic.json"
 REPAIR_RECORD_FILENAME = "07-repair.json"
-
-
-class LanguageProfile(StrEnum):
-    """Language profiles a generate run can target."""
-
-    msa_western = "msa-western"
-    msa_arabic_indic = "msa-arabic-indic"
-    egyptian = "egyptian"
-
-
-KNOWN_PROFILES: tuple[str, ...] = tuple(profile.value for profile in LanguageProfile)
 
 
 def make_run_id(prompt: str, *, now: datetime | None = None) -> str:
@@ -102,6 +91,7 @@ class RunContext:
     scene_code: str | None = None
     gate_results: list[GateResult] = field(default_factory=list)
     check_results: list[CheckResult] = field(default_factory=list)
+    render_status: str | None = None
 
 
 @dataclass(frozen=True)
@@ -134,27 +124,10 @@ class RunResult:
     repairs_used: int
 
 
-def _stage_record(
-    stage: str,
-    status: str,
-    rerun_of: str | None,
-    failure: str | None = None,
-    **evidence: Any,
-) -> dict[str, Any]:
-    return {
-        "stage": stage,
-        "status": status,
-        "created_at": datetime.now(UTC).isoformat(),
-        "rerun_of": rerun_of,
-        "failure": failure,
-        **evidence,
-    }
-
-
 def _failed(context: RunContext, stage: Stage, failure: str, **evidence: Any) -> StageOutcome:
     write_stage_record(
         context.run_dir,
-        _stage_record(stage.name, "failed", context.rerun_of, failure, **evidence),
+        stage_record(stage.name, "failed", failure, rerun_of=context.rerun_of, **evidence),
         stage.record_filename,
     )
     return StageOutcome(stage=stage.name, status="failed", failure=failure)
@@ -191,10 +164,11 @@ def run_profile_stage(context: RunContext, stage: Stage) -> StageOutcome:
         )
     write_stage_record(
         context.run_dir,
-        _stage_record(
+        stage_record(
             stage.name,
             "completed",
-            context.rerun_of,
+            None,
+            rerun_of=context.rerun_of,
             profile=profile.name,
             digit_style=profile.digit_style.value,
             font=profile.font,
@@ -237,13 +211,15 @@ def run_gates_stage(context: RunContext, stage: Stage) -> StageOutcome:
         )
         write_stage_record(
             context.run_dir,
-            _stage_record(stage.name, "failed", context.rerun_of, failure, gates=gate_evidence),
+            stage_record(
+                stage.name, "failed", failure, rerun_of=context.rerun_of, gates=gate_evidence
+            ),
             stage.record_filename,
         )
         return StageOutcome(stage=stage.name, status="failed", failure=failure)
     write_stage_record(
         context.run_dir,
-        _stage_record(stage.name, "completed", context.rerun_of, gates=gate_evidence),
+        stage_record(stage.name, "completed", None, rerun_of=context.rerun_of, gates=gate_evidence),
         stage.record_filename,
     )
     return StageOutcome(stage=stage.name, status="completed")
@@ -253,18 +229,12 @@ def run_critic_stage(context: RunContext, stage: Stage) -> StageOutcome:
     """Run the deterministic critic over the produced artifacts."""
     # The spine stops at the first failure, so the predecessors always ran.
     assert context.plan is not None and context.scene_code is not None
-    render_record_path = context.run_dir / "records" / RENDER_RECORD_FILENAME
-    render_status = (
-        json.loads(render_record_path.read_text(encoding="utf-8")).get("status")
-        if render_record_path.exists()
-        else None
-    )
     results = run_critic(
         plan=context.plan,
         code=context.scene_code,
         draft_path=context.run_dir / DRAFT_FILENAME,
         preview_path=context.run_dir / PREVIEW_FILENAME,
-        render_status=render_status,
+        render_status=context.render_status,
         vlm=context.vlm,
     )
     context.check_results = results
@@ -275,13 +245,13 @@ def run_critic_stage(context: RunContext, stage: Stage) -> StageOutcome:
         )
         write_stage_record(
             context.run_dir,
-            _stage_record(stage.name, "failed", context.rerun_of, failure, checks=checks),
+            stage_record(stage.name, "failed", failure, rerun_of=context.rerun_of, checks=checks),
             stage.record_filename,
         )
         return StageOutcome(stage=stage.name, status="failed", failure=failure)
     write_stage_record(
         context.run_dir,
-        _stage_record(stage.name, "completed", context.rerun_of, checks=checks),
+        stage_record(stage.name, "completed", None, rerun_of=context.rerun_of, checks=checks),
         stage.record_filename,
     )
     return StageOutcome(stage=stage.name, status="completed")
@@ -301,12 +271,14 @@ def run_render_stage(context: RunContext, stage: Stage) -> StageOutcome:
         )
     except RenderError as error:
         return _failed(context, stage, str(error))
+    context.render_status = "completed"
     write_stage_record(
         context.run_dir,
-        _stage_record(
+        stage_record(
             stage.name,
             "completed",
-            context.rerun_of,
+            None,
+            rerun_of=context.rerun_of,
             quality=context.quality,
             draft=DRAFT_FILENAME,
             preview=PREVIEW_FILENAME,
@@ -404,7 +376,8 @@ class GeneratePipeline:
             break
 
         status = "completed" if failure is None else "failed"
-        total_cost = _total_cost_estimate(context.run_dir)
+        recorded_cost = total_cost_usd(context.run_dir)
+        total_cost = recorded_cost if recorded_cost is not None else 0.0
         summary: dict[str, Any] = {
             "run_id": context.run_dir.name,
             "status": status,
@@ -413,7 +386,7 @@ class GeneratePipeline:
             "profile": context.profile,
             "quality": context.quality,
             "rerun_of": context.rerun_of,
-            "model": _first_model(context.run_dir),
+            "model": first_model(context.run_dir),
             "total_cost_estimate_usd": total_cost,
             "stages": stage_statuses,
             "repairs_used": repair_service.provider_calls if repair_service else 0,
@@ -432,7 +405,9 @@ class GeneratePipeline:
             repairs_used=repair_service.provider_calls if repair_service else 0,
         )
 
-    def _classify(self, stage_name: str, context: RunContext, outcome: StageOutcome) -> Any:
+    def _classify(
+        self, stage_name: str, context: RunContext, outcome: StageOutcome
+    ) -> FailureClassification | None:
         """Map the failed stage's typed results onto the failure taxonomy."""
         if stage_name == "gates":
             return classify_gate_results(context.gate_results)
@@ -440,39 +415,7 @@ class GeneratePipeline:
             return classify_critic_results(context.check_results)
         if stage_name == "render":
             return classify_render_failure(outcome.failure or "")
-        return classify_provider_error(ValueError(outcome.failure or "unknown"))
-
-
-def iter_stage_records(run_dir: Path) -> Iterator[dict[str, Any]]:
-    """Yield parsed stage records in pipeline order, skipping unreadable ones."""
-    records_dir = run_dir / RECORDS_DIRNAME
-    if not records_dir.is_dir():
-        return
-    for record_path in sorted(records_dir.glob("*.json")):
-        try:
-            yield json.loads(record_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-
-
-def _total_cost_estimate(run_dir: Path) -> float:
-    """Sum every recorded attempt cost across the run's stage records."""
-    total = 0.0
-    for record in iter_stage_records(run_dir):
-        for attempt in record.get("attempts") or []:
-            cost = attempt.get("cost_estimate_usd")
-            if isinstance(cost, int | float):
-                total += float(cost)
-    return round(total, 6)
-
-
-def _first_model(run_dir: Path) -> str | None:
-    """Return the model name recorded by the first stage that used one."""
-    for record in iter_stage_records(run_dir):
-        for attempt in record.get("attempts") or []:
-            if attempt.get("model"):
-                return str(attempt["model"])
-    return None
+        return classify_provider_error(outcome.failure or "unknown")
 
 
 def run_generate(

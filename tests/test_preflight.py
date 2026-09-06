@@ -1,10 +1,12 @@
 """Preflight gate tests: static, host-side checks over generated scene code."""
 
+import json
+from dataclasses import asdict
+
 from bayan.pipeline.preflight import (
     contains_arabic_script,
     contains_presentation_forms,
     gates_blocked,
-    gates_to_json,
     run_gates,
 )
 from bayan.templates.catalogue import get_template_catalogue, read_fixture_code
@@ -163,10 +165,8 @@ def test_clean_catalogue_fixtures_pass_all_gates():
 
 
 def test_gate_results_serialize_for_the_repair_classifier():
-    import json
-
     results = run_gates("open('x')\n")
-    payload = json.loads(gates_to_json(results))
+    payload = json.loads(json.dumps([asdict(result) for result in results]))
 
     assert payload
     for entry in payload:

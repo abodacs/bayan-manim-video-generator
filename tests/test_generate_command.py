@@ -159,6 +159,10 @@ def test_unknown_profile_is_rejected(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     )
 
     assert result.exit_code != 0
+    # The error names the accepted profiles, straight from the registry.
+    assert "Unknown language profile" in result.output
+    for known in ("msa-western", "msa-arabic-indic", "egyptian"):
+        assert known in result.output
     assert not runs_root.exists() or list(runs_root.iterdir()) == []
 
 

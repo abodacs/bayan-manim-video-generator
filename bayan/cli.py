@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import json
 import shutil
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import typer
 from dotenv import load_dotenv
@@ -11,16 +10,18 @@ from dotenv import load_dotenv
 from bayan.generator.llm_client import LLMClient, LLMConfigError
 from bayan.orchestrator import ManifestError, StageStatus, WorkflowOrchestrator
 from bayan.pipeline.coder import LLMCoderProvider
+from bayan.pipeline.models import DEFAULT_PROFILE
+from bayan.pipeline.profiles import UnknownProfileError, get_profile
 from bayan.pipeline.provider import LLMPlanProvider
-from bayan.pipeline.records import RECORDS_DIRNAME
-from bayan.pipeline.spine import (
-    RUN_SUMMARY_FILENAME,
-    LanguageProfile,
-    RerunError,
-    iter_stage_records,
-    run_generate,
-    run_rerun,
+from bayan.pipeline.records import iter_stage_records
+from bayan.pipeline.runs import (
+    RUN_ARTIFACTS,
+    has_media,
+    iter_run_dirs,
+    load_run_summary,
+    records_cost,
 )
+from bayan.pipeline.spine import RerunError, run_generate, run_rerun
 from bayan.planner.service import run_planning_pipeline
 from bayan.renderer.executor import RenderError, render_scene_code
 from bayan.templates.catalogue import fixture_filename, get_template_catalogue
@@ -44,34 +45,6 @@ runs_app = typer.Typer(
 app.add_typer(runs_app, name="runs")
 
 
-def _load_run_summary(run_dir: Path) -> dict[str, Any] | None:
-    """Read a run's summary, or None when missing or unreadable."""
-    summary_path = run_dir / RUN_SUMMARY_FILENAME
-    if not summary_path.is_file():
-        return None
-    try:
-        data = json.loads(summary_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    return data if isinstance(data, dict) else None
-
-
-def _records_cost(run_dir: Path) -> float | None:
-    """Sum per-attempt costs from stage records; None when unreadable."""
-    records_dir = run_dir / RECORDS_DIRNAME
-    if not records_dir.is_dir():
-        return None
-    total = 0.0
-    readable = False
-    for record in iter_stage_records(run_dir):
-        for attempt in record.get("attempts") or []:
-            cost = attempt.get("cost_estimate_usd")
-            if isinstance(cost, int | float):
-                readable = True
-                total += float(cost)
-    return round(total, 4) if readable else None
-
-
 def _dash(value: object) -> str:
     return "-" if value in (None, "") else str(value)
 
@@ -84,10 +57,7 @@ def list_runs(
     ] = Path("./runs"),
 ) -> None:
     """List past generate runs, ids sorted oldest to newest."""
-    if not runs_root.is_dir():
-        typer.echo("No runs yet: generate a lesson with `bayan generate`.")
-        return
-    run_dirs = sorted(path for path in runs_root.iterdir() if path.is_dir())
+    run_dirs = iter_run_dirs(runs_root)
     if not run_dirs:
         typer.echo("No runs yet: generate a lesson with `bayan generate`.")
         return
@@ -98,17 +68,17 @@ def list_runs(
     )
     skipped: list[str] = []
     for run_dir in run_dirs:
-        summary = _load_run_summary(run_dir)
+        summary = load_run_summary(run_dir)
         if summary is None:
             skipped.append(run_dir.name)
             continue
-        media = "yes" if (run_dir / "draft.mp4").is_file() else "-"
         cost = summary.get("total_cost_estimate_usd")
         cost_text = f"{float(cost):.4f}" if isinstance(cost, int | float) else "-"
         typer.echo(
             f"{run_dir.name:<26} {_dash(summary.get('status')):<10} "
             f"{_dash(summary.get('profile')):<18} {_dash(summary.get('model')):<16} "
-            f"{_dash(summary.get('repairs_used')):>7} {cost_text:>12} {media:>6}"
+            f"{_dash(summary.get('repairs_used')):>7} {cost_text:>12} "
+            f"{'yes' if has_media(run_dir) else '-':>6}"
         )
     for name in skipped:
         typer.secho(
@@ -137,7 +107,7 @@ def show_run(
             fg=typer.colors.RED,
         )
         raise typer.Exit(code=1)
-    summary = _load_run_summary(run_dir)
+    summary = load_run_summary(run_dir)
     if summary is None:
         typer.secho(
             f"Run '{run_id}' has no readable run.json summary; the run is incomplete.",
@@ -175,11 +145,11 @@ def show_run(
 
     typer.echo("")
     typer.echo("Artifacts:")
-    for artifact in ("plan.json", "scene.py", "draft.mp4", "preview.png"):
+    for artifact in RUN_ARTIFACTS:
         marker = "yes" if (run_dir / artifact).is_file() else "no"
         typer.echo(f"  {artifact:<12} {marker}")
 
-    records_total = _records_cost(run_dir)
+    records_total = records_cost(run_dir)
     summary_total = summary.get("total_cost_estimate_usd")
     typer.echo("")
     if records_total is not None:
@@ -438,9 +408,9 @@ def generate(
         typer.Argument(help="Free-form Arabic lesson prompt."),
     ],
     profile: Annotated[
-        LanguageProfile,
+        str,
         typer.Option("--profile", "-p", help="Language profile for digits and dialect."),
-    ] = LanguageProfile.msa_western,
+    ] = DEFAULT_PROFILE,
     runs_root: Annotated[
         Path,
         typer.Option("--runs-root", help="Directory that holds generated runs."),
@@ -458,6 +428,12 @@ def generate(
     ] = False,
 ) -> None:
     """Generate a lesson video from one free-form Arabic prompt."""
+    try:
+        get_profile(profile)
+    except UnknownProfileError as error:
+        typer.secho(f"Configuration Error: {error}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
+
     try:
         planner, coder, repairer = _build_providers()
     except LLMConfigError as error:

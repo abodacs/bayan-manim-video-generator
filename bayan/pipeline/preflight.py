@@ -11,10 +11,9 @@ from __future__ import annotations
 
 import ast
 import io
-import json
 import re
 import tokenize
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Final, Literal
 
 from bayan.pipeline.models import DEFAULT_PROFILE
@@ -356,8 +355,3 @@ def run_gates(code: str, *, profile: str = DEFAULT_PROFILE) -> list[GateResult]:
 def gates_blocked(results: list[GateResult]) -> bool:
     """Whether any gate result blocks the render."""
     return any(result.status != "passed" for result in results)
-
-
-def gates_to_json(results: list[GateResult]) -> str:
-    """Serialize gate results for a stage record."""
-    return json.dumps([asdict(result) for result in results], indent=2, ensure_ascii=False)

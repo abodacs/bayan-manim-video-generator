@@ -4,13 +4,14 @@ The service wraps :class:`bayan.agents.roles.RepairAgent` -- which owns the
 attempt budget (max 2), the policy short-circuit to the review packet, and
 loop detection via input hashes -- so the cap is global to the run, not per
 call. Every candidate fix re-runs ALL preflight gates here; a repaired scene
-never skips straight to the container.
+never skips straight to the container. Each round's provider evidence
+(model, token usage, cost estimate) is recorded on the attempt so the run
+summary's cost accounting covers repairs too.
 """
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -18,13 +19,12 @@ from bayan.agents.roles import RepairAgent
 from bayan.generator.llm_client import LLMError
 from bayan.pipeline.models import DEFAULT_PROFILE, CodeAttemptEvidence, LessonPlan
 from bayan.pipeline.preflight import gates_blocked, run_gates
-from bayan.pipeline.records import write_stage_record
-from bayan.renderer.errors import POLICY_CATEGORIES, FailureClassification
+from bayan.pipeline.pricing import estimate_cost_usd
+from bayan.pipeline.records import stage_record, write_stage_record
+from bayan.pipeline.taxonomy import POLICY_CATEGORIES, FailureClassification
 
 MAX_REPAIR_ATTEMPTS = 2
 REPAIR_RECORD_FILENAME = "repair.json"
-
-_REFUSAL_MARKERS = ("safety", "refus")
 
 
 class CodeRepairProvider(Protocol):
@@ -130,6 +130,7 @@ class RepairService:
                 failure=f"Repair failed: the provider call did not return code ({error}).",
             )
         gate_results = run_gates(evidence.code, profile=profile)
+        usage = evidence.usage
         self.attempts.append(
             {
                 "attempt": agent_result["attempt"],
@@ -138,6 +139,11 @@ class RepairService:
                 "code_after": evidence.code,
                 "gates_passed": not gates_blocked(gate_results),
                 "gate_results": [asdict(result) for result in gate_results],
+                "model": evidence.model,
+                "prompt_tokens": usage.prompt_tokens if usage else None,
+                "completion_tokens": usage.completion_tokens if usage else None,
+                "total_tokens": usage.total_tokens if usage else None,
+                "cost_estimate_usd": round(estimate_cost_usd(evidence.model, usage), 6),
             }
         )
 
@@ -179,18 +185,16 @@ class RepairService:
         failure: str | None,
         agent_status: str | None = None,
     ) -> None:
-        record: dict[str, Any] = {
-            "stage": "repair",
-            "status": status,
-            "created_at": datetime.now(UTC).isoformat(),
-            "max_attempts": self.agent.max_attempts,
-            "attempts": self.attempts,
-            "repairs_used": len(self.attempts),
-            "failure": failure,
-            "last_evidence": (self.attempts[-1].get("evidence") or failure)
+        record = stage_record(
+            "repair",
+            status,
+            failure,
+            max_attempts=self.agent.max_attempts,
+            attempts=self.attempts,
+            repairs_used=len(self.attempts),
+            last_evidence=(self.attempts[-1].get("evidence") or failure)
             if self.attempts
             else failure,
-        }
-        if agent_status:
-            record["agent_status"] = agent_status
+            **({"agent_status": agent_status} if agent_status else {}),
+        )
         write_stage_record(self.run_dir, record, self.record_filename)

@@ -2,18 +2,17 @@
 
 import json
 
-from bayan.generator.llm_client import LLMProviderError
 from bayan.pipeline.models import CheckResult, CodeAttemptEvidence, LessonPlan
 from bayan.pipeline.preflight import run_gates
 from bayan.pipeline.repair import MAX_REPAIR_ATTEMPTS, RepairService
-from bayan.planner.provider import FakeProvider
-from bayan.renderer.errors import (
+from bayan.pipeline.taxonomy import (
     FailureClassification,
     classify_critic_results,
     classify_gate_results,
     classify_provider_error,
     classify_render_failure,
 )
+from bayan.planner.provider import FakeProvider
 
 ARABIC_PROMPT = "شرح القسمة على الأعداد ذات المنزلة الواحدة"
 
@@ -105,7 +104,7 @@ def test_failure_classification_covers_all_sources():
     crash_classification = classify_render_failure("worker exited with code 1")
     assert crash_classification.category == "render_crash"
 
-    provider_classification = classify_provider_error(LLMProviderError("connection reset"))
+    provider_classification = classify_provider_error("connection reset")
     assert provider_classification.type == "provider"
     assert provider_classification.category == "provider_error"
 

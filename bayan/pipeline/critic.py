@@ -19,12 +19,27 @@ from PIL import Image
 
 from bayan.pipeline.models import CheckResult, LessonPlan
 from bayan.pipeline.preflight import contains_arabic_script
-from bayan.pipeline.vlm import vlm_critique
 
 MIN_DURATION_SECONDS = 10
 MAX_DURATION_SECONDS = 180
 BORDER_BAND_FRACTION = 0.05
 BACKGROUND_TOLERANCE = 8
+
+
+def vlm_critique() -> CheckResult:
+    """The vision-model critique's placeholder verdict.
+
+    The VLM critic is out of scope for the MVP (epic #68 out-of-scope note):
+    this stub records an honest ``not_implemented`` verdict -- no network
+    calls, no client construction -- so ``bayan generate --vlm`` can record
+    it and still complete on the deterministic verdict.
+    """
+    return CheckResult(
+        check="vlm",
+        status="not_implemented",
+        evidence="The VLM critic is not implemented; it is out of scope for the MVP per epic #68.",
+        suggestion="Rely on the deterministic checks plus teacher review.",
+    )
 
 
 def critic_blocked(results: list[CheckResult]) -> bool:
