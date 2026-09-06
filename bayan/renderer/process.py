@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import os
+import queue
 import selectors
 import shlex
 import signal
 import subprocess
+import sys
+import threading
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import IO
 
 from bayan.renderer.models import PhaseRecord, PhaseStatus
 
@@ -71,6 +75,48 @@ class CaptureResult:
     timed_out: bool = False
 
 
+class _PipeReader:
+    """Read a pipe on a worker thread so deadlines stay enforceable.
+
+    Windows pipes cannot be used with selectors, and a blocking read on the
+    calling thread would let a silent child hang the loop past its deadline.
+    """
+
+    def __init__(self, stream: IO[bytes]) -> None:
+        self._stream = stream
+        self._chunks: queue.Queue[bytes] = queue.Queue()
+        self._thread = threading.Thread(target=self._read, daemon=True)
+
+    def start(self) -> None:
+        """Begin draining the pipe in the background."""
+        self._thread.start()
+
+    def next_chunk(self, timeout_seconds: float) -> bytes | None:
+        """Return the next chunk, or None when the wait window elapsed."""
+        try:
+            return self._chunks.get(timeout=timeout_seconds)
+        except queue.Empty:
+            return None
+
+    def join(self, timeout_seconds: float) -> None:
+        """Wait briefly for the reader to observe the closed pipe."""
+        self._thread.join(timeout_seconds)
+
+    def _read(self) -> None:
+        try:
+            while True:
+                chunk = (
+                    self._stream.read1(65_536)
+                    if hasattr(self._stream, "read1")
+                    else self._stream.read(65_536)
+                )
+                self._chunks.put(chunk)
+                if not chunk:
+                    return
+        except (OSError, ValueError):
+            self._chunks.put(b"")
+
+
 class BoundedProcessRunner:
     """Run commands with bounded output and an explicit timeout."""
 
@@ -114,7 +160,7 @@ class BoundedProcessRunner:
             process = subprocess.Popen(
                 normalized,
                 env=self.environment,
-                start_new_session=True,
+                start_new_session=(sys.platform != "win32"),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
             )
@@ -124,48 +170,84 @@ class BoundedProcessRunner:
             return CommandResult(normalized, 127, error=str(error))
 
         assert process.stdout is not None
-        selector = selectors.DefaultSelector()
-        selector.register(process.stdout, selectors.EVENT_READ)
         output_tail = bytearray()
         output_bytes = 0
         stream_open = True
         timed_out = False
         output_limited = False
         deadline = time.monotonic() + timeout_seconds
+        reader: _PipeReader | None = None
 
         with log_path.open("ab") as log:
-            while stream_open:
-                remaining_time = deadline - time.monotonic()
-                if remaining_time <= 0:
-                    timed_out = True
-                    break
-                events = selector.select(min(0.1, remaining_time))
-                for key, _ in events:
-                    try:
-                        chunk = os.read(key.fd, 65_536)
-                    except BlockingIOError:
+            if sys.platform == "win32":
+                # Windows pipes are not selectable (WinError 10038), so drain
+                # the pipe on a worker thread and keep the deadline on this one.
+                reader = _PipeReader(process.stdout)
+                reader.start()
+
+                while stream_open:
+                    remaining_time = deadline - time.monotonic()
+                    if remaining_time <= 0:
+                        timed_out = True
+                        break
+
+                    chunk = reader.next_chunk(min(0.1, remaining_time))
+                    if chunk is None:
                         continue
+
                     if not chunk:
-                        selector.unregister(key.fileobj)
                         stream_open = False
                         break
 
-                    remaining_bytes = self.max_output_bytes - output_bytes
-                    if remaining_bytes <= 0:
+                    accepted_bytes = self._accept_chunk(chunk, log, output_tail, output_bytes)
+                    if accepted_bytes is None:
                         output_limited = True
                         break
-                    accepted = chunk[:remaining_bytes]
-                    log.write(accepted)
-                    output_tail.extend(accepted)
-                    output_bytes += len(accepted)
-                    if len(accepted) != len(chunk):
-                        output_limited = True
-                        break
+                    output_bytes = accepted_bytes
+            else:
+                selector = selectors.DefaultSelector()
+                selector.register(process.stdout, selectors.EVENT_READ)
 
-                if timed_out or output_limited:
-                    break
-                if process.poll() is not None and not stream_open:
-                    break
+                try:
+                    while stream_open:
+                        remaining_time = deadline - time.monotonic()
+                        if remaining_time <= 0:
+                            timed_out = True
+                            break
+
+                        try:
+                            events = selector.select(min(0.1, remaining_time))
+                        except OSError:
+                            break
+
+                        for key, _ in events:
+                            try:
+                                chunk = os.read(key.fd, 65_536)
+                            except BlockingIOError:
+                                continue
+                            except OSError:
+                                stream_open = False
+                                break
+
+                            if not chunk:
+                                selector.unregister(key.fileobj)
+                                stream_open = False
+                                break
+
+                            accepted_bytes = self._accept_chunk(
+                                chunk, log, output_tail, output_bytes
+                            )
+                            if accepted_bytes is None:
+                                output_limited = True
+                                break
+                            output_bytes = accepted_bytes
+
+                        if timed_out or output_limited:
+                            break
+                        if process.poll() is not None and not stream_open:
+                            break
+                finally:
+                    selector.close()
 
         if timed_out or output_limited:
             self.terminate(process)
@@ -175,7 +257,12 @@ class BoundedProcessRunner:
             except subprocess.TimeoutExpired:
                 timed_out = True
                 self.terminate(process)
-        selector.close()
+
+        if reader is not None:
+            # The reader owns blocking reads on stdout; after termination it
+            # observes the closed pipe. Never close the handle underneath it.
+            reader.join(2.0)
+
         if process.stdout is not None:
             process.stdout.close()
 
@@ -193,6 +280,28 @@ class BoundedProcessRunner:
             f"output_limited={result.output_limited}\n",
         )
         return result
+
+    def _accept_chunk(
+        self,
+        chunk: bytes,
+        log: IO[bytes],
+        output_tail: bytearray,
+        output_bytes: int,
+    ) -> int | None:
+        """Write one chunk within the byte budget shared by both platforms.
+
+        Returns the updated accepted-byte count, or None when the output
+        limit was reached (before or partway through this chunk).
+        """
+        remaining_bytes = self.max_output_bytes - output_bytes
+        if remaining_bytes <= 0:
+            return None
+        accepted = chunk[:remaining_bytes]
+        log.write(accepted)
+        output_tail.extend(accepted)
+        if len(accepted) != len(chunk):
+            return None
+        return output_bytes + len(accepted)
 
     @staticmethod
     def terminate(process: subprocess.Popen[bytes]) -> None:

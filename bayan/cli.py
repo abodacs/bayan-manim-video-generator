@@ -1,12 +1,17 @@
+from __future__ import annotations
+
+import shutil
 from pathlib import Path
 from typing import Annotated
 
 import typer
 from dotenv import load_dotenv
 
-# الـ imports الخاصة بالمشروع بقت ورا بعضها مباشرة بدون فواصل تنفيذية
 from bayan.generator.llm_client import LLMClient
-from bayan.renderer.executor import RenderError, execute_manim_script
+from bayan.orchestrator import ManifestError, StageStatus, WorkflowOrchestrator
+from bayan.planner.service import run_planning_pipeline
+from bayan.renderer.executor import RenderError, render_scene_code
+from bayan.templates.catalogue import fixture_filename, get_template_catalogue
 
 app = typer.Typer(
     name="bayan",
@@ -14,12 +19,88 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
+template_app = typer.Typer(
+    help="Manage Arabic template catalogue.",
+    no_args_is_help=True,
+)
+app.add_typer(template_app, name="template")
+
+
+class TyperStageReporter:
+    """Render orchestrator progress events on the terminal."""
+
+    def stage_skipped(self, name: str) -> None:
+        typer.echo(f"Skipping completed stage: {name}")
+
+    def stage_started(self, name: str) -> None:
+        typer.echo(f"Executing stage: {name}...")
+
+    def stage_finished(self, name: str, status: str, error: str | None) -> None:
+        if status == "completed":
+            typer.secho(f"Stage '{name}': SUCCESS", fg=typer.colors.GREEN)
+        elif status == "stub":
+            typer.secho(f"Stage '{name}' (STUB): {error}", fg=typer.colors.YELLOW)
+        else:
+            typer.secho(f"Stage '{name}' FAILED: {error}", fg=typer.colors.RED)
+
+    def workflow_finished(self, status: StageStatus) -> None:
+        if status == "completed":
+            typer.secho("\nWorkflow completed successfully!", fg=typer.colors.GREEN, bold=True)
+        elif status == "stub":
+            typer.secho(
+                "\nWorkflow incomplete: some stages are not implemented yet (stubs). "
+                "See manifest.json and lesson_review_packet.md for details.",
+                fg=typer.colors.YELLOW,
+                bold=True,
+            )
+        else:
+            typer.secho(
+                "\nWorkflow failed. See manifest.json for the failing stage.",
+                fg=typer.colors.RED,
+                bold=True,
+            )
+
 
 @app.callback()
 def main() -> None:
     """Bayan CLI root command."""
-    # شحن متغيرات البيئة هنا لضمان تشغيلها مع أي أمر يتم استدعاؤه في الـ CLI
     load_dotenv()
+
+
+@template_app.command(name="list")
+def list_templates() -> None:
+    """List all available Arabic templates in the catalogue."""
+    catalogue = get_template_catalogue()
+    typer.echo(f"{'NAME':<28} {'ARABIC TITLE':<22} {'PURPOSE'}")
+    typer.echo("-" * 85)
+    for slug, meta in catalogue.items():
+        typer.echo(f"{slug:<28} {str(meta['arabic_title']):<22} {meta['purpose']}")
+
+
+@template_app.command(name="copy")
+def copy_template(
+    name: Annotated[str, typer.Argument(help="Name of the template to copy.")],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Target output directory."),
+    ],
+) -> None:
+    """Copy an approved template into a target directory."""
+    catalogue = get_template_catalogue()
+    if name not in catalogue:
+        typer.secho(f"Error: Unknown template '{name}'.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    source_file = Path(__file__).parent / "templates" / "fixtures" / fixture_filename(name)
+    target_file = output_dir / fixture_filename(name)
+
+    if not source_file.exists():
+        typer.secho(f"Error: Source file for template '{name}' not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    shutil.copy(source_file, target_file)
+    typer.secho(f"Copied template '{name}' to {target_file}", fg=typer.colors.GREEN)
 
 
 @app.command(name="render")
@@ -46,29 +127,25 @@ def render(
         typer.Option("--model", help="Custom model name to override environment variable."),
     ] = None,
 ) -> None:
-    """
-    Generates a Manim animation based on your educational prompt.
-    """
-    typer.echo(f"🚀 Initializing rendering pipeline for prompt: '{prompt}'")
+    """Generates a Manim animation based on your educational prompt."""
+    typer.echo(f"Initializing rendering pipeline for prompt: '{prompt}'")
 
     try:
-        # Pass configuration dynamically to follow the decoupled provider interface
         client = LLMClient(api_key=api_key, base_url=base_url, model=model)
     except Exception as e:
         typer.secho(f"Configuration Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e
 
-    typer.echo("🧠 Querying AI model for appropriate Manim code...")
+    typer.echo("Querying AI model for appropriate Manim code...")
     try:
         generated_code = client.generate_manim_code(prompt)
     except Exception as e:
         typer.secho(f"Generation Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e
 
-    typer.echo("🎬 Rendering video via local Manim engine (this may take a moment)...")
+    typer.echo("Rendering video in the isolated Manim worker (this may take a moment)...")
     try:
-        # Pass the output_path directly to eliminate race conditions
-        execute_manim_script(
+        render_scene_code(
             code_content=generated_code,
             output_path=output_path,
             scene_class_name="GeneratedScene",
@@ -84,9 +161,98 @@ def render(
         raise typer.Exit(code=1) from e
 
     typer.secho(
-        f"🎉 Success! Video successfully compiled and saved to: {output_path.resolve()}",
+        f"Success! Video successfully compiled and saved to: {output_path.resolve()}",
         fg=typer.colors.GREEN,
     )
+
+
+@app.command(name="plan")
+def plan(
+    input_path: Annotated[
+        Path,
+        typer.Option("--input", "-i", help="Path to input lesson JSON file."),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Target output directory for run files."),
+    ],
+    force: Annotated[
+        bool,
+        typer.Option("--force", "-f", help="Overwrite output directory if it exists."),
+    ] = False,
+) -> None:
+    """Turns a natural-language request into a typed Scene plan."""
+    try:
+        run_planning_pipeline(input_path=input_path, output_dir=output_dir, force=force)
+        typer.secho(
+            f"Scene plan generated successfully in: {output_dir.resolve()}",
+            fg=typer.colors.GREEN,
+        )
+    except FileNotFoundError as e:
+        typer.secho(f"Input File Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
+    except ValueError as e:  # json.JSONDecodeError is a ValueError subclass
+        typer.secho(f"JSON Parse / Validation Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
+    except FileExistsError as e:
+        typer.secho(f"Output Directory Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
+    except Exception as e:
+        typer.secho(f"Planning Error: {type(e).__name__}: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
+
+
+@app.command(name="run")
+def run(
+    input_path: Annotated[
+        Path,
+        typer.Option(
+            "--input",
+            "-i",
+            help="Path to the lesson input JSON file.",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+        ),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Path to the output run directory.",
+        ),
+    ],
+    provider: Annotated[
+        str,
+        typer.Option(
+            "--provider",
+            "-p",
+            help="LLM provider for planning.",
+        ),
+    ] = "fake",
+) -> None:
+    """Executes the complete Bayan educator workflow.
+
+    Exit codes: 0 when every implemented stage completed (not-yet-implemented
+    stub stages are reported as incomplete, not fatal); 1 when any stage
+    failed.
+    """
+    try:
+        orchestrator = WorkflowOrchestrator(
+            input_path=input_path, output_dir=output, provider=provider
+        )
+    except ManifestError as e:
+        typer.secho(f"Manifest Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
+    except ValueError as e:
+        typer.secho(f"Provider Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
+
+    success = orchestrator.run(reporter=TyperStageReporter())
+    if not success:
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
