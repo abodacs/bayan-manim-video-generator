@@ -12,7 +12,7 @@ dependencies = [
     "openai>=3.2.0",
     "python-dotenv>=1.2.2",
     "pydantic>=2.6",
-    "manim-physics>=0.2.4",
+    "manim-physics>=0.4.0",
     "pillow>=10",
 ]
 
