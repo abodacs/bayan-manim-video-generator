@@ -7,8 +7,19 @@ import pytest
 from typer.testing import CliRunner
 
 from bayan.cli import app
+from bayan.pipeline.runs import failure_category
 
 runner = CliRunner()
+
+# The spine's stage-to-record layout (bayan.pipeline.spine STAGES registry).
+STAGE_FILENAMES = {
+    "plan": "01-plan.json",
+    "profile": "02-profile.json",
+    "code": "03-code.json",
+    "gates": "04-gates.json",
+    "render": "05-render.json",
+    "critic": "06-critic.json",
+}
 
 
 def _write_record(run_dir: Path, name: str, record: dict) -> None:
@@ -33,10 +44,10 @@ def _fabricate_run(
     records_dir.mkdir(parents=True)
     created = "2026-09-06T12:00:00+00:00"
     record_defaults = {"created_at": created, "rerun_of": None}
-    for index, (stage, stage_status) in enumerate(stages.items(), start=1):
+    for stage, stage_status in stages.items():
         _write_record(
             run_dir,
-            f"{index:02d}-{stage}.json",
+            STAGE_FILENAMES[stage],
             {
                 "stage": stage,
                 "status": stage_status,
@@ -94,7 +105,7 @@ def two_runs(tmp_path: Path) -> tuple[Path, Path, Path]:
     )
     _write_record(
         failed,
-        "02-gates.json",
+        "04-gates.json",
         {
             "stage": "gates",
             "status": "failed",
@@ -153,6 +164,147 @@ def test_runs_show_of_failed_run_names_stage_and_repairs(two_runs):
     # The timeline reads the real record files, timestamps included.
     assert "2026-09-06T12:01:05" in result.output
     assert "the gates rejected the code" in result.output
+
+
+def test_runs_show_of_failed_run_names_failure_category(two_runs):
+    runs_root, _, failed = two_runs
+    _write_record(
+        failed,
+        "04-gates.json",
+        {
+            "stage": "gates",
+            "status": "failed",
+            "created_at": "2026-09-06T12:01:05+00:00",
+            "rerun_of": None,
+            "failure": "arabic (line 3): Arabic text must use ArabicText.",
+            "gates": [
+                {
+                    "gate": "syntax",
+                    "status": "passed",
+                    "line": None,
+                    "excerpt": "",
+                    "suggestion": "",
+                },
+                {
+                    "gate": "arabic",
+                    "status": "failed",
+                    "line": 3,
+                    "excerpt": 'Text("مرحبا بكم")',
+                    "suggestion": "Arabic text must use ArabicText.",
+                },
+            ],
+        },
+    )
+
+    result = runner.invoke(app, ["runs", "show", failed.name, "--runs-root", str(runs_root)])
+
+    assert result.exit_code == 0
+    assert "Failure category: arabic_layout" in result.output
+
+
+def test_failure_category_follows_the_named_stage(tmp_path: Path):
+    crashed = _fabricate_run(
+        tmp_path,
+        "20260906T1203Z-44444444",
+        status="failed",
+        stages={"plan": "completed", "render": "failed"},
+    )
+    _write_record(
+        crashed,
+        "05-render.json",
+        {
+            "stage": "render",
+            "status": "failed",
+            "created_at": "2026-09-06T12:03:05+00:00",
+            "rerun_of": None,
+            "failure": "the scene crashed inside the worker",
+        },
+    )
+    unconfigured = _fabricate_run(
+        tmp_path,
+        "20260906T1204Z-55555555",
+        status="failed",
+        stages={"plan": "failed"},
+    )
+    _write_record(
+        unconfigured,
+        "01-plan.json",
+        {
+            "stage": "planning",
+            "status": "failed",
+            "created_at": "2026-09-06T12:04:05+00:00",
+            "rerun_of": None,
+            "failure": "the provider call failed",
+        },
+    )
+    # The code stage failed once, was repaired, and the re-gated run
+    # exhausted repair at gates: the stale failed code record stays on
+    # disk while the summary names gates as the failing stage.
+    stale = _fabricate_run(
+        tmp_path,
+        "20260906T1205Z-66666666",
+        status="failed",
+        stages={"plan": "completed", "code": "repaired", "gates": "failed"},
+        repairs_used=2,
+    )
+    _write_record(
+        stale,
+        "03-code.json",
+        {
+            "stage": "coding",
+            "status": "failed",
+            "created_at": "2026-09-06T12:05:05+00:00",
+            "rerun_of": None,
+            "failure": "the coder produced invalid output",
+        },
+    )
+    _write_record(
+        stale,
+        "04-gates.json",
+        {
+            "stage": "gates",
+            "status": "failed",
+            "created_at": "2026-09-06T12:05:10+00:00",
+            "rerun_of": None,
+            "failure": "arabic (line 3): Arabic text must use ArabicText.",
+            "gates": [
+                {
+                    "gate": "arabic",
+                    "status": "failed",
+                    "line": 3,
+                    "excerpt": 'Text("مرحبا بكم")',
+                    "suggestion": "Arabic text must use ArabicText.",
+                }
+            ],
+        },
+    )
+    clean = _fabricate_run(
+        tmp_path,
+        "20260906T1206Z-77777777",
+        status="completed",
+        stages={"plan": "completed"},
+    )
+    _write_record(
+        clean,
+        "03-code.json",
+        {
+            "stage": "coding",
+            "status": "failed",
+            "created_at": "2026-09-06T12:06:05+00:00",
+            "rerun_of": None,
+            "failure": "repaired away",
+        },
+    )
+
+    assert failure_category(crashed, "render") == "render_crash"
+    assert failure_category(unconfigured, "plan") == "provider_error"
+    # The stale failed code record does not override the named stage.
+    assert failure_category(stale, "gates") == "arabic_layout"
+    # A completed run reports no category even with stale failed records.
+    assert failure_category(clean, "gates") is None
+    # Unknown stage names and missing run directories report no category.
+    assert failure_category(crashed, "nope") is None
+    assert failure_category(tmp_path / "missing", "gates") is None
 
 
 def test_runs_show_prints_rerun_lineage(two_runs, tmp_path: Path):
