@@ -6,13 +6,13 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "manim>=0.21.0",
-    "typer>=0.27.1",
+    "typer>=0.27.2",
     "arabic-reshaper>=3.0.1",
     "python-bidi>=0.6.11",
-    "openai>=3.2.0",
+    "openai>=3.8.0",
     "python-dotenv>=1.2.2",
     "pydantic>=2.6",
-    "manim-physics>=0.2.4",
+    "manim-physics>=0.4.0",
     "pillow>=12.3.0",
 ]
 
@@ -27,7 +27,7 @@ build-backend = "hatchling.build"
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
-    "ruff>=0.16.3",
+    "ruff>=0.16.6",
     "setuptools<85",
     "mypy>=2.3.1",
     "pre-commit>=4.6.2",
