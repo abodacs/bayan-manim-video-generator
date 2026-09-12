@@ -12,7 +12,9 @@ dependencies = [
     "openai>=3.8.0",
     "python-dotenv>=1.2.2",
     "pydantic>=2.6",
-    "manim-physics>=0.4.0",
+    # manim-physics 0.3.0/0.4.0 pin manim<0.19, incompatible with manim>=0.21;
+    # upstream (last release 2024-08) has not caught up. Nothing imports it yet.
+    "manim-physics>=0.2.4,<0.3",
     "pillow>=12.3.0",
 ]
 
