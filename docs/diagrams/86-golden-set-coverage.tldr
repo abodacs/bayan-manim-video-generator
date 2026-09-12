@@ -1,0 +1,86 @@
+{
+  "tldrawFileFormatVersion": 1,
+  "schema": {
+    "schemaVersion": 2,
+    "sequences": {
+      "com.tldraw.store": 4,
+      "com.tldraw.asset": 1,
+      "com.tldraw.shape.group": 0
+    }
+  },
+  "records": [
+    {
+      "id": "document:document",
+      "typeName": "document",
+      "name": "86: golden-set coverage map",
+      "meta": {},
+      "gridSize": 10
+    },
+    { "id": "page:page", "typeName": "page", "name": "Page 1", "index": "a1", "meta": {} },
+
+    { "id": "shape:title", "typeName": "shape", "type": "geo", "parentId": "page:page", "index": "a2",
+      "x": 40, "y": 20, "rotation": 0, "isLocked": false, "opacity": 1, "meta": {},
+      "props": { "geo": "rectangle", "w": 1060, "h": 46, "text": "#86 golden-set coverage — every unit now offers 2+ starred candidates (★), feeding ~20 unit-tagged prompts",
+        "size": "m", "font": "sans", "align": "middle", "verticalAlign": "middle",
+        "dash": "solid", "scale": 1, "color": "black", "fill": "none", "labelColor": "black", "url": "", "growY": 0 } },
+
+    { "id": "shape:u1", "typeName": "shape", "type": "geo", "parentId": "page:page", "index": "a3",
+      "x": 40, "y": 90, "rotation": 0, "isLocked": false, "opacity": 1, "meta": {},
+      "props": { "geo": "rectangle", "w": 250, "h": 70, "text": "U1 Numbers & divisibility — ★★★★",
+        "size": "s", "font": "sans", "align": "middle", "verticalAlign": "middle",
+        "dash": "solid", "scale": 1, "color": "blue", "fill": "semi", "labelColor": "black", "url": "", "growY": 0 } },
+    { "id": "shape:u2", "typeName": "shape", "type": "geo", "parentId": "page:page", "index": "a4",
+      "x": 310, "y": 90, "rotation": 0, "isLocked": false, "opacity": 1, "meta": {},
+      "props": { "geo": "rectangle", "w": 250, "h": 70, "text": "U2 Integers — ★★★",
+        "size": "s", "font": "sans", "align": "middle", "verticalAlign": "middle",
+        "dash": "solid", "scale": 1, "color": "blue", "fill": "semi", "labelColor": "black", "url": "", "growY": 0 } },
+    { "id": "shape:u3", "typeName": "shape", "type": "geo", "parentId": "page:page", "index": "a5",
+      "x": 580, "y": 90, "rotation": 0, "isLocked": false, "opacity": 1, "meta": {},
+      "props": { "geo": "rectangle", "w": 250, "h": 70, "text": "U3 Algebra — ★★",
+        "size": "s", "font": "sans", "align": "middle", "verticalAlign": "middle",
+        "dash": "solid", "scale": 1, "color": "blue", "fill": "semi", "labelColor": "black", "url": "", "growY": 0 } },
+    { "id": "shape:u4", "typeName": "shape", "type": "geo", "parentId": "page:page", "index": "a6",
+      "x": 850, "y": 90, "rotation": 0, "isLocked": false, "opacity": 1, "meta": {},
+      "props": { "geo": "rectangle", "w": 250, "h": 70, "text": "U4 Equations — ★★",
+        "size": "s", "font": "sans", "align": "middle", "verticalAlign": "middle",
+        "dash": "solid", "scale": 1, "color": "blue", "fill": "semi", "labelColor": "black", "url": "", "growY": 0 } },
+
+    { "id": "shape:u5", "typeName": "shape", "type": "geo", "parentId": "page:page", "index": "a7",
+      "x": 40, "y": 200, "rotation": 0, "isLocked": false, "opacity": 1, "meta": {},
+      "props": { "geo": "rectangle", "w": 250, "h": 70, "text": "U5 Fractions — ★★★",
+        "size": "s", "font": "sans", "align": "middle", "verticalAlign": "middle",
+        "dash": "solid", "scale": 1, "color": "violet", "fill": "semi", "labelColor": "black", "url": "", "growY": 0 } },
+    { "id": "shape:u6", "typeName": "shape", "type": "geo", "parentId": "page:page", "index": "a8",
+      "x": 310, "y": 200, "rotation": 0, "isLocked": false, "opacity": 1, "meta": {},
+      "props": { "geo": "rectangle", "w": 250, "h": 70, "text": "U6 Ratio & rate — ★★ (NEW: unit price)",
+        "size": "s", "font": "sans", "align": "middle", "verticalAlign": "middle",
+        "dash": "solid", "scale": 1, "color": "green", "fill": "semi", "labelColor": "black", "url": "", "growY": 0 } },
+    { "id": "shape:u7", "typeName": "shape", "type": "geo", "parentId": "page:page", "index": "a9",
+      "x": 580, "y": 200, "rotation": 0, "isLocked": false, "opacity": 1, "meta": {},
+      "props": { "geo": "rectangle", "w": 250, "h": 70, "text": "U7 Measurement & geometry — ★★★",
+        "size": "s", "font": "sans", "align": "middle", "verticalAlign": "middle",
+        "dash": "solid", "scale": 1, "color": "violet", "fill": "semi", "labelColor": "black", "url": "", "growY": 0 } },
+
+    { "id": "shape:ar1", "typeName": "shape", "type": "geo", "parentId": "page:page", "index": "a10",
+      "x": 140, "y": 276, "rotation": 0, "isLocked": false, "opacity": 1, "meta": {},
+      "props": { "geo": "arrow-down", "w": 50, "h": 56, "text": "", "size": "s", "font": "sans",
+        "align": "middle", "verticalAlign": "middle", "dash": "solid", "scale": 1,
+        "color": "grey", "fill": "none", "labelColor": "black", "url": "", "growY": 0 } },
+    { "id": "shape:ar2", "typeName": "shape", "type": "geo", "parentId": "page:page", "index": "a11",
+      "x": 410, "y": 276, "rotation": 0, "isLocked": false, "opacity": 1, "meta": {},
+      "props": { "geo": "arrow-down", "w": 50, "h": 56, "text": "", "size": "s", "font": "sans",
+        "align": "middle", "verticalAlign": "middle", "dash": "solid", "scale": 1,
+        "color": "green", "fill": "none", "labelColor": "black", "url": "", "growY": 0 } },
+    { "id": "shape:ar3", "typeName": "shape", "type": "geo", "parentId": "page:page", "index": "a12",
+      "x": 680, "y": 276, "rotation": 0, "isLocked": false, "opacity": 1, "meta": {},
+      "props": { "geo": "arrow-down", "w": 50, "h": 56, "text": "", "size": "s", "font": "sans",
+        "align": "middle", "verticalAlign": "middle", "dash": "solid", "scale": 1,
+        "color": "grey", "fill": "none", "labelColor": "black", "url": "", "growY": 0 } },
+
+    { "id": "shape:collector", "typeName": "shape", "type": "geo", "parentId": "page:page", "index": "a13",
+      "x": 40, "y": 340, "rotation": 0, "isLocked": false, "opacity": 1, "meta": {},
+      "props": { "geo": "rectangle", "w": 1060, "h": 60, "text": "tests/golden/prompts (#87) — 20 prompts, each tagged with its #86 unit",
+        "size": "s", "font": "sans", "align": "middle", "verticalAlign": "middle",
+        "dash": "solid", "scale": 1, "color": "green", "fill": "semi", "labelColor": "black", "url": "", "growY": 0 } }
+  ]
+}
