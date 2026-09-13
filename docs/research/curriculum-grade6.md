@@ -14,12 +14,14 @@ Each row is one lesson segment, sized for a single `bayan generate` call.
 Visual-concept notes are animation-shaped: they name what appears, moves,
 and transforms. Example numbers are lesson-prompt-ready and can be pasted
 into `bayan generate` as part of the Arabic prompt. Topics marked with a
-star (★) are golden-set candidates for #87; the goal is 2–3 per unit
-(19 starred topics total, aiming at the ~20-prompt golden set). Every
+star (★) are golden-set candidates for #87; the goal is 2+ per unit,
+typically 2–3 (Unit 1 carries four; 19 starred topics total, aiming at
+the ~20-prompt golden set). Every
 starred row carries the star in both name columns. The inventory holds
 21 topics — one over the epic's 15–20 planning range — because a
 single-topic Unit 6 cannot offer the 2–3 golden candidates the set
-needs; the split keeps each row sized for one `bayan generate` call. `beats` is the suggested beat count for the planner.
+needs; the split keeps each row sized for one `bayan generate` call.
+`beats` is the suggested beat count for the planner.
 The `difficulty` column is a hint for ordering the Term-1 set: how hard
 the current coder/gates/critic chain is expected to find the scene.
 
@@ -78,6 +80,10 @@ MSA), `egyptian` (Western digits, Egyptian dialect phrasing).
 |---|------------|------------|------|------|----------------|-----------------|-------|-------------|------------|
 | 17 | ★ مفهوم النسبة | ★ The concept of ratio | 2 | Ratio and rate | A basket of 3 blue balls and 2 red balls sorts into a 3:2 ratio strip; labels scale together | نسبة ٣ إلى ٢ | 3 | Western digits | medium |
 | 18 | ★ معدل وسعر المفرد | ★ Rate and unit price | 2 | Ratio and rate | Three price tags (12 pounds for 3 pens) collapse into one tag as two of the pens fade; the per-item price pulses | ثمن ٣ أقلام هو ١٢ جنيهاً؛ أوجد ثمن القلم الواحد | 3 | Western digits; pounds symbol stays Arabic prose | medium |
+
+"سعر المفرد" above is an understandable but unusual rendering of "unit
+price"; Egyptian textbooks more often use "سعر الوحدة" or "ثمن الوحدة".
+Flagged for the #89 teacher-review round rather than changed here.
 
 ### Unit 7 — Measurement and geometry
 
