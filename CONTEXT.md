@@ -39,6 +39,12 @@ _Avoid_: file, output
 
 ## Quality
 
+**Failure classification**:
+A typed record mapping one pipeline failure (preflight gate, critic check,
+container crash, or provider error) onto the repair taxonomy as
+{type, category, suggestion, scope}; owned by the failure taxonomy.
+_Avoid_: error message, exception, bug report
+
 **Validation result**:
 A recorded assessment of whether an artifact satisfies a defined linguistic,
 visual, mathematical, content, or safety check.

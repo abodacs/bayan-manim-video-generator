@@ -10,7 +10,7 @@ serves: the renderer's own errors stay in :mod:`bayan.renderer.errors`.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from bayan.pipeline.models import CheckResult
@@ -62,6 +62,33 @@ class FailureClassification:
     suggestion: str
     scope: str = "code"
     evidence: str = ""
+
+
+def classify_gate_evidence(gate_results: list[dict[str, Any]]) -> RepairCategory | None:
+    """Map a gates stage record's serialized gate results onto the taxonomy.
+
+    The dict-level twin of :func:`classify_gate_results`: stage records
+    keep their gate evidence as plain JSON, so readers of past runs
+    classify through this adapter instead of restating the mapping.
+    """
+    return _first_failed_category(gate_results, "gate", GATE_CATEGORIES)
+
+
+def classify_critic_evidence(check_results: list[dict[str, Any]]) -> RepairCategory | None:
+    """Map a critic stage record's serialized check results onto the taxonomy."""
+    return _first_failed_category(check_results, "check", CHECK_CATEGORIES)
+
+
+def _first_failed_category(
+    results: list[dict[str, Any]],
+    key: str,
+    mapping: dict[str, RepairCategory],
+) -> RepairCategory | None:
+    """The first failed result's category, or None when nothing failed."""
+    for result in results:
+        if result.get("status") == "failed":
+            return mapping.get(str(result.get(key) or ""), "unknown")
+    return None
 
 
 def classify_gate_results(gate_results: list[GateResult]) -> FailureClassification | None:

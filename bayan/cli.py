@@ -17,6 +17,7 @@ from bayan.pipeline.records import iter_stage_records, status_label
 from bayan.pipeline.rerun import RerunError, run_rerun
 from bayan.pipeline.runs import (
     RUN_ARTIFACTS,
+    failure_category,
     has_media,
     iter_run_dirs,
     load_run_summary,
@@ -140,6 +141,10 @@ def show_run(
     failed_stages = [name for name, status in stages.items() if status == "failed"]
     if failed_stages:
         typer.echo(f"Failing stage(s): {', '.join(failed_stages)}")
+        for stage in failed_stages:
+            category = failure_category(run_dir, stage)
+            if category:
+                typer.echo(f"Failure category ({stage}): {category}")
     if summary.get("failure"):
         typer.echo(f"Failure: {summary['failure']}")
 
