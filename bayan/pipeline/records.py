@@ -131,7 +131,9 @@ def iter_stage_records(run_dir: Path) -> Iterator[StageRecord]:
     for record_path in sorted(records_dir.glob("*.json")):
         try:
             data = json.loads(record_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, ValueError):
+            # ValueError covers json.JSONDecodeError and the
+            # UnicodeDecodeError of a corrupted (non-UTF-8) file alike.
             continue
         if not isinstance(data, dict):
             continue

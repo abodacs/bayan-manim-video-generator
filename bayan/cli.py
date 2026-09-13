@@ -144,7 +144,7 @@ def show_run(
         for stage in failed_stages:
             category = failure_category(run_dir, stage)
             if category:
-                typer.echo(f"Failure category: {category}")
+                typer.echo(f"Failure category ({stage}): {category}")
     if summary.get("failure"):
         typer.echo(f"Failure: {summary['failure']}")
 

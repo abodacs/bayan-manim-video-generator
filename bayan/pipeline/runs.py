@@ -59,7 +59,9 @@ def load_run_summary(run_dir: Path) -> dict[str, Any] | None:
         return None
     try:
         data = json.loads(summary_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
+        # ValueError covers json.JSONDecodeError and the UnicodeDecodeError
+        # of a corrupted (non-UTF-8) file alike.
         return None
     return data if isinstance(data, dict) else None
 
@@ -96,7 +98,9 @@ def _load_stage_record(record_path: Path) -> StageRecord | None:
     """Read one stage record by path, or None when missing or invalid."""
     try:
         data = json.loads(record_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
+        # ValueError covers json.JSONDecodeError and the UnicodeDecodeError
+        # of a corrupted (non-UTF-8) file alike.
         return None
     if not isinstance(data, dict):
         return None
@@ -107,7 +111,16 @@ def _load_stage_record(record_path: Path) -> StageRecord | None:
 
 
 def _record_category(record: StageRecord) -> RepairCategory:
-    """Map one failed stage record's typed evidence onto the taxonomy."""
+    """Map one failed stage record's typed evidence onto the taxonomy.
+
+    The read-model twin of ``GeneratePipeline._classify`` (bayan.pipeline.spine),
+    which classifies the same failures at run time from typed artifacts; a new
+    stage or evidence key must update both dispatches. One deliberate
+    deviation: the provider fallback requires a recorded provider attempt.
+    A failed record without one failed before any call (an empty prompt) or
+    belongs to a no-provider stage like profile, where "retry the provider"
+    would mislead.
+    """
     gates = _evidence_results(record, "gates")
     if gates:
         return classify_gate_evidence(gates) or "unknown"
@@ -116,7 +129,7 @@ def _record_category(record: StageRecord) -> RepairCategory:
         return classify_critic_evidence(checks) or "unknown"
     if record.stage == "render":
         return classify_render_failure(record.failure or "").category
-    if record.stage in ("planning", "coding", "profile"):
+    if record.attempts:
         return classify_provider_error(record.failure or "unknown").category
     return "unknown"
 
