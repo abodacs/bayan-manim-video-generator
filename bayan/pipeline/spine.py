@@ -485,7 +485,12 @@ class GeneratePipeline:
     def _classify(
         self, stage_name: str, context: RunContext, outcome: StageOutcome
     ) -> FailureClassification | None:
-        """Map the failed stage's typed results onto the failure taxonomy."""
+        """Map the failed stage's typed results onto the failure taxonomy.
+
+        Run-time twin of ``_record_category`` (bayan.pipeline.runs), which
+        reclassifies past runs from their serialized records; a new stage
+        or evidence kind must update both dispatches.
+        """
         if stage_name == "gates":
             return classify_gate_results(context.artifacts.gate_results)
         if stage_name == "critic":
